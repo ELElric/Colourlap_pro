@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ColorLab Pro - UI Design (No Sidebar Layout)</title>
+  <style>
+    :root {
+      --bg-app: #15171c;
+      --bg-topbar: #101216;
+      --bg-panel: #20232a;
+      --bg-panel-soft: #252933;
+      --bg-control: #2d323d;
+      --bg-control-hover: #373e4c;
+
+      --border: #353b47;
+      --border-soft: #2b303a;
+
+      --text-main: #f2f5f9;
+      --text-secondary: #aab2bf;
+      --text-muted: #737d8e;
+
+      --primary: #2f9ed8;
+      --primary-hover: #45afe8;
+      --primary-soft: rgba(47, 158, 216, 0.14);
+
+      --danger: #e55353;
+      --success: #3ddc84;
+      --warning: #f5a524;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+
+      --topbar-height: 54px;
+      --tabbar-height: 48px;
+      --statusbar-height: 30px;
+      --properties-width: 340px;
+
+      --ch-r: #ff4444;
+      --ch-g: #44ff44;
+      --ch-b: #4488ff;
+      --ch-rcf: #ff8888;
+      --ch-gcf: #88ff88;
+      --ch-bcf: #88aaff;
+      --ch-w: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg-app);
+      color: var(--text-main);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei UI", "PingFang SC", Arial, sans-serif;
+      font-size: 14px;
+    }
+
+    button, input, select { font: inherit; }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: var(--topbar-height) var(--tabbar-height) minmax(0, 1fr) var(--statusbar-height);
+    }
+
+    /* ================= Top Bar ================= */
+    .topbar {
+      height: var(--topbar-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: var(--bg-topbar);
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .brand-icon {
+      width: 30px; height: 30px;
+      border-radius: 9px;
+      background: radial-gradient(circle at 35% 32%, #80e1ff 0 14%, transparent 16%), linear-gradient(135deg, #2f9ed8, #705dff);
+      box-shadow: 0 0 16px rgba(47, 158, 216, 0.34);
+    }
+
+    .topbar-menu { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); font-size: 13px; }
+    .topbar-menu span { padding: 6px 10px; border-radius: var(--radius-sm); cursor: default; }
+    .topbar-menu span:hover { background: var(--bg-control); color: var(--text-main); }
+
+    .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      height: 32px; padding: 0 12px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--bg-panel);
+      color: var(--text-secondary); font-size: 13px;
+    }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px rgba(61, 220, 132, 0.5); }
+
+    /* ================= Tab Bar ================= */
+    .tabbar {
+      height: var(--tabbar-height);
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 0 20px; background: #14161b; border-bottom: 1px solid var(--border-soft);
+    }
+
+    .tabs { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; }
+
+    .tab {
+      height: 34px; display: inline-flex; align-items: center; padding: 0 14px;
+      border-radius: var(--radius-md); color: var(--text-secondary); cursor: pointer;
+      white-space: nowrap; user-select: none; transition: 0.15s;
+    }
+    .tab:hover { background: var(--bg-control); color: var(--text-main); }
+    .tab.active { background: var(--primary-soft); color: #d8f3ff; border: 1px solid rgba(47, 158, 216, 0.42); }
+
+    .tabbar-right { display: flex; align-items: center; gap: 8px; }
+
+    /* ================= Layout ================= */
+    .body {
+      position: relative; min-height: 0; overflow: hidden;
+      background: radial-gradient(circle at 15% 0%, rgba(47, 158, 216, 0.06), transparent 30%), var(--bg-app);
+    }
+
+    .workspace {
+      height: 100%; overflow: auto; padding: 22px 24px 30px;
+      transition: padding-right 0.2s ease;
+    }
+
+    .body.properties-open .workspace { padding-right: calc(var(--properties-width) + 24px); }
+
+    .properties {
+      position: absolute; top: 0; right: 0;
+      width: var(--properties-width); height: 100%;
+      padding: 16px; background: #14161b;
+      border-left: 1px solid var(--border-soft);
+      transform: translateX(100%); transition: transform 0.2s ease;
+      overflow: auto; z-index: 20; box-shadow: -16px 0 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .body.properties-open .properties { transform: translateX(0); }
+
+    /* ================= Common Components ================= */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+    .page-title h1 { margin: 0; font-size: 24px; line-height: 1.25; letter-spacing: -0.02em; }
+    .page-title p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
+    .page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+    .btn {
+      height: 34px; padding: 0 13px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg-control);
+      color: var(--text-main); cursor: pointer; white-space: nowrap; transition: 0.15s;
+    }
+    .btn:hover { background: var(--bg-control-hover); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: white; font-weight: 650; }
+    .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn.secondary { background: transparent; color: var(--text-secondary); }
+    .btn.secondary:hover { background: var(--bg-control); color: var(--text-main); }
+    .btn.danger { background: rgba(229, 83, 83, 0.12); border-color: rgba(229, 83, 83, 0.36); color: #ff9a9a; }
+    .btn.icon { width: 34px; padding: 0; display: inline-grid; place-items: center; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .grid { display: grid; gap: 16px; }
+    .grid.two { grid-template-columns: minmax(360px, 0.9fr) minmax(460px, 1.1fr); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.sidebar-main { grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); }
+
+    .card { min-width: 0; background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22); }
+    .card-header { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--border-soft); }
+    .card-title { font-size: 15px; font-weight: 700; }
+    .card-subtitle { margin-top: 3px; color: var(--text-muted); font-size: 12px; }
+    .card-body { padding: 16px; }
+    .card.compact .card-body { padding: 12px; }
+
+    .section-title { margin: 18px 0 10px; color: var(--text-main); font-size: 13px; font-weight: 700; }
+    .section-title:first-child { margin-top: 0; }
+
+    label { color: var(--text-secondary); font-size: 13px; }
+
+    input, select {
+      width: 100%; height: 34px; padding: 0 10px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--bg-control); color: var(--text-main); outline: none;
+    }
+    input:focus, select:focus { border-color: rgba(47, 158, 216, 0.72); box-shadow: 0 0 0 3px rgba(47, 158, 216, 0.12); }
+
+    .form-grid { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; }
+    .form-grid.two-col { grid-template-columns: 120px minmax(0, 1fr) 120px minmax(0, 1fr); }
+    .form-divider { grid-column: 1 / -1; height: 1px; background: var(--border-soft); margin: 8px 0; }
+
+    .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .toolbar-group { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); }
+    .toolbar-label { color: var(--text-muted); font-size: 12px; font-weight: 700; }
+
+    .chip { height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-control); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
+    .chip.active { background: var(--primary-soft); color: #ccefff; border-color: rgba(47, 158, 216, 0.45); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: #252a34; color: var(--text-secondary); }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); text-align: left; white-space: nowrap; }
+    tbody tr:hover { background: rgba(255,255,255,0.026); }
+    .table-wrap { border: 1px solid var(--border-soft); border-radius: var(--radius-md); overflow: auto; }
+
+    .badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--primary-soft); color: #bceaff; border: 1px solid rgba(47, 158, 216, 0.28); font-size: 12px; }
+    .badge.success { background: rgba(61, 220, 132, 0.12); color: #a9f4cb; border-color: rgba(61, 220, 132, 0.32); }
+    .badge.warning { background: rgba(245, 165, 36, 0.12); color: #ffd89a; border-color: rgba(245, 165, 36, 0.32); }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .metric { padding: 14px; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: rgba(255,255,255,0.025); }
+    .metric-label { color: var(--text-muted); font-size: 12px; }
+    .metric-value { margin-top: 8px; font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
+    .metric-unit { margin-left: 4px; color: var(--text-muted); font-size: 12px; font-weight: 500; }
+
+    /* ================= Chart Mock ================= */
+    .chart {
+      position: relative; height: 260px; border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      background: linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px), #191c22;
+      background-size: 48px 48px; overflow: hidden;
+    }
+    .chart.large { height: 360px; }
+    .chart.small { height: 150px; }
+
+    .chart::before { content: ""; position: absolute; left: 12%; right: 8%; bottom: 18%; height: 2px; background: #48505e; }
+    .chart::after { content: ""; position: absolute; left: 12%; top: 10%; bottom: 18%; width: 2px; background: #48505e; }
+
+    .chart-label { position: absolute; left: 16px; top: 12px; color: var(--text-muted); font-size: 12px; z-index: 2; }
+    .chart-legend { position: absolute; right: 12px; top: 12px; z-index: 2; display: flex; gap: 10px; color: var(--text-secondary); font-size: 12px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    .curve { position: absolute; left: 12%; right: 8%; top: 14%; bottom: 19%; }
+    .curve svg { width: 100%; height: 100%; overflow: visible; }
+
+    .cie {
+      position: relative; height: 360px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-soft);
+      background: radial-gradient(circle at 60% 40%, rgba(255, 80, 80, 0.36), transparent 20%), radial-gradient(circle at 42% 65%, rgba(40, 240, 140, 0.34), transparent 24%), radial-gradient(circle at 35% 36%, rgba(80, 150, 255, 0.34), transparent 22%), linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px), #181c22;
+      background-size: auto, auto, auto, 48px 48px, 48px 48px, auto; overflow: hidden;
+    }
+    .cie::before { content: "CIE Chromaticity"; position: absolute; left: 14px; top: 12px; color: var(--text-muted); font-size: 12px; }
+
+    .triangle { position: absolute; left: 28%; top: 21%; width: 44%; height: 48%; clip-path: polygon(50% 0%, 100% 100%, 0% 100%); background: rgba(255, 255, 255, 0.05); outline: 2px solid rgba(255, 255, 255, 0.72); }
+
+    .cie-point { position: absolute; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, -50%); background: white; box-shadow: 0 0 10px rgba(255,255,255,0.8); z-index: 4; }
+    .cie-point.red { left: 50%; top: 20%; background: #ff6666; }
+    .cie-point.green { left: 72%; top: 68%; background: #4dff9a; }
+    .cie-point.blue { left: 28%; top: 68%; background: #59a6ff; }
+    .cie-point.white { left: 50%; top: 52%; width: 12px; height: 12px; background: #ffffff; }
+
+    .xy-label { position: absolute; padding: 3px 6px; border-radius: 999px; background: rgba(0,0,0,0.35); color: var(--text-secondary); font-size: 11px; transform: translate(8px, -50%); }
+
+    .range-row { display: grid; grid-template-columns: 42px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .range-row strong { color: var(--text-secondary); font-size: 13px; }
+
+    .empty-state { min-height: 150px; display: grid; place-items: center; text-align: center; padding: 18px; border: 1px dashed var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,0.015); color: var(--text-muted); }
+    .empty-state strong { display: block; margin-bottom: 6px; color: var(--text-secondary); }
+
+    /* ================= Spectrum Selector ================= */
+    .spectrum-selector { display: flex; align-items: center; gap: 6px; }
+    .spectrum-selector .ch-label { width: 24px; text-align: center; font-weight: 700; font-size: 13px; }
+    .spectrum-selector select { flex: 1; }
+    .spectrum-selector .btn { flex-shrink: 0; }
+
+    /* ================= Thickness Control ================= */
+    .thickness-control { display: flex; align-items: center; gap: 4px; }
+    .thickness-control input[type="number"] { width: 70px; text-align: center; }
+    .thickness-control .btn { width: 34px; padding: 0; display: inline-grid; place-items: center; }
+    .thickness-control .step-label { color: var(--text-muted); font-size: 12px; }
+    .thickness-control .step-input { width: 50px; }
+
+    /* ================= Properties ================= */
+    .properties-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .properties-head h2 { margin: 0; font-size: 16px; }
+    .property-list { display: grid; gap: 10px; }
+    .property { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); font-size: 13px; }
+    .property strong { color: var(--text-main); font-weight: 650; }
+
+    /* ================= Status Bar ================= */
+    .statusbar {
+      height: var(--statusbar-height); display: flex; align-items: center;
+      justify-content: space-between; gap: 20px; padding: 0 14px;
+      background: var(--bg-topbar); border-top: 1px solid var(--border-soft);
+      color: var(--text-muted); font-size: 12px;
+    }
+    .status-left, .status-right { display: flex; align-items: center; gap: 16px; min-width: 0; white-space: nowrap; }
+
+    @media (max-width: 1280px) {
+      .grid.two, .grid.three, .grid.sidebar-main { grid-template-columns: 1fr; }
+      .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .body.properties-open .workspace { padding-right: 24px; }
+      .properties { width: min(var(--properties-width), 86vw); }
+    }
+
+    @media (max-width: 720px) {
+      .topbar-menu { display: none; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .form-grid, .form-grid.two-col { grid-template-columns: 1fr; }
+      .page-header { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon"></div>
+        <div>ColorLab Pro</div>
+      </div>
+      <nav class="topbar-menu">
+        <span>File</span>
+        <span>Edit</span>
+        <span>View</span>
+        <span>Tools</span>
+        <span>Help</span>
+      </nav>
+      <div class="topbar-actions">
+        <button class="btn secondary">Settings</button>
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          Ready
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Bar -->
+    <nav class="tabbar">
+      <div class="tabs">
+        <div class="tab active" data-page="library">Spectrum Library</div>
+        <div class="tab" data-page="gamut">Gamut Calculator</div>
+        <div class="tab" data-page="whitepoint">White Point</div>
+        <div class="tab" data-page="optimizer">Thickness Optimizer</div>
+      </div>
+      <div class="tabbar-right">
+        <button class="btn secondary">Export Report</button>
+        <button class="btn" id="toggleProperties">Show Properties</button>
+      </div>
+    </nav>
+
+    <!-- Body -->
+    <main class="body" id="body">
+      <section class="workspace">
+
+        <!-- ========== Spectrum Library ========== -->
+        <section class="page active" id="page-library">
+          <div class="page-header">
+            <div class="page-title">
+              <h1>Spectrum Library</h1>
+              <p>Import, manage, and preview spectral data. No sidebar = more workspace.</p>
+            </div>
+            <div class="page-actions">
+              <select style="max-width:120px; height:34px;">
+                <option>LED</option><option>CF</option><option>QD</option><option>BW</option>
+              </select>
+              <button class="btn secondary">Import Excel</button>
+              <button class="btn secondary">Import CSV</button>
+              <button class="btn primary">Paste Spectrum</button>
+            </div>
+          </div>
+
+          <div class="grid two">
+            <!-- Left: Table -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Spectrum Table</div>
+                  <div class="card-subtitle">Click row to preview; Ctrl/Shift for multi-select</div>
+                </div>
+                <button class="btn danger" disabled>Delete</button>
+              </div>
+              <div class="card-body">
+                <div class="toolbar" style="margin-bottom: 12px;">
+                  <input style="max-width: 320px;" placeholder="Search by name or channel..." />
+                  <button class="btn secondary">Export</button>
+                </div>
+
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Name</th><th>Channel</th><th>Category</th><th>Range</th><th>Points</th><th>Peak</th><th>FWHM</th><th>Source</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr style="background:var(--primary-soft)"><td>Red OLED Emission</td><td>R</td><td>LED</td><td>380-780nm</td><td>401</td><td>628nm</td><td>24nm</td><td>import</td></tr>
+                      <tr><td>Green OLED Emission</td><td>G</td><td>LED</td><td>380-780nm</td><td>401</td><td>525nm</td><td>35nm</td><td>import</td></tr>
+                      <tr><td>Blue OLED Emission</td><td>B</td><td>LED</td><td>380-780nm</td><td>401</td><td>450nm</td><td>20nm</td><td>import</td></tr>
+                      <tr><td>RCF Transmittance</td><td>R</td><td>CF</td><td>380-780nm</td><td>82</td><td>610nm</td><td>--</td><td>import</td></tr>
+                      <tr><td>GCF Transmittance</td><td>G</td><td>CF</td><td>380-780nm</td><td>82</td><td>535nm</td><td>--</td><td>import</td></tr>
+                      <tr><td>BCF Transmittance</td><td>B</td><td>CF</td><td>380-780nm</td><td>82</td><td>460nm</td><td>--</td><td>import</td></tr>
+                      <tr><td>White LED Spectrum</td><td>W</td><td>LED</td><td>380-780nm</td><td>401</td><td>--</td><td>--</td><td>paste</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="toolbar" style="margin-top: 14px;">
+                  <button class="btn secondary">Normalize</button>
+                  <button class="btn secondary">Interpolate</button>
+                  <button class="btn secondary">Fill Gap</button>
+                  <button class="btn secondary">Set Channel</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Preview -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Spectrum Preview</div>
+                  <div class="card-subtitle">Preview / Normalized / Compare tabs</div>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="chart large">
+                  <div class="chart-label">Intensity / Wavelength (nm)</div>
+                  <div class="chart-legend">
+                    <span class="legend-item"><i class="legend-dot" style="background:var(--ch-r)"></i>R</span>
+                    <span class="legend-item"><i class="legend-dot" style="background:var(--ch-g)"></i>G</span>
+                    <span class="legend-item"><i class="legend-dot" style="background:var(--ch-b)"></i>B</span>
+                  </div>
+                  <div class="curve">
+                    <svg viewBox="0 0 600 240" preserveAspectRatio="none">
+                      <path d="M0,225 C110,215 150,32 210,58 C260,80 250,222 350,210 C430,198 470,160 600,176" fill="none" stroke="#ff5b5b" stroke-width="3" />
+                      <path d="M0,220 C80,195 130,85 180,78 C230,72 250,210 320,205 C400,198 440,60 490,80 C540,98 570,195 600,190" fill="none" stroke="#3ddc84" stroke-width="2.4" opacity="0.85" />
+                      <path d="M0,228 C60,200 100,40 150,55 C200,70 215,225 280,218 C350,210 420,185 600,178" fill="none" stroke="#4db6ff" stroke-width="2.4" opacity="0.85" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div class="metric-grid" style="margin-top: 14px;">
+                  <div class="metric">
+                    <div class="metric-label">XYZ</div>
+                    <div class="metric-value" style="font-size:14px;">41.2 / 23.1 / 5.8</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-label">xy</div>
+                    <div class="metric-value" style="font-size:14px;">0.582 / 0.326</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-label">u'v'</div>
+                    <div class="metric-value" style="font-size:14px;">0.351 / 0.452</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-label">CCT</div>
+                    <div class="metric-value">2850<span class="metric-unit">K</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== Gamut Calculator ========== -->
+        <section class="page" id="page-gamut">
+          <div class="page-header">
+            <div class="page-title">
+              <h1>Gamut Calculator</h1>
+              <p>Calculate coverage, chromaticity, and gamut area against standard specifications.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn secondary">Reset</button>
+            </div>
+          </div>
+
+          <!-- Mode Selection -->
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-body" style="padding: 10px 16px;">
+              <div class="toolbar" style="gap: 12px;">
+                <label>Mode:</label>
+                <select style="max-width:220px;"><option>RGB + Color Filter</option><option>White + Color Filter</option></select>
+                <div style="flex:1"></div>
+                <div class="toolbar-group">
+                  <span class="toolbar-label">Display</span>
+                  <button class="chip active">Original</button>
+                  <button class="chip active">Filtered</button>
+                  <button class="chip active">White Point</button>
+                  <button class="chip">Trajectory</button>
+                  <button class="chip active">Triangle</button>
+                </div>
+                <div class="toolbar-group">
+                  <span class="toolbar-label">Standards</span>
+                  <button class="chip">sRGB</button>
+                  <button class="chip active">NTSC</button>
+                  <button class="chip active">DCI-P3</button>
+                  <button class="chip active">BT.2020</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input Parameters: 3 columns -->
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-header">
+              <div><div class="card-title">Input Parameters</div></div>
+            </div>
+            <div class="card-body">
+              <div class="grid three" style="gap: 12px;">
+                <!-- Spectrum -->
+                <div>
+                  <div style="font-weight:700; margin-bottom:10px; font-size:13px;">Spectrum</div>
+                  <div class="spectrum-selector" style="margin-bottom:8px;">
+                    <span class="ch-label" style="color:var(--ch-r)">R</span>
+                    <select><option>Red OLED Emission</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                  <div class="spectrum-selector" style="margin-bottom:8px;">
+                    <span class="ch-label" style="color:var(--ch-g)">G</span>
+                    <select><option>Green OLED Emission</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                  <div class="spectrum-selector">
+                    <span class="ch-label" style="color:var(--ch-b)">B</span>
+                    <select><option>Blue OLED Emission</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                </div>
+                <!-- Color Filter -->
+                <div>
+                  <div style="font-weight:700; margin-bottom:10px; font-size:13px;">Color Filter</div>
+                  <div class="spectrum-selector" style="margin-bottom:8px;">
+                    <span class="ch-label" style="color:var(--ch-rcf)">R</span>
+                    <select><option>RCF Transmittance</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                  <div class="spectrum-selector" style="margin-bottom:8px;">
+                    <span class="ch-label" style="color:var(--ch-gcf)">G</span>
+                    <select><option>GCF Transmittance</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                  <div class="spectrum-selector">
+                    <span class="ch-label" style="color:var(--ch-bcf)">B</span>
+                    <select><option>BCF Transmittance</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                </div>
+                <!-- Thickness -->
+                <div>
+                  <div style="font-weight:700; margin-bottom:10px; font-size:13px;">Thickness (μm)</div>
+                  <div class="thickness-control" style="margin-bottom:8px;">
+                    <button class="btn icon secondary">−</button>
+                    <input type="number" value="2.20" step="0.01" />
+                    <button class="btn icon secondary">+</button>
+                    <span class="step-label">Step:</span>
+                    <input type="number" class="step-input" value="0.10" step="0.01" />
+                  </div>
+                  <div class="thickness-control" style="margin-bottom:8px;">
+                    <button class="btn icon secondary">−</button>
+                    <input type="number" value="2.20" step="0.01" />
+                    <button class="btn icon secondary">+</button>
+                    <span class="step-label">Step:</span>
+                    <input type="number" class="step-input" value="0.10" step="0.01" />
+                  </div>
+                  <div class="thickness-control">
+                    <button class="btn icon secondary">−</button>
+                    <input type="number" value="2.20" step="0.01" />
+                    <button class="btn icon secondary">+</button>
+                    <span class="step-label">Step:</span>
+                    <input type="number" class="step-input" value="0.10" step="0.01" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CIE Diagrams: 3 columns -->
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-header">
+              <div><div class="card-title">CIE Chromaticity Diagrams</div></div>
+            </div>
+            <div class="card-body">
+              <div class="grid three" style="gap: 12px;">
+                <!-- Chromaticity Data -->
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">Chromaticity Data</div></div>
+                  <div class="card-body" style="padding:8px;">
+                    <div class="table-wrap">
+                      <table>
+                        <thead><tr><th>Ch</th><th>x</th><th>y</th><th>u'</th><th>v'</th><th>X</th><th>Y</th><th>CCT</th></tr></thead>
+                        <tbody>
+                          <tr><td style="color:var(--ch-r);font-weight:700">R</td><td>0.681</td><td>0.318</td><td>0.451</td><td>0.474</td><td>41.2</td><td>23.1</td><td>--</td></tr>
+                          <tr><td style="color:var(--ch-g);font-weight:700">G</td><td>0.214</td><td>0.723</td><td>0.096</td><td>0.488</td><td>12.8</td><td>58.6</td><td>--</td></tr>
+                          <tr><td style="color:var(--ch-b);font-weight:700">B</td><td>0.146</td><td>0.057</td><td>0.183</td><td>0.160</td><td>5.8</td><td>2.3</td><td>--</td></tr>
+                          <tr style="background:rgba(255,255,255,0.03)"><td style="font-weight:700">W</td><td>0.312</td><td>0.329</td><td>0.197</td><td>0.468</td><td>59.8</td><td>84.0</td><td>6504K</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- CIE 1931 -->
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">CIE 1931 xy</div></div>
+                  <div class="card-body" style="padding:8px;">
+                    <div class="cie">
+                      <div class="triangle"></div>
+                      <div class="cie-point red"></div>
+                      <div class="cie-point green"></div>
+                      <div class="cie-point blue"></div>
+                      <div class="cie-point white"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- CIE 1976 -->
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">CIE 1976 u'v'</div></div>
+                  <div class="card-body" style="padding:8px;">
+                    <div class="cie">
+                      <div class="triangle" style="left:27%;top:28%;width:46%;height:42%;"></div>
+                      <div class="cie-point red" style="left:48%;top:29%;"></div>
+                      <div class="cie-point green" style="left:74%;top:68%;"></div>
+                      <div class="cie-point blue" style="left:26%;top:67%;"></div>
+                      <div class="cie-point white" style="left:51%;top:51%;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Spectrum Preview: 3 columns -->
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-header">
+              <div><div class="card-title">Spectrum Preview</div></div>
+            </div>
+            <div class="card-body">
+              <div class="grid three" style="gap: 12px;">
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">Filtered Spectrum</div></div>
+                  <div class="card-body">
+                    <div class="chart small">
+                      <div class="curve"><svg viewBox="0 0 600 240" preserveAspectRatio="none"><path d="M0,230 C90,220 150,50 210,60 C260,70 260,215 330,210 C400,205 430,70 490,90 C540,105 555,200 600,190" fill="none" stroke="#2f9ed8" stroke-width="3" /></svg></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">Original Spectrum</div></div>
+                  <div class="card-body">
+                    <div class="chart small">
+                      <div class="curve"><svg viewBox="0 0 600 240" preserveAspectRatio="none"><path d="M0,215 C60,185 110,72 160,82 C220,94 220,215 290,205 C350,196 380,82 440,92 C500,105 540,190 600,178" fill="none" stroke="#ff5b5b" stroke-width="2.4" /><path d="M0,226 C80,222 130,158 185,148 C240,136 265,222 330,216 C395,210 420,108 475,122 C530,138 560,205 600,203" fill="none" stroke="#3ddc84" stroke-width="2.4" /><path d="M0,224 C45,195 88,52 132,74 C180,98 195,220 270,214 C340,208 450,190 600,180" fill="none" stroke="#4db6ff" stroke-width="2.4" /></svg></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">Compare Mode</div></div>
+                  <div class="card-body">
+                    <div class="toolbar" style="margin-bottom:8px;">
+                      <button class="chip active" style="border-color:var(--ch-rcf);color:var(--ch-rcf)">RCF</button>
+                      <button class="chip active" style="border-color:var(--ch-gcf);color:var(--ch-gcf)">GCF</button>
+                      <button class="chip active" style="border-color:var(--ch-bcf);color:var(--ch-bcf)">BCF</button>
+                    </div>
+                    <div class="chart small">
+                      <div class="curve"><svg viewBox="0 0 600 240" preserveAspectRatio="none"><path d="M0,220 C80,210 140,55 200,65 C250,72 250,210 320,206 C390,202 420,68 480,82 C530,95 560,195 600,188" fill="none" stroke="#ff8888" stroke-width="2" /><path d="M0,225 C90,220 150,140 200,130 C250,120 260,220 330,215 C400,210 430,80 490,95 C540,108 570,200 600,195" fill="none" stroke="#88ff88" stroke-width="2" /><path d="M0,228 C70,200 110,45 155,58 C200,72 210,222 275,216 C340,210 440,188 600,178" fill="none" stroke="#88aaff" stroke-width="2" /></svg></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gamut Result -->
+          <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">Gamut Result</div><div class="card-subtitle">Coverage &amp; Match vs Standard Gamuts</div></div>
+            </div>
+            <div class="card-body">
+              <div class="metric-grid" style="grid-template-columns: repeat(3, minmax(0,1fr));">
+                <div class="metric"><div class="metric-label">NTSC Coverage</div><div class="metric-value">96.2<span class="metric-unit">%</span></div></div>
+                <div class="metric"><div class="metric-label">DCI-P3 Coverage</div><div class="metric-value">98.1<span class="metric-unit">%</span></div></div>
+                <div class="metric"><div class="metric-label">BT.2020 Coverage</div><div class="metric-value">84.6<span class="metric-unit">%</span></div></div>
+              </div>
+              <div class="table-wrap" style="margin-top: 14px;">
+                <table>
+                  <thead><tr><th>Standard</th><th>Coverage 1931 (%)</th><th>Match 1931 (%)</th><th>Coverage 1976 (%)</th><th>Match 1976 (%)</th></tr></thead>
+                  <tbody>
+                    <tr><td>NTSC</td><td>96.2</td><td>92.4</td><td>94.8</td><td>90.1</td></tr>
+                    <tr><td>DCI-P3</td><td>98.1</td><td>95.6</td><td>96.5</td><td>93.2</td></tr>
+                    <tr><td>BT.2020</td><td>84.6</td><td>80.3</td><td>82.1</td><td>78.5</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== White Point ========== -->
+        <section class="page" id="page-whitepoint">
+          <div class="page-header">
+            <div class="page-title">
+              <h1>White Point Calculator</h1>
+              <p>Forward/reverse calculation of white point from RGB coordinates and luminance ratios.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn secondary">Clear</button>
+              <button class="btn primary">Calculate</button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom: 16px;">
+            <div class="card-body" style="padding: 10px 16px;">
+              <div class="toolbar" style="gap: 12px;">
+                <button class="chip active">Forward Calculation</button>
+                <button class="chip">Reverse Calculation</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid sidebar-main">
+            <!-- Left: Input -->
+            <div class="grid">
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">RGB Coordinates</div><div class="card-subtitle">Input chromaticity coordinates for R, G, B</div></div><button class="btn secondary">Paste</button></div>
+                <div class="card-body">
+                  <div class="form-grid two-col">
+                    <label style="color:var(--ch-r);font-weight:700">R x</label><input value="0.6810" />
+                    <label style="color:var(--ch-r);font-weight:700">R y</label><input value="0.3180" />
+                    <label style="color:var(--ch-g);font-weight:700">G x</label><input value="0.2140" />
+                    <label style="color:var(--ch-g);font-weight:700">G y</label><input value="0.7230" />
+                    <label style="color:var(--ch-b);font-weight:700">B x</label><input value="0.1460" />
+                    <label style="color:var(--ch-b);font-weight:700">B y</label><input value="0.0570" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">RGB Ratios</div><div class="card-subtitle">Linked ratios (R+G+B = 1)</div></div></div>
+                <div class="card-body">
+                  <div class="form-grid two-col">
+                    <label>R Ratio</label><input value="0.298" />
+                    <label>G Ratio</label><input value="0.604" />
+                    <label>B Ratio</label><input value="0.098" />
+                  </div>
+                  <div style="margin-top:10px; text-align:right; color:var(--success); font-size:13px;">Sum: 1.000</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Result -->
+            <div class="grid">
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">White Point Result</div></div><span class="badge success">Calculated</span></div>
+                <div class="card-body">
+                  <div class="metric-grid">
+                    <div class="metric"><div class="metric-label">White x</div><div class="metric-value">0.3127</div></div>
+                    <div class="metric"><div class="metric-label">White y</div><div class="metric-value">0.3290</div></div>
+                    <div class="metric"><div class="metric-label">CCT</div><div class="metric-value">6504<span class="metric-unit">K</span></div></div>
+                    <div class="metric"><div class="metric-label">u'</div><div class="metric-value">0.1978</div></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid two">
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">CIE 1931 xy</div></div>
+                  <div class="card-body">
+                    <div class="cie">
+                      <div class="triangle"></div>
+                      <div class="cie-point red"></div>
+                      <div class="cie-point green"></div>
+                      <div class="cie-point blue"></div>
+                      <div class="cie-point white"></div>
+                      <div class="xy-label" style="left:50%;top:52%;">D65</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card compact">
+                  <div class="card-header"><div class="card-title">CIE 1976 u'v'</div></div>
+                  <div class="card-body">
+                    <div class="cie">
+                      <div class="triangle" style="left:27%;top:28%;width:46%;height:42%;"></div>
+                      <div class="cie-point red" style="left:48%;top:29%;"></div>
+                      <div class="cie-point green" style="left:74%;top:68%;"></div>
+                      <div class="cie-point blue" style="left:26%;top:67%;"></div>
+                      <div class="cie-point white" style="left:51%;top:51%;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">Gamut Analysis</div><div class="card-subtitle">Coverage based on calculated white point</div></div></div>
+                <div class="card-body">
+                  <div class="table-wrap">
+                    <table>
+                      <thead><tr><th>Standard</th><th>Coverage 1931 (%)</th><th>Match 1931 (%)</th><th>Coverage 1976 (%)</th><th>Match 1976 (%)</th></tr></thead>
+                      <tbody>
+                        <tr><td>NTSC</td><td>95.8</td><td>91.2</td><td>93.4</td><td>89.6</td></tr>
+                        <tr><td>DCI-P3</td><td>97.6</td><td>94.1</td><td>95.2</td><td>92.0</td></tr>
+                        <tr><td>BT.2020</td><td>83.9</td><td>79.5</td><td>81.4</td><td>77.8</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== Thickness Optimizer ========== -->
+        <section class="page" id="page-optimizer">
+          <div class="page-header">
+            <div class="page-title">
+              <h1>Thickness Optimizer</h1>
+              <p>Automatically find optimal CF thicknesses for best gamut coverage or white point accuracy.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn primary">Start Optimization</button>
+              <button class="btn secondary" disabled>Stop</button>
+            </div>
+          </div>
+
+          <div class="grid two">
+            <!-- Left: Input -->
+            <div class="grid">
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">Optimization Target</div></div></div>
+                <div class="card-body">
+                  <div class="form-grid">
+                    <label>Target</label>
+                    <select><option>Max Gamut Coverage</option><option>Target White Point</option><option>Target Coordinate</option></select>
+                    <button class="btn secondary">Preset</button>
+
+                    <label>Coordinate</label>
+                    <select><option>xy</option><option>u'v'</option></select>
+                    <button class="btn secondary">Set</button>
+
+                    <div class="form-divider"></div>
+
+                    <label>Spectrum R</label>
+                    <select><option>Red OLED Emission</option></select>
+                    <button class="btn secondary icon">📋</button>
+                    <label>Spectrum G</label>
+                    <select><option>Green OLED Emission</option></select>
+                    <button class="btn secondary icon">📋</button>
+                    <label>Spectrum B</label>
+                    <select><option>Blue OLED Emission</option></select>
+                    <button class="btn secondary icon">📋</button>
+
+                    <div class="form-divider"></div>
+
+                    <label>CF R</label>
+                    <select><option>RCF Transmittance</option></select>
+                    <button class="btn secondary icon">📋</button>
+                    <label>CF G</label>
+                    <select><option>GCF Transmittance</option></select>
+                    <button class="btn secondary icon">📋</button>
+                    <label>CF B</label>
+                    <select><option>BCF Transmittance</option></select>
+                    <button class="btn secondary icon">📋</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Range + Status -->
+            <div class="grid">
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">Thickness Range</div></div></div>
+                <div class="card-body">
+                  <div class="range-row"><strong>RCF</strong><input value="0.00" /><input value="5.00" /></div>
+                  <div class="range-row"><strong>GCF</strong><input value="0.00" /><input value="5.00" /></div>
+                  <div class="range-row"><strong>BCF</strong><input value="0.00" /><input value="5.00" /></div>
+                  <div class="toolbar" style="margin-top: 14px;">
+                    <button class="btn secondary">Apply to All</button>
+                    <button class="btn secondary">Reset Range</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header"><div><div class="card-title">Optimization Status</div></div></div>
+                <div class="card-body">
+                  <div class="empty-state">
+                    <div>
+                      <strong>No optimization running</strong>
+                      Click Start Optimization to begin searching for optimal thicknesses.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Result + Scan Curve -->
+          <div class="grid two" style="margin-top: 16px;">
+            <div class="card">
+              <div class="card-header"><div><div class="card-title">Optimization Result</div><div class="card-subtitle">Best thickness combination found</div></div></div>
+              <div class="card-body">
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>Parameter</th><th>Best Value</th><th>Unit</th></tr></thead>
+                    <tbody>
+                      <tr><td>RCF Thickness</td><td>2.84</td><td>μm</td></tr>
+                      <tr><td>GCF Thickness</td><td>3.12</td><td>μm</td></tr>
+                      <tr><td>BCF Thickness</td><td>1.96</td><td>μm</td></tr>
+                      <tr><td>BT.2020 Coverage</td><td>86.8</td><td>%</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><div><div class="card-title">Scan Curve</div><div class="card-subtitle">Objective function during thickness sweep</div></div></div>
+              <div class="card-body">
+                <div class="chart">
+                  <div class="chart-label">Coverage (%)</div>
+                  <div class="curve">
+                    <svg viewBox="0 0 600 240" preserveAspectRatio="none">
+                      <path d="M0,205 C70,180 95,120 140,145 C190,172 220,105 260,95 C320,82 345,120 390,75 C435,28 485,45 520,38 C560,30 580,34 600,28" fill="none" stroke="#3ddc84" stroke-width="3" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </section>
+
+      <!-- Properties Drawer -->
+      <aside class="properties" id="properties">
+        <div class="properties-head">
+          <h2>Properties</h2>
+          <button class="btn icon secondary" id="closeProperties">&times;</button>
+        </div>
+
+        <div class="card compact" style="margin-bottom: 14px;">
+          <div class="card-header"><div><div class="card-title">Selected Object</div><div class="card-subtitle">Red OLED Emission</div></div></div>
+          <div class="card-body">
+            <div class="chart small">
+              <div class="curve"><svg viewBox="0 0 600 240" preserveAspectRatio="none"><path d="M0,225 C110,215 150,32 210,58 C260,80 250,222 350,210 C430,198 470,160 600,176" fill="none" stroke="#ff5b5b" stroke-width="4" /></svg></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card compact" style="margin-bottom: 14px;">
+          <div class="card-header"><div><div class="card-title">Spectrum Info</div></div></div>
+          <div class="card-body">
+            <div class="property-list">
+              <div class="property"><span>Peak</span><strong>628 nm</strong></div>
+              <div class="property"><span>FWHM</span><strong>24 nm</strong></div>
+              <div class="property"><span>x</span><strong>0.681</strong></div>
+              <div class="property"><span>y</span><strong>0.318</strong></div>
+              <div class="property"><span>u'</span><strong>0.451</strong></div>
+              <div class="property"><span>v'</span><strong>0.474</strong></div>
+              <div class="property"><span>Points</span><strong>401</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card compact">
+          <div class="card-header"><div><div class="card-title">Quick Actions</div></div></div>
+          <div class="card-body">
+            <div class="grid" style="gap: 8px;">
+              <button class="btn secondary">Normalize</button>
+              <button class="btn secondary">Interpolate</button>
+              <button class="btn secondary">Set as R Channel</button>
+              <button class="btn danger">Delete Spectrum</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Status Bar -->
+    <footer class="statusbar">
+      <div class="status-left">
+        <span>Ready</span>
+        <span>Spectra: 7</span>
+        <span>Observer: 2 deg</span>
+        <span>Illuminant: D65</span>
+      </div>
+      <div class="status-right">
+        <span>Properties: Hidden</span>
+        <span>ColorLab Pro v1.1</span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const body = document.getElementById("body");
+    const toggleProperties = document.getElementById("toggleProperties");
+    const closeProperties = document.getElementById("closeProperties");
+
+    function setPropertiesOpen(open) {
+      body.classList.toggle("properties-open", open);
+      toggleProperties.textContent = open ? "Hide Properties" : "Show Properties";
+    }
+
+    toggleProperties.addEventListener("click", () => {
+      setPropertiesOpen(!body.classList.contains("properties-open"));
+    });
+
+    closeProperties.addEventListener("click", () => {
+      setPropertiesOpen(false);
+    });
+
+    function activatePage(page) {
+      document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
+      document.querySelector("#page-" + page)?.classList.add("active");
+      document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.page === page));
+    }
+
+    document.querySelectorAll(".tab[data-page]").forEach(tab => {
+      tab.addEventListener("click", () => activatePage(tab.dataset.page));
+    });
+
+    document.querySelectorAll(".chip").forEach(chip => {
+      chip.addEventListener("click", () => chip.classList.toggle("active"));
+    });
+  </script>
+</body>
+</html>

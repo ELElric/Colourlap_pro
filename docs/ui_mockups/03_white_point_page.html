@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>White Point Page - UI Specification</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+  h1 { color: #4fc3f7; margin-bottom: 4px; font-size: 18px; }
+  h2 { color: #4fc3f7; margin: 16px 0 8px; font-size: 15px; border-bottom: 1px solid #444; padding-bottom: 4px; }
+  h3 { color: #81d4fa; margin: 12px 0 6px; font-size: 13px; }
+  .subtitle { color: #999; margin-bottom: 12px; font-size: 12px; }
+  .spec { background: #252526; border: 1px solid #444; border-radius: 4px; padding: 12px; margin: 8px 0; }
+  .spec-title { color: #4fc3f7; font-weight: bold; margin-bottom: 6px; }
+  .prop { margin: 2px 0; }
+  .prop-key { color: #9cdcfe; }
+  .prop-val { color: #ce9178; }
+  .layout-tree { font-family: 'Consolas', monospace; background: #1a1a2e; padding: 10px; border-radius: 4px; white-space: pre; font-size: 12px; line-height: 1.5; overflow-x: auto; }
+  .layout-tree .class { color: #4ec9b0; }
+  .layout-tree .name { color: #dcdcaa; }
+  .layout-tree .param { color: #ce9178; }
+  table.props { width: 100%; border-collapse: collapse; margin: 6px 0; }
+  table.props th { background: #333; color: #4fc3f7; text-align: left; padding: 4px 8px; font-size: 12px; }
+  table.props td { padding: 4px 8px; border-bottom: 1px solid #333; font-size: 12px; }
+  table.props td:first-child { color: #9cdcfe; font-family: Consolas, monospace; }
+  .mock { background: #2d2d2d; border: 1px solid #555; border-radius: 6px; padding: 12px; margin: 8px 0; }
+  .mock-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .mock-btn { background: #3c3c3c; border: 1px solid #555; color: #e0e0e0; padding: 4px 12px; border-radius: 3px; font-size: 12px; }
+  .mock-label { color: #e0e0e0; font-size: 12px; }
+  .mock-combo { background: #3c3c3c; border: 1px solid #555; color: #e0e0e0; padding: 3px 8px; border-radius: 3px; font-size: 12px; }
+  .mock-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+  .mock-table th { background: #333; color: #4fc3f7; padding: 4px 6px; text-align: center; }
+  .mock-table td { padding: 4px 6px; border-bottom: 1px solid #444; text-align: center; }
+  .mock-table td.editable { background: #2a2a3e; color: #e0e0e0; }
+  .mock-table td.disabled { background: #252525; color: #666; }
+  .mock-group { border: 1px solid #444; border-radius: 4px; padding: 8px; margin: 4px 0; }
+  .mock-group-title { color: #4fc3f7; font-weight: bold; font-size: 12px; margin-bottom: 6px; }
+  .mock-chart { background: #1a1a1a; border: 1px solid #444; border-radius: 4px; height: 200px; display: flex; align-items: center; justify-content: center; color: #666; }
+  .mock-checkbox { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; margin-right: 8px; }
+  .mock-checkbox input { accent-color: #0078d4; }
+  .mock-radio { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; margin-right: 12px; }
+  .mock-radio input { accent-color: #0078d4; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .r-color { color: #FF4444; font-weight: bold; }
+  .g-color { color: #44FF44; font-weight: bold; }
+  .b-color { color: #4488FF; font-weight: bold; }
+  code { background: #1a1a2e; padding: 1px 4px; border-radius: 2px; font-family: Consolas, monospace; color: #dcdcaa; }
+</style>
+</head>
+<body>
+
+<h1>03 - White Point Page</h1>
+<p class="subtitle">white_point_page.py | Class: WhitePointPage(QWidget) | ~401 lines</p>
+<p class="subtitle">White point calculation page with two modes: Forward (RGB→White) and Reverse (White→RGB ratios).</p>
+
+<!-- ============================================================ -->
+<h2>1. Layout Hierarchy (Widget Tree)</h2>
+<!-- ============================================================ -->
+<div class="layout-tree"><span class="class">QVBoxLayout</span> <span class="name">outer_layout</span>
+├── <span class="class">QGroupBox</span>(<span class="param">"Mode Selection"</span>)
+│   └── <span class="class">QHBoxLayout</span>
+│       ├── <span class="class">QRadioButton</span> <span class="name">_forward_radio</span> <span class="comment">text="Forward Calculation", checked</span>
+│       ├── <span class="class">QRadioButton</span> <span class="name">_reverse_radio</span> <span class="comment">text="Reverse Calculation"</span>
+│       ├── <span class="class">QCheckBox</span> <span class="name">_gamut_checks["sRGB"]</span> <span class="comment">text="sRGB", checked</span>
+│       ├── <span class="class">QCheckBox</span> <span class="name">_gamut_checks["NTSC"]</span> <span class="comment">text="NTSC", checked</span>
+│       ├── <span class="class">QCheckBox</span> <span class="name">_gamut_checks["DCI-P3"]</span> <span class="comment">text="DCI-P3", checked</span>
+│       └── <span class="class">QCheckBox</span> <span class="name">_gamut_checks["BT2020"]</span> <span class="comment">text="BT2020", checked</span>
+│
+├── <span class="class">QSplitter</span>(H) <span class="name">row1_splitter</span>
+│   ├── <span class="class">QGroupBox</span>(<span class="param">"RGBW Input"</span>)
+│   │   └── <span class="class">QTableWidget</span>(4, 4) <span class="name">_table</span>
+│   │       Headers: ["Ch", "x", "y", "Ratio"]
+│   │       Rows: R, G, B, W
+│   │       Col 0: Fixed width 36 (labels only)
+│   │       Col 1-3: Stretch (editable or disabled based on mode)
+│   └── <span class="class">QGroupBox</span>(<span class="param">"Gamut Results"</span>)
+│       └── <span class="class">QTableWidget</span>(4, 5) <span class="name">_gamut_table</span>
+│           Headers: ["Standard", "Coverage 1931 (%)", "Match 1931 (%)", "Coverage 1976 (%)", "Match 1976 (%)"]
+│           Rows: sRGB, NTSC, DCI-P3, BT2020
+│           All cells: Read-only
+│
+└── <span class="class">QSplitter</span>(H) <span class="name">row2_splitter</span>
+    ├── <span class="class">CIECanvas</span>(mode=<span class="param">"xy"</span>) <span class="name">_cie_xy_canvas</span> <span class="comment">minHeight=280, ref_gamuts=[sRGB,NTSC,DCI-P3,BT2020]</span>
+    └── <span class="class">CIECanvas</span>(mode=<span class="param">"uv"</span>) <span class="name">_cie_uv_canvas</span> <span class="comment">minHeight=280, ref_gamuts=[sRGB,NTSC,DCI-P3,BT2020]</span></div>
+
+<!-- ============================================================ -->
+<h2>2. Visual Mockup</h2>
+<!-- ============================================================ -->
+<div class="mock">
+  <!-- Mode Selection -->
+  <div class="mock-group">
+    <div class="mock-group-title">Mode Selection</div>
+    <div class="mock-row">
+      <label class="mock-radio"><input type="radio" name="mode" checked> Forward Calculation</label>
+      <label class="mock-radio"><input type="radio" name="mode"> Reverse Calculation</label>
+      <span style="width:16px"></span>
+      <label class="mock-checkbox"><input type="checkbox" checked> sRGB</label>
+      <label class="mock-checkbox"><input type="checkbox" checked> NTSC</label>
+      <label class="mock-checkbox"><input type="checkbox" checked> DCI-P3</label>
+      <label class="mock-checkbox"><input type="checkbox" checked> BT2020</label>
+    </div>
+  </div>
+
+  <!-- Input + Results -->
+  <div class="grid-2" style="margin-top: 8px;">
+    <!-- Input Table -->
+    <div class="mock-group">
+      <div class="mock-group-title">RGBW Input</div>
+      <table class="mock-table">
+        <thead><tr><th style="width:36px;">Ch</th><th>x</th><th>y</th><th>Ratio</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="r-color">R</td>
+            <td class="editable"><input type="text" value="0.640" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+            <td class="editable"><input type="text" value="0.330" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+            <td class="editable"><input type="text" value="0.333" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+          </tr>
+          <tr>
+            <td class="g-color">G</td>
+            <td class="editable"><input type="text" value="0.300" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+            <td class="editable"><input type="text" value="0.600" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+            <td class="editable"><input type="text" value="0.333" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+          </tr>
+          <tr>
+            <td class="b-color">B</td>
+            <td class="editable"><input type="text" value="0.150" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+            <td class="editable"><input type="text" value="0.060" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+            <td class="editable"><input type="text" value="0.333" style="background:transparent;border:none;color:#e0e0e0;text-align:center;width:100%;"></td>
+          </tr>
+          <tr>
+            <td style="color:#fff; font-weight:bold;">W</td>
+            <td class="disabled">0.3127</td>
+            <td class="disabled">0.3290</td>
+            <td class="disabled">-</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="color: #666; font-size: 11px; margin-top: 4px;">* Greyed cells are computed/output in Forward mode</div>
+    </div>
+
+    <!-- Gamut Results -->
+    <div class="mock-group">
+      <div class="mock-group-title">Gamut Results</div>
+      <table class="mock-table">
+        <thead><tr><th>Standard</th><th>Cov 1931</th><th>Match 1931</th><th>Cov 1976</th><th>Match 1976</th></tr></thead>
+        <tbody>
+          <tr><td>sRGB</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+          <tr><td>NTSC</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+          <tr><td>DCI-P3</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+          <tr><td>BT2020</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CIE Diagrams -->
+  <div class="grid-2" style="margin-top: 8px;">
+    <div class="mock-group">
+      <div class="mock-chart" style="height:220px;">[ CIE 1931 xy Diagram ]</div>
+    </div>
+    <div class="mock-group">
+      <div class="mock-chart" style="height:220px;">[ CIE 1976 u'v' Diagram ]</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Table Input Behavior (Mode-Dependent)</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">_table Edit State by Mode</div>
+  <table class="props">
+    <tr><th>Cell</th><th>Forward Mode</th><th>Reverse Mode</th></tr>
+    <tr><td>R/G/B x</td><td>Editable (input)</td><td>Editable (input)</td></tr>
+    <tr><td>R/G/B y</td><td>Editable (input)</td><td>Editable (input)</td></tr>
+    <tr><td>R/G/B Ratio</td><td>Editable (input)</td><td>Disabled (output)</td></tr>
+    <tr><td>W x</td><td>Disabled (output)</td><td>Editable (input)</td></tr>
+    <tr><td>W y</td><td>Disabled (output)</td><td>Editable (input)</td></tr>
+    <tr><td>W Ratio</td><td>Disabled (always)</td><td>Disabled (always)</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>4. Table Specifications</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">_table (RGBW Input)</div>
+  <table class="props">
+    <tr><th>Property</th><th>Value</th></tr>
+    <tr><td>rowCount</td><td>4 (R, G, B, W)</td></tr>
+    <tr><td>columnCount</td><td>4</td></tr>
+    <tr><td>horizontalHeaderLabels</td><td>["Ch", "x", "y", "Ratio"]</td></tr>
+    <tr><td>Col 0 width</td><td>36px (Fixed)</td></tr>
+    <tr><td>Col 1-3</td><td>Stretch</td></tr>
+    <tr><td>verticalHeaderVisible</td><td>False</td></tr>
+    <tr><td>selectionBehavior</td><td>SelectItems</td></tr>
+  </table>
+
+  <div class="spec-title" style="margin-top:12px;">_gamut_table</div>
+  <table class="props">
+    <tr><th>Property</th><th>Value</th></tr>
+    <tr><td>rowCount</td><td>4 (sRGB, NTSC, DCI-P3, BT2020)</td></tr>
+    <tr><td>columnCount</td><td>5</td></tr>
+    <tr><td>horizontalHeaderLabels</td><td>["Standard", "Coverage 1931 (%)", "Match 1931 (%)", "Coverage 1976 (%)", "Match 1976 (%)"]</td></tr>
+    <tr><td>All cells</td><td>Read-only (ItemIsEnabled only)</td></tr>
+    <tr><td>verticalHeaderVisible</td><td>False</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Signal/Slot Connections</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Signal Wiring</div>
+  <table class="props">
+    <tr><th>Signal</th><th>Slot</th><th>Description</th></tr>
+    <tr><td>_forward_radio.toggled</td><td>_on_mode_changed</td><td>Toggle forward/reverse mode, update table edit states</td></tr>
+    <tr><td>_reverse_radio.toggled</td><td>_on_mode_changed</td><td>Toggle forward/reverse mode</td></tr>
+    <tr><td>_gamut_checks.*.stateChanged</td><td>_on_gamut_filter_changed</td><td>Recompute gamut results with selected standards</td></tr>
+    <tr><td>_table.cellChanged(row, col)</td><td>_on_input_changed</td><td>Recalculate white point or ratios based on mode</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>6. Computation Logic</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Forward Calculation</div>
+  <div style="font-family: Consolas; font-size: 12px; line-height: 1.6;">
+    Input: R/G/B x,y + R/G/B ratios (weights)<br>
+    White Point: <code>mix_xy(xy_list, weights=ratio_list)</code><br>
+    Gamut: Build triangle from R/G/B primaries, compute coverage/match against selected standards<br>
+    CIE: Plot R/G/B/W points, triangle, reference gamuts
+  </div>
+
+  <div class="spec-title" style="margin-top:12px;">Reverse Calculation</div>
+  <div style="font-family: Consolas; font-size: 12px; line-height: 1.6;">
+    Input: R/G/B x,y + Target White Point x,y<br>
+    Find ratios: <code>optimize_white_point(target_xy, primaries_xy)</code><br>
+    Result: R/G/B ratios that produce the target white point<br>
+    Gamut: Same as forward, using R/G/B primaries
+  </div>
+</div>
+
+</body>
+</html>

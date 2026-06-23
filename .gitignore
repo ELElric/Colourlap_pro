@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ruff
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (user-specific)
+data/user/
+
+# Generated files
+test_led_rgb.csv
+
+# Runtime / debug artifacts
+.coverage
+gui_err.log
+gui_error.log
+gui_out.log
+gui_output.log
+import_debug.log
+
+# Generated reports (kept locally under colorlab-*/, not for release)
+/colorlab-ui-logic-map/
+/colorlab-release-review/
+
+# Broken symlinks (cannot be deleted on Windows)
+ai_context/AI_HANDOVER_*.md
+ai_context/FIXES_SUMMARY.md

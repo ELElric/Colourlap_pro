@@ -1,0 +1,50 @@
+ColorLab Pro — Third-Party Notices
+==================================
+
+This product includes software developed by third parties under their own
+licenses. The following is a list of the major dependencies and their
+licenses. This list is provided for compliance purposes and does not grant
+any rights beyond those provided by the respective licenses.
+
+PySide6
+  License: LGPL-3.0 / GPL-3.0 (dual)
+  https://www.qt.io/licensing/
+
+numpy
+  License: BSD-3-Clause
+  https://numpy.org/
+
+scipy
+  License: BSD-3-Clause
+  https://scipy.org/
+
+colour-science
+  License: BSD-3-Clause
+  https://www.colour-science.org/
+
+SQLAlchemy
+  License: MIT
+  https://www.sqlalchemy.org/
+
+shapely
+  License: BSD-3-Clause
+  https://shapely.readthedocs.io/
+
+loguru
+  License: MIT
+  https://github.com/Delgan/loguru
+
+openpyxl
+  License: MIT
+  https://openpyxl.readthedocs.io/
+
+PyYAML
+  License: MIT
+  https://pyyaml.org/
+
+matplotlib
+  License: PSF-based (Matplotlib license)
+  https://matplotlib.org/
+
+For the full list of dependencies and their versions, see
+``requirements.lock``.

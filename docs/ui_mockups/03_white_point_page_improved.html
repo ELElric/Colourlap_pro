@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>White Point Page - Improved UI Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+
+  /* Page Header */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .page-title { color: #4fc3f7; font-size: 18px; font-weight: bold; }
+
+  /* Mode Selection Section */
+  .mode-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .mode-row { display: flex; align-items: center; gap: 20px; }
+  .mode-group { display: flex; align-items: center; gap: 12px; }
+  .mode-label { color: #999; font-size: 11px; }
+  .radio-group { display: flex; gap: 16px; }
+  .radio-label { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+  .radio-label input { accent-color: #0078d4; }
+
+  .divider { width: 1px; height: 24px; background: #444; }
+
+  .checkbox-group { display: flex; gap: 14px; }
+  .checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+  .checkbox-label input { accent-color: #0078d4; }
+
+  /* Preset Buttons */
+  .preset-section { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .preset-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; color: #e0e0e0; font-size: 11px; cursor: pointer; }
+  .preset-btn:hover { background: #4a4a4a; border-color: #4fc3f7; }
+  .preset-btn.active { background: #0078d4; border-color: #0078d4; color: white; }
+
+  /* Main Content Grid */
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  /* Input Table Section */
+  .input-section { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #444; }
+  .section-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
+
+  .input-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .input-table thead { position: sticky; top: 0; }
+  .input-table th { background: #1e1e1e; color: #4fc3f7; padding: 10px 12px; text-align: center; font-weight: normal; border-bottom: 2px solid #444; }
+  .input-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid #333; }
+
+  .channel-cell { font-weight: bold; width: 40px; }
+  .channel-r { color: #ff6666; }
+  .channel-g { color: #66ff66; }
+  .channel-b { color: #6666ff; }
+  .channel-w { color: #ffffff; font-size: 14px; }
+
+  .input-cell { background: #1e1e1e; }
+  .input-field { background: transparent; border: 1px solid #555; border-radius: 3px; padding: 6px 8px; color: #e0e0e0; font-size: 12px; width: 80px; text-align: center; font-family: 'Consolas', monospace; }
+  .input-field:focus { border-color: #4fc3f7; outline: none; }
+
+  .output-cell { background: #252526; }
+  .output-value { color: #b0b0b0; font-family: 'Consolas', monospace; font-size: 12px; }
+
+  .row-highlight { background: rgba(79, 195, 247, 0.05); }
+
+  /* Gamut Results Section */
+  .gamut-section { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+
+  .gamut-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .gamut-table th { background: #1e1e1e; color: #4fc3f7; padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid #444; }
+  .gamut-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #333; }
+  .gamut-value { font-family: 'Consolas', monospace; }
+  .gamut-high { color: #66bb6a; }
+  .gamut-medium { color: #ffd700; }
+  .gamut-low { color: #ff6666; }
+
+  /* CIE Diagrams Section */
+  .cie-section { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  .cie-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .cie-panel { border-right: 1px solid #444; }
+  .cie-panel:last-child { border-right: none; }
+  .cie-header { padding: 10px 12px; border-bottom: 1px solid #444; display: flex; align-items: center; justify-content: space-between; }
+  .cie-title { color: #81d4fa; font-size: 12px; font-weight: bold; }
+  .cie-chart { height: 280px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+
+  /* Quick Info Panel */
+  .quick-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .info-card { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; }
+  .info-label { color: #888; font-size: 11px; margin-bottom: 6px; }
+  .info-value { color: #e0e0e0; font-size: 18px; font-weight: 500; font-family: 'Consolas', monospace; }
+  .info-unit { color: #666; font-size: 11px; margin-left: 4px; }
+  .info-sub { color: #666; font-size: 10px; margin-top: 4px; }
+
+  /* Status Bar */
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #252526; border: 1px solid #444; border-radius: 6px; }
+  .status-left { color: #888; font-size: 11px; }
+  .status-right { display: flex; gap: 16px; }
+  .status-item { color: #666; font-size: 11px; }
+
+  /* Calculation Indicator */
+  .calc-indicator { display: inline-flex; align-items: center; gap: 6px; background: #264f78; color: #4fc3f7; padding: 4px 10px; border-radius: 4px; font-size: 11px; }
+  .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: #4fc3f7; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="page-title">⚪ White Point Calculator</div>
+  <div class="calc-indicator">
+    <span class="calc-dot"></span>
+    Auto-calculate
+  </div>
+</div>
+
+<!-- Mode Selection -->
+<div class="mode-section">
+  <div class="mode-row">
+    <div class="mode-group">
+      <span class="mode-label">Calculation Mode:</span>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="mode" checked>
+          Forward (RGB → White)
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="mode">
+          Reverse (White → RGB)
+        </label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="mode-group">
+      <span class="mode-label">Standards:</span>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input type="checkbox" checked> sRGB</label>
+        <label class="checkbox-label"><input type="checkbox" checked> NTSC</label>
+        <label class="checkbox-label"><input type="checkbox" checked> DCI-P3</label>
+        <label class="checkbox-label"><input type="checkbox" checked> BT2020</label>
+      </div>
+    </div>
+
+    <div class="preset-section">
+      <span class="mode-label">Presets:</span>
+      <button class="preset-btn active">D65</button>
+      <button class="preset-btn">D50</button>
+      <button class="preset-btn">Equal</button>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Info Cards -->
+<div class="quick-info">
+  <div class="info-card">
+    <div class="info-label">White Point (xy)</div>
+    <div class="info-value">0.3127, 0.3290</div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">White Point (u'v')</div>
+    <div class="info-value">0.1978, 0.4683</div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">CCT</div>
+    <div class="info-value">6504<span class="info-unit">K</span></div>
+    <div class="info-sub">Correlated Color Temperature</div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">Ratios (R:G:B)</div>
+    <div class="info-value">0.333 : 0.333 : 0.333</div>
+    <div class="info-sub">Equal power distribution</div>
+  </div>
+</div>
+
+<!-- Main Input & Results Grid -->
+<div class="main-grid">
+  <!-- RGBW Input Table -->
+  <div class="input-section">
+    <div class="section-header">
+      <div class="section-title">RGBW Input</div>
+      <div style="color: #666; font-size: 10px;">Forward Mode: Edit x,y,Ratio → Output W</div>
+    </div>
+    <table class="input-table">
+      <thead>
+        <tr>
+          <th style="width: 50px;">Ch</th>
+          <th>x</th>
+          <th>y</th>
+          <th>Ratio</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="channel-cell channel-r">R</td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.6400"></td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.3300"></td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.333"></td>
+        </tr>
+        <tr>
+          <td class="channel-cell channel-g">G</td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.3000"></td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.6000"></td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.333"></td>
+        </tr>
+        <tr>
+          <td class="channel-cell channel-b">B</td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.1500"></td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.0600"></td>
+          <td class="input-cell"><input type="text" class="input-field" value="0.333"></td>
+        </tr>
+        <tr class="row-highlight">
+          <td class="channel-cell channel-w">W</td>
+          <td class="output-cell"><span class="output-value">0.3127</span></td>
+          <td class="output-cell"><span class="output-value">0.3290</span></td>
+          <td class="output-cell"><span class="output-value" style="color: #666;">-</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Gamut Results -->
+  <div class="gamut-section">
+    <div class="section-header">
+      <div class="section-title">Gamut Results</div>
+    </div>
+    <table class="gamut-table">
+      <thead>
+        <tr>
+          <th>Standard</th>
+          <th>Cov 1931 (%)</th>
+          <th>Match 1931 (%)</th>
+          <th>Cov 1976 (%)</th>
+          <th>Match 1976 (%)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color: #888;">sRGB</td>
+          <td class="gamut-value gamut-high">132.5</td>
+          <td class="gamut-value gamut-high">99.1</td>
+          <td class="gamut-value gamut-high">128.3</td>
+          <td class="gamut-value gamut-high">98.7</td>
+        </tr>
+        <tr>
+          <td style="color: #888;">NTSC</td>
+          <td class="gamut-value gamut-high">98.2</td>
+          <td class="gamut-value gamut-medium">89.5</td>
+          <td class="gamut-value gamut-high">96.8</td>
+          <td class="gamut-value gamut-medium">88.2</td>
+        </tr>
+        <tr>
+          <td style="color: #888;">DCI-P3</td>
+          <td class="gamut-value gamut-high">118.6</td>
+          <td class="gamut-value gamut-high">97.8</td>
+          <td class="gamut-value gamut-high">115.2</td>
+          <td class="gamut-value gamut-high">96.5</td>
+        </tr>
+        <tr>
+          <td style="color: #888;">BT2020</td>
+          <td class="gamut-value gamut-medium">75.3</td>
+          <td class="gamut-value gamut-low">71.2</td>
+          <td class="gamut-value gamut-medium">73.8</td>
+          <td class="gamut-value gamut-low">69.8</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CIE Diagrams -->
+<div class="cie-section">
+  <div class="cie-grid">
+    <div class="cie-panel">
+      <div class="cie-header">
+        <div class="cie-title">CIE 1931 xy Chromaticity Diagram</div>
+        <div style="color: #666; font-size: 10px;">● R ● G ● B ● W</div>
+      </div>
+      <div class="cie-chart">
+        [ CIE 1931 xy Diagram: R/G/B Triangle + White Point + Reference Gamuts ]
+      </div>
+    </div>
+    <div class="cie-panel">
+      <div class="cie-header">
+        <div class="cie-title">CIE 1976 u'v' Chromaticity Diagram</div>
+        <div style="color: #666; font-size: 10px;">● R ● G ● B ● W</div>
+      </div>
+      <div class="cie-chart">
+        [ CIE 1976 u'v' Diagram: R/G/B Triangle + White Point + Reference Gamuts ]
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-left">✅ Calculated - Forward Mode</div>
+  <div class="status-right">
+    <span class="status-item">Primaries: sRGB standard</span>
+    <span class="status-item">White: D65 (6504K)</span>
+  </div>
+</div>
+
+</body>
+</html>

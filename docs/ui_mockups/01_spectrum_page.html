@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spectrum Page - UI Specification</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+  h1 { color: #4fc3f7; margin-bottom: 4px; font-size: 18px; }
+  h2 { color: #4fc3f7; margin: 16px 0 8px; font-size: 15px; border-bottom: 1px solid #444; padding-bottom: 4px; }
+  h3 { color: #81d4fa; margin: 12px 0 6px; font-size: 13px; }
+  .subtitle { color: #999; margin-bottom: 12px; font-size: 12px; }
+  .spec { background: #252526; border: 1px solid #444; border-radius: 4px; padding: 12px; margin: 8px 0; }
+  .spec-title { color: #4fc3f7; font-weight: bold; margin-bottom: 6px; }
+  .prop { margin: 2px 0; }
+  .prop-key { color: #9cdcfe; }
+  .prop-val { color: #ce9178; }
+  .comment { color: #6a9955; font-style: italic; }
+  .layout-tree { font-family: 'Consolas', monospace; background: #1a1a2e; padding: 10px; border-radius: 4px; white-space: pre; font-size: 12px; line-height: 1.5; overflow-x: auto; }
+  .layout-tree .class { color: #4ec9b0; }
+  .layout-tree .name { color: #dcdcaa; }
+  .layout-tree .param { color: #ce9178; }
+  table.props { width: 100%; border-collapse: collapse; margin: 6px 0; }
+  table.props th { background: #333; color: #4fc3f7; text-align: left; padding: 4px 8px; font-size: 12px; }
+  table.props td { padding: 4px 8px; border-bottom: 1px solid #333; font-size: 12px; }
+  table.props td:first-child { color: #9cdcfe; font-family: Consolas, monospace; }
+  .mock { background: #2d2d2d; border: 1px solid #555; border-radius: 6px; padding: 12px; margin: 8px 0; }
+  .mock-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .mock-btn { background: #3c3c3c; border: 1px solid #555; color: #e0e0e0; padding: 4px 12px; border-radius: 3px; font-size: 12px; }
+  .mock-label { color: #e0e0e0; font-size: 12px; }
+  .mock-combo { background: #3c3c3c; border: 1px solid #555; color: #e0e0e0; padding: 3px 8px; border-radius: 3px; font-size: 12px; }
+  .mock-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+  .mock-table th { background: #333; color: #4fc3f7; padding: 4px 6px; text-align: left; }
+  .mock-table td { padding: 4px 6px; border-bottom: 1px solid #444; }
+  .mock-splitter { display: flex; gap: 4px; }
+  .mock-splitter > div { flex: 1; border: 1px solid #555; border-radius: 4px; padding: 8px; min-height: 200px; }
+  .mock-tab { display: flex; gap: 0; border-bottom: 2px solid #0078d4; margin-bottom: 8px; }
+  .mock-tab span { padding: 4px 12px; color: #999; font-size: 12px; cursor: pointer; }
+  .mock-tab span.active { color: #fff; border-bottom: 2px solid #0078d4; margin-bottom: -2px; }
+  .mock-chart { background: #1a1a1a; border: 1px solid #444; border-radius: 4px; height: 200px; display: flex; align-items: center; justify-content: center; color: #666; }
+  .mock-checkbox { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .mock-checkbox input { accent-color: #0078d4; }
+  .highlight { background: #264f78; padding: 1px 4px; border-radius: 2px; }
+  code { background: #1a1a2e; padding: 1px 4px; border-radius: 2px; font-family: Consolas, monospace; color: #dcdcaa; }
+</style>
+</head>
+<body>
+
+<h1>01 - Spectrum Page</h1>
+<p class="subtitle">spectrum_page.py | Class: SpectrumPage(QWidget) | ~858 lines</p>
+<p class="subtitle">Workspace page for importing, viewing, and analyzing spectra. Supports drag-and-drop CSV/XLSX import, multi-select batch operations, and right-click context menu.</p>
+
+<!-- ============================================================ -->
+<h2>1. Layout Hierarchy (Widget Tree)</h2>
+<!-- ============================================================ -->
+<div class="layout-tree"><span class="class">QVBoxLayout</span> <span class="name">outer_layout</span>
+├── <span class="class">QHBoxLayout</span> <span class="name">toolbar</span>
+│   ├── <span class="class">QLabel</span>(<span class="param">"&lt;h3&gt;Spectra&lt;/h3&gt;"</span>)
+│   ├── <span class="class">QPushButton</span> <span class="name">_import_btn</span> <span class="comment">text="Import"</span>
+│   ├── <span class="class">QPushButton</span> <span class="name">_export_btn</span> <span class="comment">text="Export"</span>
+│   └── <span class="class">QPushButton</span> <span class="name">_delete_btn</span> <span class="comment">text="Delete", enabled=False</span>
+├── <span class="class">QHBoxLayout</span> <span class="name">status_bar</span>
+│   └── <span class="class">QLabel</span> <span class="name">_status_label</span> <span class="comment">text=""</span>
+└── <span class="class">QSplitter</span>(H) <span class="name">_splitter</span> <span class="comment">handleWidth=6</span>
+    ├── <span class="class">QWidget</span> <span class="comment">[Left Panel]</span>
+    │   └── <span class="class">QVBoxLayout</span>
+    │       └── <span class="class">QTableWidget</span> <span class="name">_table</span> <span class="comment">0 rows, 9 cols</span>
+    └── <span class="class">QWidget</span> <span class="comment">[Right Panel]</span>
+        └── <span class="class">QVBoxLayout</span>
+            ├── <span class="class">QTabWidget</span> <span class="name">_preview_tabs</span> <span class="comment">current=1</span>
+            │   ├── Tab "Original"
+            │   │   └── <span class="class">SpectrumChartWidget</span> <span class="name">_chart_original</span>
+            │   └── Tab "Normalized"
+            │       └── <span class="class">SpectrumChartWidget</span> <span class="name">_chart_normalized</span>
+            └── <span class="class">QGroupBox</span>(<span class="param">"Spectrum Info"</span>)
+                └── <span class="class">QVBoxLayout</span>
+                    ├── <span class="class">QWidget</span> <span class="name">_color_info_widget</span>
+                    │   └── <span class="class">QGridLayout</span>
+                    │       ├── <span class="class">QLabel</span>(<span class="param">"&lt;b&gt;xy:&lt;/b&gt;"</span>) + <span class="class">QLabel</span> <span class="name">_info_labels["xy"]</span> <span class="comment">text="-"</span>
+                    │       └── <span class="class">QLabel</span>(<span class="param">"&lt;b&gt;u'v':&lt;/b&gt;"</span>) + <span class="class">QLabel</span> <span class="name">_info_labels["u'v'"]</span> <span class="comment">text="-"</span>
+                    └── <span class="class">QWidget</span> <span class="name">_shape_info_widget</span>
+                        └── <span class="class">QGridLayout</span>
+                            ├── <span class="class">QLabel</span>(<span class="param">"&lt;b&gt;Peak:&lt;/b&gt;"</span>) + <span class="class">QLabel</span> <span class="name">_info_labels["Peak"]</span> <span class="comment">text="-"</span>
+                            ├── <span class="class">QLabel</span>(<span class="param">"&lt;b&gt;Dominant λ:&lt;/b&gt;"</span>) + <span class="class">QLabel</span> <span class="name">_info_labels["Dominant λ"]</span> <span class="comment">text="-"</span>
+                            ├── <span class="class">QLabel</span>(<span class="param">"&lt;b&gt;FWHM:&lt;/b&gt;"</span>) + <span class="class">QLabel</span> <span class="name">_info_labels["FWHM"]</span> <span class="comment">text="-"</span>
+                            └── <span class="class">QLabel</span>(<span class="param">"&lt;b&gt;Purity:&lt;/b&gt;"</span>) + <span class="class">QLabel</span> <span class="name">_info_labels["Purity"]</span> <span class="comment">text="-"</span></div>
+
+<!-- ============================================================ -->
+<h2>2. Visual Mockup</h2>
+<!-- ============================================================ -->
+<div class="mock">
+  <!-- Toolbar -->
+  <div class="mock-row" style="margin-bottom: 8px;">
+    <span class="mock-label" style="font-size: 16px; font-weight: bold;">Spectra</span>
+    <span style="flex:1"></span>
+    <button class="mock-btn">Import</button>
+    <button class="mock-btn">Export</button>
+    <button class="mock-btn" style="opacity:0.5">Delete</button>
+  </div>
+  <!-- Status -->
+  <div style="color: #999; font-size: 11px; margin-bottom: 8px;"></div>
+
+  <!-- Splitter -->
+  <div class="mock-splitter">
+    <!-- Left: Table -->
+    <div style="flex: 1.5;">
+      <table class="mock-table">
+        <thead>
+          <tr>
+            <th style="width:30px;">☐</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Channel</th>
+            <th>Peak</th>
+            <th>FWHM</th>
+            <th>Thickness</th>
+            <th>Source</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>☐</td><td>LED_R_630nm</td><td><select class="mock-combo"><option>LED</option></select></td><td><select class="mock-combo"><option>R</option></select></td><td>630</td><td>20</td><td>-</td><td>Import</td><td>2026-06-23</td></tr>
+          <tr><td>☐</td><td>CF_Red_1um</td><td><select class="mock-combo"><option>CF</option></select></td><td><select class="mock-combo"><option>R</option></select></td><td>-</td><td>-</td><td>1.0</td><td>Import</td><td>2026-06-23</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Right: Chart + Info -->
+    <div style="flex: 1;">
+      <div class="mock-tab">
+        <span>Original</span>
+        <span class="active">Normalized</span>
+      </div>
+      <div class="mock-chart">[ Spectrum Chart Area ]</div>
+
+      <div style="margin-top: 12px; border: 1px solid #444; border-radius: 4px; padding: 8px;">
+        <div style="color: #4fc3f7; font-weight: bold; margin-bottom: 6px;">Spectrum Info</div>
+        <div style="display: grid; grid-template-columns: auto auto; gap: 4px 16px; font-size: 12px;">
+          <b>xy:</b> <span>-</span>
+          <b>u'v':</b> <span>-</span>
+          <b>Peak:</b> <span>-</span>
+          <b>Dominant λ:</b> <span>-</span>
+          <b>FWHM:</b> <span>-</span>
+          <b>Purity:</b> <span>-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Table Widget Specification</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">_table (QTableWidget)</div>
+  <table class="props">
+    <tr><th>Property</th><th>Value</th></tr>
+    <tr><td>columnCount</td><td>9</td></tr>
+    <tr><td>horizontalHeaderLabels</td><td>["", "Name", "Category", "Channel", "Peak", "FWHM", "Thickness", "Source", "Created"]</td></tr>
+    <tr><td>selectionBehavior</td><td>SelectRows</td></tr>
+    <tr><td>selectionMode</td><td>ExtendedSelection</td></tr>
+    <tr><td>editTriggers</td><td>DoubleClicked</td></tr>
+    <tr><td>sortingEnabled</td><td>True</td></tr>
+    <tr><td>contextMenuPolicy</td><td>CustomContextMenu</td></tr>
+  </table>
+
+  <h3>Column Details</h3>
+  <table class="props">
+    <tr><th>Col</th><th>Header</th><th>Width</th><th>ResizeMode</th><th>Widget Type</th><th>Notes</th></tr>
+    <tr><td>0</td><td>""</td><td>30px</td><td>Fixed</td><td>QTableWidgetItem (checkbox)</td><td>ItemIsUserCheckable, stores spectrum ID in UserRole</td></tr>
+    <tr><td>1</td><td>"Name"</td><td>-</td><td>Stretch</td><td>QTableWidgetItem</td><td>Editable (DoubleClicked)</td></tr>
+    <tr><td>2</td><td>"Category"</td><td>-</td><td>ResizeToContents</td><td>QComboBox</td><td>Items: ["LED", "CF", "QD", "白光"]</td></tr>
+    <tr><td>3</td><td>"Channel"</td><td>-</td><td>ResizeToContents</td><td>QComboBox</td><td>Items from CHANNEL_OPTIONS (e.g., ["R","G","B","W"])</td></tr>
+    <tr><td>4</td><td>"Peak"</td><td>-</td><td>ResizeToContents</td><td>QTableWidgetItem</td><td>Read-only, peak_wavelength</td></tr>
+    <tr><td>5</td><td>"FWHM"</td><td>-</td><td>ResizeToContents</td><td>QTableWidgetItem</td><td>Read-only, fwhm (only for LED/QD)</td></tr>
+    <tr><td>6</td><td>"Thickness"</td><td>-</td><td>ResizeToContents</td><td>QTableWidgetItem</td><td>Read-only, thickness_um</td></tr>
+    <tr><td>7</td><td>"Source"</td><td>-</td><td>ResizeToContents</td><td>QTableWidgetItem</td><td>Read-only</td></tr>
+    <tr><td>8</td><td>"Created"</td><td>-</td><td>ResizeToContents</td><td>QTableWidgetItem</td><td>Read-only, created_at</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>4. Context Menu Actions</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Right-click context menu on _table</div>
+  <table class="props">
+    <tr><th>Action</th><th>Condition</th><th>Description</th></tr>
+    <tr><td>"Rename"</td><td>Single selection</td><td>Edit the Name cell of selected spectrum</td></tr>
+    <tr><td>"Duplicate"</td><td>Single selection</td><td>Copy selected spectrum with "(Copy)" suffix</td></tr>
+    <tr><td>"Export Selected"</td><td>1+ selected</td><td>Export checked spectra to CSV/XLSX</td></tr>
+    <tr><td>"Delete"</td><td>1+ selected</td><td>Confirm dialog then delete</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Drag and Drop Import</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Drag-and-Drop Support</div>
+  <div class="prop"><span class="prop-key">acceptDrops</span> = <span class="prop-val">True</span></div>
+  <div class="prop"><span class="prop-key">Accepted extensions</span> = <span class="prop-val">.csv, .xlsx, .txt</span></div>
+  <div class="prop"><span class="prop-key">Import dialog filter</span> = <span class="prop-val">"Spectrum Files (*.csv *.xlsx *.txt);;All Files (*)"</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2>6. Signal/Slot Connections</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Signal Wiring</div>
+  <table class="props">
+    <tr><th>Signal</th><th>Slot</th><th>Description</th></tr>
+    <tr><td>_import_btn.clicked</td><td>_on_import</td><td>Open file dialog for CSV/XLSX import</td></tr>
+    <tr><td>_export_btn.clicked</td><td>_on_export</td><td>Export selected spectra</td></tr>
+    <tr><td>_delete_btn.clicked</td><td>_on_delete</td><td>Delete selected spectra</td></tr>
+    <tr><td>_table.itemSelectionChanged</td><td>_on_selection_changed</td><td>Update preview chart and info labels</td></tr>
+    <tr><td>_table.customContextMenuRequested</td><td>_on_context_menu</td><td>Show right-click context menu</td></tr>
+    <tr><td>_table.cellChanged(row, col)</td><td>_on_cell_changed</td><td>Handle inline edit (Name) and combo changes</td></tr>
+    <tr><td>_preview_tabs.currentChanged</td><td>_on_tab_changed</td><td>Switch between Original/Normalized chart</td></tr>
+    <tr><td>dragEnterEvent</td><td>-</td><td>Accept if URL has .csv/.xlsx/.txt extension</td></tr>
+    <tr><td>dropEvent</td><td>_on_drop</td><td>Import dropped file(s)</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>7. Public API</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Public Methods</div>
+  <table class="props">
+    <tr><th>Method</th><th>Description</th></tr>
+    <tr><td>refresh_list()</td><td>Reload table from database, preserve selection</td></tr>
+    <tr><td>connect_auto_refresh(window)</td><td>Connect to MainWindow.page_about_to_show signal</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>8. Styling Notes</h2>
+<!-- ============================================================ -->
+<div class="spec">
+  <div class="spec-title">Dark Theme Styling</div>
+  <div class="prop">Background: <code>#1e1e1e</code></div>
+  <div class="prop">Widget background: <code>#2d2d2d</code></div>
+  <div class="prop">Text color: <code>#e0e0e0</code></div>
+  <div class="prop">Accent: <code>#4fc3f7</code> (headings, selected items)</div>
+  <div class="prop">Border: <code>#444</code></div>
+  <div class="prop">Chart background: <code>#1a1a1a</code></div>
+  <div class="prop">Table header: <code>#333</code></div>
+</div>
+
+</body>
+</html>

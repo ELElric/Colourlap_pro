@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gamut Calculator Page - Improved UI Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+
+  /* Page Header */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .page-title { color: #4fc3f7; font-size: 18px; font-weight: bold; }
+
+  /* Mode & Controls Bar */
+  .controls-bar { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .controls-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .controls-section { display: flex; align-items: center; gap: 8px; }
+  .section-label { color: #999; font-size: 11px; margin-right: 4px; }
+
+  .mode-select { background: #1e1e1e; border: 1px solid #555; border-radius: 4px; padding: 6px 12px; color: #e0e0e0; font-size: 12px; min-width: 180px; }
+
+  .checkbox-group { display: flex; align-items: center; gap: 12px; }
+  .checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+  .checkbox-label input { accent-color: #0078d4; }
+
+  .divider { width: 1px; height: 24px; background: #444; margin: 0 4px; }
+
+  /* Input Parameters Section */
+  .input-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .section-title { color: #4fc3f7; font-weight: bold; font-size: 13px; margin-bottom: 12px; }
+  .input-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  .input-panel { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; padding: 12px; }
+  .panel-label { color: #888; font-size: 11px; margin-bottom: 8px; font-weight: bold; }
+  .panel-label-spectrum { border-left: 3px solid #FF4444; padding-left: 8px; }
+  .panel-label-filter { border-left: 3px solid #88FF88; padding-left: 8px; }
+  .panel-label-thickness { border-left: 3px solid #8888FF; padding-left: 8px; }
+
+  .selector-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .channel-tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; min-width: 32px; text-align: center; }
+  .channel-r { background: #4a2020; color: #ff6666; }
+  .channel-g { background: #204a20; color: #66ff66; }
+  .channel-b { background: #20204a; color: #6666ff; }
+  .channel-rcf { background: #4a2020; color: #ff8888; }
+  .channel-gcf { background: #204a20; color: #88ff88; }
+  .channel-bcf { background: #20204a; color: #88aaff; }
+
+  .spectrum-select { background: #252526; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; flex: 1; min-width: 80px; }
+  .paste-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; color: #e0e0e0; font-size: 10px; cursor: pointer; }
+  .paste-btn:hover { background: #4a4a4a; }
+
+  .thickness-control { display: flex; align-items: center; gap: 4px; }
+  .spin-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 3px; width: 24px; height: 24px; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .spin-btn:hover { background: #4a4a4a; }
+  .spin-value { background: #252526; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; width: 60px; text-align: center; }
+  .step-label { color: #666; font-size: 10px; margin-left: 4px; }
+  .step-value { background: #252526; border: 1px solid #555; border-radius: 3px; padding: 2px 6px; color: #888; font-size: 10px; width: 40px; text-align: center; }
+
+  /* Main 3-Column Grid */
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+  .panel { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #444; }
+  .panel-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid #444; }
+  .tab { padding: 8px 14px; color: #888; cursor: pointer; font-size: 11px; border-bottom: 2px solid transparent; }
+  .tab.active { color: #fff; border-bottom-color: #0078d4; }
+  .tab:hover { color: #e0e0e0; }
+
+  /* Chart Area */
+  .chart-area { height: 240px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+
+  /* Gamut Results */
+  .gamut-section { padding: 12px; }
+  .gamut-subtitle { color: #81d4fa; font-size: 11px; font-weight: bold; margin: 8px 0 6px; }
+  .gamut-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px; }
+  .gamut-table th { background: #1e1e1e; color: #4fc3f7; padding: 6px 8px; text-align: center; font-weight: normal; }
+  .gamut-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #333; }
+  .gamut-value { color: #e0e0e0; font-family: 'Consolas', monospace; }
+  .gamut-high { color: #66bb6a; }
+  .gamut-medium { color: #ffd700; }
+  .gamut-low { color: #ff6666; }
+
+  /* Data Tables */
+  .data-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; }
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .data-title { color: #81d4fa; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .data-table th { background: #1e1e1e; color: #4fc3f7; padding: 6px 8px; text-align: center; font-weight: normal; }
+  .data-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #333; }
+  .data-value { color: #b0b0b0; font-family: 'Consolas', monospace; }
+
+  /* Status Bar */
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #252526; border: 1px solid #444; border-radius: 6px; margin-top: 12px; }
+  .status-left { color: #888; font-size: 11px; }
+  .status-right { display: flex; gap: 12px; }
+  .status-item { color: #666; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="page-title">🎨 Gamut Calculator</div>
+</div>
+
+<!-- Controls Bar (2 rows) -->
+<div class="controls-bar">
+  <!-- Row 1: Mode & Display Options -->
+  <div class="controls-row" style="margin-bottom: 10px;">
+    <div class="controls-section">
+      <span class="section-label">Mode:</span>
+      <select class="mode-select">
+        <option>RGB + Color Filter</option>
+        <option>White + Color Filter</option>
+      </select>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="controls-section">
+      <span class="section-label">Display:</span>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input type="checkbox" checked> Original</label>
+        <label class="checkbox-label"><input type="checkbox" checked> Filtered</label>
+        <label class="checkbox-label"><input type="checkbox" checked> White Point</label>
+        <label class="checkbox-label"><input type="checkbox" checked> Trajectory</label>
+        <label class="checkbox-label"><input type="checkbox" checked> Triangle</label>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Row 2: Reference Gamuts -->
+  <div class="controls-row">
+    <div class="controls-section">
+      <span class="section-label">Reference Gamuts:</span>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input type="checkbox"> sRGB</label>
+        <label class="checkbox-label"><input type="checkbox" checked> NTSC</label>
+        <label class="checkbox-label"><input type="checkbox" checked> DCI-P3</label>
+        <label class="checkbox-label"><input type="checkbox" checked> BT2020</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Input Parameters -->
+<div class="input-section">
+  <div class="section-title">Input Parameters</div>
+  <div class="input-grid">
+    <!-- Spectrum Panel -->
+    <div class="input-panel">
+      <div class="panel-label panel-label-spectrum">Spectrum</div>
+      <div class="selector-row">
+        <span class="channel-tag channel-r">R</span>
+        <select class="spectrum-select"><option>-- Select --</option><option>LED_R_630nm</option></select>
+        <button class="paste-btn">Paste</button>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-g">G</span>
+        <select class="spectrum-select"><option>-- Select --</option><option>LED_G_525nm</option></select>
+        <button class="paste-btn">Paste</button>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-b">B</span>
+        <select class="spectrum-select"><option>-- Select --</option><option>LED_B_450nm</option></select>
+        <button class="paste-btn">Paste</button>
+      </div>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="input-panel">
+      <div class="panel-label panel-label-filter">Color Filter</div>
+      <div class="selector-row">
+        <span class="channel-tag channel-rcf">RCF</span>
+        <select class="spectrum-select"><option>-- Select --</option><option>CF_Red_1um</option></select>
+        <button class="paste-btn">Paste</button>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-gcf">GCF</span>
+        <select class="spectrum-select"><option>-- Select --</option><option>CF_Green_1.5um</option></select>
+        <button class="paste-btn">Paste</button>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-bcf">BCF</span>
+        <select class="spectrum-select"><option>-- Select --</option><option>CF_Blue_2um</option></select>
+        <button class="paste-btn">Paste</button>
+      </div>
+    </div>
+
+    <!-- Thickness Panel -->
+    <div class="input-panel">
+      <div class="panel-label panel-label-thickness">Thickness (μm)</div>
+      <div class="selector-row">
+        <span class="channel-tag channel-rcf">RCF</span>
+        <div class="thickness-control">
+          <button class="spin-btn">-</button>
+          <input type="text" class="spin-value" value="1.00">
+          <button class="spin-btn">+</button>
+          <span class="step-label">Step:</span>
+          <input type="text" class="step-value" value="0.01">
+        </div>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-gcf">GCF</span>
+        <div class="thickness-control">
+          <button class="spin-btn">-</button>
+          <input type="text" class="spin-value" value="1.00">
+          <button class="spin-btn">+</button>
+          <span class="step-label">Step:</span>
+          <input type="text" class="step-value" value="0.01">
+        </div>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-bcf">BCF</span>
+        <div class="thickness-control">
+          <button class="spin-btn">-</button>
+          <input type="text" class="spin-value" value="1.00">
+          <button class="spin-btn">+</button>
+          <span class="step-label">Step:</span>
+          <input type="text" class="step-value" value="0.01">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main 3-Column Grid -->
+<div class="main-grid">
+  <!-- CIE Diagram -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">CIE Chromaticity Diagrams</div>
+    </div>
+    <div class="tabs">
+      <div class="tab active">CIE 1931 xy</div>
+      <div class="tab">CIE 1976 u'v'</div>
+    </div>
+    <div class="chart-area">[ CIE Diagram Canvas ]</div>
+  </div>
+
+  <!-- Spectrum Preview -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Spectrum Preview</div>
+    </div>
+    <div class="tabs">
+      <div class="tab active">Filtered</div>
+      <div class="tab">Original</div>
+      <div class="tab">Compare</div>
+    </div>
+    <div class="chart-area">[ Spectrum Chart ]</div>
+  </div>
+
+  <!-- Gamut Result -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Gamut Result</div>
+    </div>
+    <div class="gamut-section">
+      <div class="gamut-subtitle">CIE 1931 xy</div>
+      <table class="gamut-table">
+        <thead><tr><th>Standard</th><th>Coverage (%)</th><th>Match (%)</th></tr></thead>
+        <tbody>
+          <tr><td>sRGB</td><td class="gamut-high">128.5</td><td class="gamut-high">98.2</td></tr>
+          <tr><td>NTSC</td><td class="gamut-high">95.3</td><td class="gamut-medium">87.6</td></tr>
+          <tr><td>DCI-P3</td><td class="gamut-high">112.8</td><td class="gamut-high">96.4</td></tr>
+          <tr><td>BT2020</td><td class="gamut-medium">72.4</td><td class="gamut-low">68.9</td></tr>
+        </tbody>
+      </table>
+      
+      <div class="gamut-subtitle">CIE 1976 u'v'</div>
+      <table class="gamut-table">
+        <thead><tr><th>Standard</th><th>Coverage (%)</th><th>Match (%)</th></tr></thead>
+        <tbody>
+          <tr><td>sRGB</td><td class="gamut-high">125.2</td><td class="gamut-high">97.8</td></tr>
+          <tr><td>NTSC</td><td class="gamut-high">93.8</td><td class="gamut-medium">86.2</td></tr>
+          <tr><td>DCI-P3</td><td class="gamut-high">110.5</td><td class="gamut-high">95.1</td></tr>
+          <tr><td>BT2020</td><td class="gamut-medium">70.8</td><td class="gamut-low">67.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Data Tables -->
+<div class="data-section">
+  <div class="section-title">Data</div>
+  <div class="data-grid">
+    <div>
+      <div class="data-title">RGBW Chromaticity Data</div>
+      <table class="data-table">
+        <thead><tr><th>Ch</th><th>x</th><th>y</th><th>u'</th><th>v'</th><th>X</th><th>Y</th><th>CCT</th></tr></thead>
+        <tbody>
+          <tr><td class="channel-r">R</td><td class="data-value">0.642</td><td class="data-value">0.331</td><td class="data-value">0.432</td><td class="data-value">0.521</td><td class="data-value">41.2</td><td class="data-value">21.3</td><td class="data-value">-</td></tr>
+          <tr><td class="channel-g">G</td><td class="data-value">0.315</td><td class="data-value">0.598</td><td class="data-value">0.128</td><td class="data-value">0.562</td><td class="data-value">38.5</td><td class="data-value">72.8</td><td class="data-value">-</td></tr>
+          <tr><td class="channel-b">B</td><td class="data-value">0.152</td><td class="data-value">0.062</td><td class="data-value">0.175</td><td class="data-value">0.158</td><td class="data-value">12.8</td><td class="data-value">5.3</td><td class="data-value">-</td></tr>
+          <tr><td style="color:#fff;font-weight:bold;">W</td><td class="data-value">0.312</td><td class="data-value">0.329</td><td class="data-value">0.198</td><td class="data-value">0.442</td><td class="data-value">92.5</td><td class="data-value">99.4</td><td class="data-value">6504</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="data-title">RGB Spectrum Data</div>
+      <table class="data-table">
+        <thead><tr><th>Ch</th><th>Peak (nm)</th><th>FWHM (nm)</th><th>Dom. λ (nm)</th><th>Purity</th></tr></thead>
+        <tbody>
+          <tr><td class="channel-r">R</td><td class="data-value">630</td><td class="data-value">21</td><td class="data-value">633</td><td class="data-value">0.985</td></tr>
+          <tr><td class="channel-g">G</td><td class="data-value">526</td><td class="data-value">32</td><td class="data-value">528</td><td class="data-value">0.972</td></tr>
+          <tr><td class="channel-b">B</td><td class="data-value">450</td><td class="data-value">19</td><td class="data-value">452</td><td class="data-value">0.991</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-left">✅ Ready - Recalculated</div>
+  <div class="status-right">
+    <span class="status-item">White Point: (0.312, 0.329)</span>
+    <span class="status-item">CCT: 6504K</span>
+  </div>
+</div>
+
+</body>
+</html>
