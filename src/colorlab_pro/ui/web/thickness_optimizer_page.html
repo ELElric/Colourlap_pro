@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Thickness Optimizer - Improved UI Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+
+  /* Page Header */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .page-title { color: #4fc3f7; font-size: 18px; font-weight: bold; }
+
+  /* Optimization Target */
+  .target-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 14px 16px; margin-bottom: 12px; }
+  .target-row { display: flex; align-items: center; gap: 16px; }
+  .target-label { color: #999; font-size: 11px; min-width: 50px; }
+  .target-select { background: #1e1e1e; border: 1px solid #555; border-radius: 4px; padding: 6px 12px; color: #e0e0e0; font-size: 12px; min-width: 200px; }
+  .target-hint { color: #666; font-size: 10px; margin-left: 8px; }
+
+  .coord-input { display: none; align-items: center; gap: 8px; margin-left: 16px; }
+  .coord-input.visible { display: flex; }
+  .coord-label { color: #888; font-size: 11px; }
+  .coord-field { background: #1e1e1e; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; width: 70px; text-align: center; font-family: 'Consolas', monospace; }
+
+  /* Spectrum & Thickness Input */
+  .input-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 14px 16px; margin-bottom: 12px; }
+  .section-title { color: #4fc3f7; font-weight: bold; font-size: 13px; margin-bottom: 12px; }
+  .input-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .input-table th { color: #4fc3f7; padding: 8px 10px; text-align: left; font-weight: normal; border-bottom: 2px solid #444; font-size: 11px; }
+  .input-table td { padding: 8px 10px; border-bottom: 1px solid #333; vertical-align: middle; }
+
+  .selector-row { display: flex; align-items: center; gap: 6px; }
+  .channel-tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; min-width: 32px; text-align: center; }
+  .channel-r { background: #4a2020; color: #ff6666; }
+  .channel-g { background: #204a20; color: #66ff66; }
+  .channel-b { background: #20204a; color: #6666ff; }
+  .channel-rcf { background: #4a2020; color: #ff8888; }
+  .channel-gcf { background: #204a20; color: #88ff88; }
+  .channel-bcf { background: #20204a; color: #88aaff; }
+
+  .spectrum-select { background: #1e1e1e; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; min-width: 100px; }
+  .paste-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; color: #e0e0e0; font-size: 10px; cursor: pointer; }
+  .paste-btn:hover { background: #4a4a4a; }
+
+  .range-control { display: flex; align-items: center; gap: 6px; }
+  .range-label { color: #666; font-size: 10px; }
+  .range-field { background: #1e1e1e; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; width: 56px; text-align: center; font-family: 'Consolas', monospace; }
+
+  /* Button Row */
+  .button-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 16px 0; }
+  .btn-start { background: #0078d4; border: 1px solid #0078d4; color: white; padding: 10px 36px; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: bold; }
+  .btn-start:hover { background: #1a8ae8; }
+  .btn-stop { background: #a02020; border: 1px solid #a02020; color: white; padding: 10px 20px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .btn-stop:hover { background: #c03030; }
+  .btn-stop:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Status / Progress */
+  .progress-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; text-align: center; }
+  .progress-text { color: #888; font-size: 12px; margin-bottom: 8px; }
+  .progress-bar-bg { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; height: 8px; overflow: hidden; }
+  .progress-bar-fill { background: linear-gradient(90deg, #4fc3f7, #0078d4); height: 100%; width: 65%; border-radius: 4px; transition: width 0.3s; }
+  .progress-summary { color: #66bb6a; font-size: 12px; margin-top: 8px; }
+
+  /* Results Area */
+  .results-area { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; margin-bottom: 12px; }
+
+  /* Result Table */
+  .result-panel { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+  .result-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #444; }
+  .result-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
+  .result-count { color: #888; font-size: 11px; }
+
+  .result-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .result-table thead { position: sticky; top: 0; }
+  .result-table th { background: #1e1e1e; color: #4fc3f7; padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid #444; white-space: nowrap; }
+  .result-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #333; }
+  .result-table tr:hover { background: #2a2a3e; cursor: pointer; }
+  .result-table tr.selected { background: #1a3a5c; }
+  .result-value { font-family: 'Consolas', monospace; color: #b0b0b0; }
+  .result-rank { color: #4fc3f7; font-weight: bold; }
+  .result-best { background: rgba(102, 187, 106, 0.1); }
+  .result-cov-high { color: #66bb6a; }
+  .result-cov-medium { color: #ffd700; }
+
+  /* Scan Curves */
+  .chart-panel { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+  .chart-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #444; }
+  .chart-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
+
+  .chart-tabs { display: flex; border-bottom: 1px solid #444; }
+  .chart-tab { padding: 8px 14px; color: #888; cursor: pointer; font-size: 11px; border-bottom: 2px solid transparent; }
+  .chart-tab.active { color: #fff; border-bottom-color: #0078d4; }
+  .chart-tab:hover { color: #e0e0e0; }
+
+  .chart-area { height: 320px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+  .chart-legend { display: flex; gap: 16px; margin-top: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #888; }
+  .legend-dot { width: 10px; height: 3px; border-radius: 1px; }
+
+  /* Status Bar */
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #252526; border: 1px solid #444; border-radius: 6px; }
+  .status-left { color: #888; font-size: 11px; }
+  .status-right { display: flex; gap: 16px; }
+  .status-item { color: #666; font-size: 11px; }
+</style>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="page-title">🔬 Thickness Optimizer</div>
+</div>
+
+<!-- Optimization Target -->
+<div class="target-section">
+  <div class="target-row">
+    <span class="target-label">Target:</span>
+    <select class="target-select" id="targetSelect" onchange="toggleCoord()">
+      <option value="bt2020">Max BT2020 Coverage</option>
+      <option value="dci-p3">Max DCI-P3 Coverage</option>
+      <option value="white">Target White Point</option>
+      <option value="coord">Target Coordinate</option>
+    </select>
+    <span class="target-hint">Find optimal RCF/GCF/BCF thicknesses for maximum gamut coverage</span>
+    <div class="coord-input" id="coordInput">
+      <span class="coord-label">x:</span>
+      <input type="text" class="coord-field" value="0.3127">
+      <span class="coord-label">y:</span>
+      <input type="text" class="coord-field" value="0.3290">
+    </div>
+  </div>
+</div>
+
+<!-- Spectrum & Thickness Input -->
+<div class="input-section">
+  <div class="section-title">Spectrum & Thickness</div>
+  <table class="input-table">
+    <thead>
+      <tr>
+        <th>RGB (Emission)</th>
+        <th>CF (Transmittance)</th>
+        <th>Range (μm)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="selector-row">
+            <span class="channel-tag channel-r">R</span>
+            <select class="spectrum-select"><option>-- Select --</option><option>LED_R_630nm</option></select>
+            <button class="paste-btn">Paste</button>
+          </div>
+        </td>
+        <td>
+          <div class="selector-row">
+            <span class="channel-tag channel-rcf">RCF</span>
+            <select class="spectrum-select"><option>-- Select --</option><option>CF_Red_1um</option></select>
+            <button class="paste-btn">Paste</button>
+          </div>
+        </td>
+        <td>
+          <div class="range-control">
+            <span class="channel-tag channel-rcf">RCF</span>
+            <span class="range-label">Min:</span>
+            <input type="text" class="range-field" value="0.00">
+            <span class="range-label">Max:</span>
+            <input type="text" class="range-field" value="5.00">
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="selector-row">
+            <span class="channel-tag channel-g">G</span>
+            <select class="spectrum-select"><option>-- Select --</option><option>LED_G_525nm</option></select>
+            <button class="paste-btn">Paste</button>
+          </div>
+        </td>
+        <td>
+          <div class="selector-row">
+            <span class="channel-tag channel-gcf">GCF</span>
+            <select class="spectrum-select"><option>-- Select --</option><option>CF_Green_1.5um</option></select>
+            <button class="paste-btn">Paste</button>
+          </div>
+        </td>
+        <td>
+          <div class="range-control">
+            <span class="channel-tag channel-gcf">GCF</span>
+            <span class="range-label">Min:</span>
+            <input type="text" class="range-field" value="0.00">
+            <span class="range-label">Max:</span>
+            <input type="text" class="range-field" value="5.00">
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="selector-row">
+            <span class="channel-tag channel-b">B</span>
+            <select class="spectrum-select"><option>-- Select --</option><option>LED_B_450nm</option></select>
+            <button class="paste-btn">Paste</button>
+          </div>
+        </td>
+        <td>
+          <div class="selector-row">
+            <span class="channel-tag channel-bcf">BCF</span>
+            <select class="spectrum-select"><option>-- Select --</option><option>CF_Blue_2um</option></select>
+            <button class="paste-btn">Paste</button>
+          </div>
+        </td>
+        <td>
+          <div class="range-control">
+            <span class="channel-tag channel-bcf">BCF</span>
+            <span class="range-label">Min:</span>
+            <input type="text" class="range-field" value="0.00">
+            <span class="range-label">Max:</span>
+            <input type="text" class="range-field" value="5.00">
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Buttons -->
+<div class="button-row">
+  <button class="btn-start">▶ Start Optimization</button>
+  <button class="btn-stop" disabled>⏹ Stop</button>
+</div>
+
+<!-- Progress -->
+<div class="progress-section">
+  <div class="progress-text">Optimization complete. Scanning 100 steps per channel...</div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar-fill"></div>
+  </div>
+  <div class="progress-summary">✅ Best result: Coverage = 95.23% (RCF=1.20μm, GCF=0.80μm, BCF=1.50μm)</div>
+</div>
+
+<!-- Results -->
+<div class="results-area">
+  <!-- Result Table -->
+  <div class="result-panel">
+    <div class="result-header">
+      <div class="result-title">Optimization Results</div>
+      <div class="result-count">Top 20</div>
+    </div>
+    <div style="max-height: 380px; overflow-y: auto;">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>RCF (μm)</th>
+            <th>GCF (μm)</th>
+            <th>BCF (μm)</th>
+            <th>Coverage</th>
+            <th>Match</th>
+            <th>White Pt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="result-best selected">
+            <td class="result-rank">1</td>
+            <td class="result-value">1.20</td>
+            <td class="result-value">0.80</td>
+            <td class="result-value">1.50</td>
+            <td class="result-value result-cov-high">95.23</td>
+            <td class="result-value result-cov-high">92.10</td>
+            <td class="result-value">(0.312, 0.329)</td>
+          </tr>
+          <tr>
+            <td class="result-rank">2</td>
+            <td class="result-value">1.25</td>
+            <td class="result-value">0.82</td>
+            <td class="result-value">1.48</td>
+            <td class="result-value result-cov-high">94.87</td>
+            <td class="result-value result-cov-high">91.85</td>
+            <td class="result-value">(0.314, 0.331)</td>
+          </tr>
+          <tr>
+            <td class="result-rank">3</td>
+            <td class="result-value">1.18</td>
+            <td class="result-value">0.78</td>
+            <td class="result-value">1.52</td>
+            <td class="result-value result-cov-high">94.52</td>
+            <td class="result-value result-cov-medium">91.60</td>
+            <td class="result-value">(0.310, 0.327)</td>
+          </tr>
+          <tr>
+            <td class="result-rank">4</td>
+            <td class="result-value">1.30</td>
+            <td class="result-value">0.85</td>
+            <td class="result-value">1.45</td>
+            <td class="result-value result-cov-medium">94.18</td>
+            <td class="result-value result-cov-medium">91.32</td>
+            <td class="result-value">(0.316, 0.333)</td>
+          </tr>
+          <tr>
+            <td class="result-rank">5</td>
+            <td class="result-value">1.15</td>
+            <td class="result-value">0.75</td>
+            <td class="result-value">1.55</td>
+            <td class="result-value result-cov-medium">93.85</td>
+            <td class="result-value result-cov-medium">91.05</td>
+            <td class="result-value">(0.308, 0.325)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Scan Curves -->
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div class="chart-title">Scan Curves</div>
+    </div>
+    <div class="chart-tabs">
+      <div class="chart-tab active">Thickness vs Coverage</div>
+      <div class="chart-tab">Thickness vs Coordinate</div>
+      <div class="chart-tab">Thickness vs White Point</div>
+    </div>
+    <div class="chart-area">
+      [ Line Chart: GCF Thickness vs Coverage (%) ]
+      <div class="chart-legend">
+        <div class="legend-item"><span class="legend-dot" style="background: #FF4444;"></span> RCF</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #44FF44;"></span> GCF</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #4488FF;"></span> BCF</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-left">✅ Optimization complete</div>
+  <div class="status-right">
+    <span class="status-item">Target: Max BT2020</span>
+    <span class="status-item">Best: 95.23%</span>
+    <span class="status-item">Time: 12.3s</span>
+  </div>
+</div>
+
+<script>
+function toggleCoord() {
+  const sel = document.getElementById('targetSelect').value;
+  const coord = document.getElementById('coordInput');
+  if (sel === 'white' || sel === 'coord') {
+    coord.classList.add('visible');
+  } else {
+    coord.classList.remove('visible');
+  }
+}
+</script>
+
+</body>
+</html>
