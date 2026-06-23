@@ -156,17 +156,17 @@
       <div class="panel-label panel-label-spectrum">Spectrum</div>
       <div class="selector-row">
         <span class="channel-tag channel-r">R</span>
-        <select class="spectrum-select"><option>-- Select --</option><option>LED_R_630nm</option></select>
+        <select id="red-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn">Paste</button>
       </div>
       <div class="selector-row">
         <span class="channel-tag channel-g">G</span>
-        <select class="spectrum-select"><option>-- Select --</option><option>LED_G_525nm</option></select>
+        <select id="green-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn">Paste</button>
       </div>
       <div class="selector-row">
         <span class="channel-tag channel-b">B</span>
-        <select class="spectrum-select"><option>-- Select --</option><option>LED_B_450nm</option></select>
+        <select id="blue-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn">Paste</button>
       </div>
     </div>
@@ -176,17 +176,17 @@
       <div class="panel-label panel-label-filter">Color Filter</div>
       <div class="selector-row">
         <span class="channel-tag channel-rcf">RCF</span>
-        <select class="spectrum-select"><option>-- Select --</option><option>CF_Red_1um</option></select>
+        <select id="rcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn">Paste</button>
       </div>
       <div class="selector-row">
         <span class="channel-tag channel-gcf">GCF</span>
-        <select class="spectrum-select"><option>-- Select --</option><option>CF_Green_1.5um</option></select>
+        <select id="gcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn">Paste</button>
       </div>
       <div class="selector-row">
         <span class="channel-tag channel-bcf">BCF</span>
-        <select class="spectrum-select"><option>-- Select --</option><option>CF_Blue_2um</option></select>
+        <select id="bcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn">Paste</button>
       </div>
     </div>
@@ -264,23 +264,13 @@
       <div class="gamut-subtitle">CIE 1931 xy</div>
       <table class="gamut-table">
         <thead><tr><th>Standard</th><th>Coverage (%)</th><th>Match (%)</th></tr></thead>
-        <tbody>
-          <tr><td>sRGB</td><td class="gamut-high">128.5</td><td class="gamut-high">98.2</td></tr>
-          <tr><td>NTSC</td><td class="gamut-high">95.3</td><td class="gamut-medium">87.6</td></tr>
-          <tr><td>DCI-P3</td><td class="gamut-high">112.8</td><td class="gamut-high">96.4</td></tr>
-          <tr><td>BT2020</td><td class="gamut-medium">72.4</td><td class="gamut-low">68.9</td></tr>
-        </tbody>
+        <tbody id="gamut-1931-body"></tbody>
       </table>
       
       <div class="gamut-subtitle">CIE 1976 u'v'</div>
       <table class="gamut-table">
         <thead><tr><th>Standard</th><th>Coverage (%)</th><th>Match (%)</th></tr></thead>
-        <tbody>
-          <tr><td>sRGB</td><td class="gamut-high">125.2</td><td class="gamut-high">97.8</td></tr>
-          <tr><td>NTSC</td><td class="gamut-high">93.8</td><td class="gamut-medium">86.2</td></tr>
-          <tr><td>DCI-P3</td><td class="gamut-high">110.5</td><td class="gamut-high">95.1</td></tr>
-          <tr><td>BT2020</td><td class="gamut-medium">70.8</td><td class="gamut-low">67.3</td></tr>
-        </tbody>
+        <tbody id="gamut-1976-body"></tbody>
       </table>
     </div>
   </div>
@@ -316,14 +306,89 @@
   </div>
 </div>
 
+
+<!-- Calculate Button -->
+<div style="margin: 12px 0; text-align: center;">
+  <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button>
+</div>
+
 <!-- Status Bar -->
 <div class="status-bar">
-  <div class="status-left">✅ Ready - Recalculated</div>
+  <div id="status-left" class="status-left">Ready</div>
   <div class="status-right">
-    <span class="status-item">White Point: (0.312, 0.329)</span>
-    <span class="status-item">CCT: 6504K</span>
+    <span id="status-white" class="status-item">White Point: -</span>
+    <span id="status-cct" class="status-item">CCT: -</span>
   </div>
 </div>
 
+
+<script>
+function logStatus(msg) {
+    var el = document.getElementById('status-left');
+    if (el) el.textContent = msg;
+}
+
+function populateSelectors(spectra) {
+    logStatus('Populating ' + spectra.length + ' spectra');
+    var ids = ['red-select', 'green-select', 'blue-select', 'rcf-select', 'gcf-select', 'bcf-select'];
+    ids.forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (!sel) {
+            logStatus('Missing select: ' + id);
+            return;
+        }
+        sel.innerHTML = '<option value="">-- Select --</option>';
+        spectra.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = String(s.id);
+            opt.textContent = s.name + ' (' + s.category + ')';
+            sel.appendChild(opt);
+        });
+    });
+}
+
+function renderResults(results) {
+    var t1931 = document.getElementById('gamut-1931-body');
+    var t1976 = document.getElementById('gamut-1976-body');
+    if (!t1931 || !t1976) return;
+    t1931.innerHTML = '';
+    t1976.innerHTML = '';
+    results.forEach(function(r) {
+        var clsCov1931 = r.coverage_1931 >= 90 ? 'gamut-high' : (r.coverage_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
+        var clsMatch1931 = r.match_1931 >= 90 ? 'gamut-high' : (r.match_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
+        var clsCov1976 = r.coverage_1976 >= 90 ? 'gamut-high' : (r.coverage_1976 >= 70 ? 'gamut-medium' : 'gamut-low');
+        var clsMatch1976 = r.match_1976 >= 90 ? 'gamut-high' : (r.match_1976 >= 70 ? 'gamut-medium' : 'gamut-low');
+        t1931.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1931 + '">' + r.coverage_1931 + '</td><td class="' + clsMatch1931 + '">' + r.match_1931 + '</td></tr>';
+        t1976.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1976 + '">' + r.coverage_1976 + '</td><td class="' + clsMatch1976 + '">' + r.match_1976 + '</td></tr>';
+    });
+}
+
+function calculateGamut() {
+    var red = document.getElementById('red-select').value;
+    var green = document.getElementById('green-select').value;
+    var blue = document.getElementById('blue-select').value;
+    if (!red || !green || !blue) {
+        logStatus('Please select R/G/B spectra');
+        return;
+    }
+    logStatus('Calculating...');
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.calculate_gamut(red, green, blue, function(json) {
+            var data = JSON.parse(json);
+            if (data.error) {
+                logStatus('Error: ' + data.error);
+                return;
+            }
+            renderResults(data.results);
+            logStatus('Calculation complete');
+        });
+    });
+}
+
+(function() {
+    var btn = document.getElementById('calculate-btn');
+    if (btn) btn.addEventListener('click', calculateGamut);
+})();
+</script>
 </body>
 </html>

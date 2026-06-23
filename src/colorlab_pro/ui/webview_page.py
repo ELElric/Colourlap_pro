@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -19,8 +19,10 @@ class WebViewPage(QWidget):
       - a backend QObject via :meth:`create_backend`
       - optional JavaScript setup via :meth:`page_script`
 
-    The page automatically wires up QWebChannel, loads the HTML, and runs the
-    page-specific JavaScript once the document has finished loading.
+    The page uses :meth:`QWebEngineView.setHtml` instead of loading a local
+    file so that the Qt WebChannel transport is available to the page JS.
+    The page script is executed after a short delay so the transport is fully
+    ready (calling it immediately after ``setHtml`` is too early).
     """
 
     status_message = Signal(str)
@@ -28,6 +30,8 @@ class WebViewPage(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._backend: QObject | None = None
+        self._initialized = False
+        self._setup_done = False
         self._build_ui()
         self._channel = QWebChannel(self)
         self._view.page().setWebChannel(self._channel)
@@ -57,18 +61,28 @@ class WebViewPage(QWidget):
 
     def initialize(self) -> None:
         """Register the backend and load the page HTML."""
+        if self._initialized:
+            return
+        self._initialized = True
         self._backend = self.create_backend()
         self._channel.registerObject("backend", self._backend)
 
         html = self.html_path()
         if not html.exists():
             self._view.setHtml(f"<html><body><h1>Missing page: {html.name}</h1></body></html>")
+            self._finish_setup()
             return
-        self._view.load(QUrl.fromLocalFile(str(html.resolve())))
-        self._view.loadFinished.connect(self._on_load_finished)
 
-    def _on_load_finished(self, ok: bool) -> None:
-        """Run page-specific JavaScript once the HTML has loaded."""
+        # setHtml makes the Qt WebChannel transport available; loading a
+        # plain local file does not. Wait briefly so the transport is ready.
+        self._view.setHtml(html.read_text(encoding="utf-8"))
+        QTimer.singleShot(1200, self._finish_setup)
+
+    def _finish_setup(self) -> None:
+        """Run the page script and notify that the page is ready."""
+        if self._setup_done:
+            return
+        self._setup_done = True
         script = self.page_script()
         if script:
             self._view.page().runJavaScript(script)
@@ -76,7 +90,10 @@ class WebViewPage(QWidget):
 
     def run_javascript(self, script: str, callback: Any | None = None) -> None:
         """Execute JavaScript in the page context."""
-        self._view.page().runJavaScript(script, callback)
+        if callback is None:
+            self._view.page().runJavaScript(script)
+        else:
+            self._view.page().runJavaScript(script, callback)
 
     def connect_auto_refresh(self, window: QWidget) -> None:
         """Hook the page into MainWindow's page_about_to_show signal."""

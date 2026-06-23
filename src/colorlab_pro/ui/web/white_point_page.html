@@ -148,6 +148,7 @@
       <button class="preset-btn">Equal</button>
     </div>
   </div>
+<button class="preset-btn" onclick="calculateWhitePoint()" style="margin-left:auto;">Calculate</button>
 </div>
 
 <!-- Quick Info Cards -->
@@ -299,6 +300,78 @@
     <span class="status-item">White: D65 (6504K)</span>
   </div>
 </div>
+
+
+<script>
+function logStatus(msg) {
+    var el = document.querySelector('.status-left');
+    if (el) el.textContent = msg;
+}
+function renderGamutResults(results) {
+    var tbody = document.querySelector('.gamut-section tbody');
+    if (!tbody || !results) return;
+    tbody.innerHTML = '';
+    results.forEach(function(r) {
+        var cov1931 = r.coverage_1931 || 0;
+        var match1931 = r.match_1931 || 0;
+        var cov1976 = r.coverage_1976 || 0;
+        var match1976 = r.match_1976 || 0;
+        function cls(v) { return v >= 90 ? 'gamut-high' : (v >= 70 ? 'gamut-medium' : 'gamut-low'); }
+        var row = '<tr><td style="color:#888;">' + r.standard + '</td>' +
+            '<td class="gamut-value ' + cls(cov1931) + '">' + cov1931.toFixed(1) + '</td>' +
+            '<td class="gamut-value ' + cls(match1931) + '">' + match1931.toFixed(1) + '</td>' +
+            '<td class="gamut-value ' + cls(cov1976) + '">' + cov1976.toFixed(1) + '</td>' +
+            '<td class="gamut-value ' + cls(match1976) + '">' + match1976.toFixed(1) + '</td></tr>';
+        tbody.innerHTML += row;
+    });
+}
+function renderWhitePoint(data) {
+    if (!data) return;
+    var cards = document.querySelectorAll('.info-value');
+    if (data.white_xy) cards[0].textContent = data.white_xy[0].toFixed(4) + ', ' + data.white_xy[1].toFixed(4);
+    if (data.white_uv) cards[1].textContent = data.white_uv[0].toFixed(4) + ', ' + data.white_uv[1].toFixed(4);
+    if (data.cct != null) cards[2].innerHTML = data.cct.toFixed(0) + '<span class="info-unit">K</span>';
+    if (data.ratio) cards[3].textContent = Number(data.ratio.R).toFixed(3) + ' : ' + Number(data.ratio.G).toFixed(3) + ' : ' + Number(data.ratio.B).toFixed(3);
+    var inputs = document.querySelectorAll('.input-field');
+    if (data.red_xy) { inputs[0].value = data.red_xy[0]; inputs[1].value = data.red_xy[1]; }
+    if (data.green_xy) { inputs[3].value = data.green_xy[0]; inputs[4].value = data.green_xy[1]; }
+    if (data.blue_xy) { inputs[6].value = data.blue_xy[0]; inputs[7].value = data.blue_xy[1]; }
+    if (data.ratio) { inputs[2].value = data.ratio.R; inputs[5].value = data.ratio.G; inputs[8].value = data.ratio.B; }
+    var wOutputs = document.querySelectorAll('.row-highlight .output-value');
+    if (data.white_xy) { wOutputs[0].textContent = data.white_xy[0].toFixed(4); wOutputs[1].textContent = data.white_xy[1].toFixed(4); }
+    renderGamutResults(data.results);
+    logStatus('White point updated');
+}
+function getInputValues() {
+    var inputs = document.querySelectorAll('.input-field');
+    return {
+        red_xy: [parseFloat(inputs[0].value), parseFloat(inputs[1].value)],
+        green_xy: [parseFloat(inputs[3].value), parseFloat(inputs[4].value)],
+        blue_xy: [parseFloat(inputs[6].value), parseFloat(inputs[7].value)],
+        ratios: {R: parseFloat(inputs[2].value), G: parseFloat(inputs[5].value), B: parseFloat(inputs[8].value)}
+    };
+}
+function calculateWhitePoint() {
+    logStatus('Calculating...');
+    try {
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+            channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
+                var data = JSON.parse(json);
+                if (data.error) { logStatus('Error: ' + data.error); return; }
+                renderWhitePoint(data);
+                logStatus('Calculation complete');
+            });
+        });
+    } catch (e) { logStatus('JS error: ' + e.message); }
+}
+function setRGBCoordinates(data) {
+    var inputs = document.querySelectorAll('.input-field');
+    if (data.red_xy) { inputs[0].value = data.red_xy[0]; inputs[1].value = data.red_xy[1]; }
+    if (data.green_xy) { inputs[3].value = data.green_xy[0]; inputs[4].value = data.green_xy[1]; }
+    if (data.blue_xy) { inputs[6].value = data.blue_xy[0]; inputs[7].value = data.blue_xy[1]; }
+    calculateWhitePoint();
+}
+</script>
 
 </body>
 </html>

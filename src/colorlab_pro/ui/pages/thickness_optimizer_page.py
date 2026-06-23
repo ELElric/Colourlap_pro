@@ -20,15 +20,17 @@ class OptimizerPageBackend(QObject):
         self,
         spectrum_controller: SpectrumController,
         color_controller: ColorController,
+        optimization_controller: OptimizationController | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._spectrum_controller = spectrum_controller
         self._color_controller = color_controller
+        self._optimization_controller = optimization_controller
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
-        """Return spectra list and simulated optimization results as JSON."""
+        """Return spectra list and placeholder optimization results as JSON."""
         import json
 
         try:
@@ -39,7 +41,7 @@ class OptimizerPageBackend(QObject):
             ]
 
             results = [
-                {"rank": i + 1, "thickness_r": 1.0 + i * 0.1, "thickness_g": 1.2 + i * 0.1, "thickness_b": 1.4 + i * 0.1, "coverage": 85.0 - i * 2.5}
+                {"rank": i + 1, "thickness_r": 1.0 + i * 0.1, "thickness_g": 1.2 + i * 0.1, "thickness_b": 1.4 + i * 0.1, "coverage": 85.0 - i * 2.5, "match": 82.0 - i * 2.5}
                 for i in range(5)
             ]
 
@@ -47,6 +49,119 @@ class OptimizerPageBackend(QObject):
         except Exception as exc:  # noqa: BLE001
             import traceback
 
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+    @Slot(str, result=str)
+    def optimize(self, payload: str) -> str:
+        """Run a grid-search thickness optimization and return ranked results."""
+        import json
+        import traceback
+
+        try:
+            data = json.loads(payload)
+            source_ids = [int(x) for x in data["source_ids"]]
+            cf_ids = [int(x) for x in data["cf_ids"]]
+            bounds = data["bounds"]  # list of [min,max] for RCF,GCF,BCF
+            target_standard = data.get("target_standard", "BT2020")
+            target_xy = data.get("target_xy")  # optional [x,y]
+
+            sources = [self._spectrum_controller.get_spectrum(sid) for sid in source_ids]
+            cfs = [self._spectrum_controller.get_spectrum(sid) for sid in cf_ids]
+
+            import numpy as np
+
+            from colorlab_pro.dto.color import XY, Gamut
+            from colorlab_pro.dto.spectrum import Spectrum
+            from colorlab_pro.engines.gamut_calculator import (
+                build_gamut_from_primaries,
+                coverage,
+                match,
+                standard_gamuts,
+            )
+            from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
+
+            # Use common wavelength grid (source R grid)
+            wavelengths = sources[0].wavelengths.copy()
+            for s in sources[1:]:
+                wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+            for c in cfs:
+                wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+            if len(wavelengths) < 3:
+                raise ValueError("Insufficient common wavelength points between spectra")
+
+            def resample(spec: Spectrum) -> Spectrum:
+                vals = np.interp(wavelengths, spec.wavelengths, spec.values)
+                return Spectrum(wavelengths=wavelengths, values=vals, unit=spec.unit)
+
+            sources = [resample(s) for s in sources]
+            cfs = [resample(c) for c in cfs]
+
+            def transmittance_to_alpha(t: np.ndarray) -> np.ndarray:
+                # Handle percent (0-100) or fractional (0-1)
+                t = np.asarray(t, dtype=float)
+                if np.max(t) > 1.5:
+                    t = t / 100.0
+                t = np.clip(t, 1e-6, 1.0)
+                return -np.log10(t)
+
+            alphas = [transmittance_to_alpha(c.values) for c in cfs]
+
+            if target_xy is not None:
+                target = XY(float(target_xy[0]), float(target_xy[1]))
+            else:
+                target = standard_gamuts(target_standard).white
+                target = XY(target[0], target[1])
+
+            target_gamut = standard_gamuts(target_standard)
+
+            # Grid search (3 steps per channel => 27 combos)
+            steps = 4
+            candidates = []
+            for dr in np.linspace(bounds[0][0], bounds[0][1], steps):
+                for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
+                    for db in np.linspace(bounds[2][0], bounds[2][1], steps):
+                        filtered = []
+                        for src, alpha, d in zip(sources, alphas, [dr, dg, db]):
+                            t = np.power(10.0, -alpha * d)
+                            filtered.append(src.values * t)
+                        white = Spectrum(
+                            wavelengths=wavelengths,
+                            values=sum(filtered),
+                            unit=sources[0].unit,
+                        )
+                        white_xy = spectrum_xy(white)
+                        delta = float(np.hypot(white_xy.x - target.x, white_xy.y - target.y))
+
+                        primaries_xy = [spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit)) for v in filtered]
+                        device = build_gamut_from_primaries(
+                            "Device",
+                            primaries_xy[0],
+                            primaries_xy[1],
+                            primaries_xy[2],
+                            white_xy,
+                        )
+                        cov = coverage(target_gamut, device)
+                        m = match(target_gamut, device)
+                        candidates.append(
+                            {
+                                "thickness_r": round(float(dr), 3),
+                                "thickness_g": round(float(dg), 3),
+                                "thickness_b": round(float(db), 3),
+                                "white_xy": [round(white_xy.x, 4), round(white_xy.y, 4)],
+                                "delta_xy": round(delta, 4),
+                                "coverage": round(cov, 1),
+                                "match": round(m, 1),
+                            }
+                        )
+
+            # Sort by closeness to target white, then coverage
+            candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+            top = candidates[:5]
+            for i, r in enumerate(top):
+                r["rank"] = i + 1
+
+            return json.dumps({"results": top, "best": top[0] if top else None})
+        except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
 
@@ -78,24 +193,19 @@ class ThicknessOptimizerPage(WebViewPage):
         return OptimizerPageBackend(self._spectrum_controller, self._color_controller, self)
 
     def page_script(self) -> str:
-        return """
-        if (typeof qt === 'undefined' || !qt.webChannelTransport) {
-            console.error('QWebChannel transport not available');
-            return;
-        }
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            channel.objects.backend.get_initial_data(function(json) {
-                var data = JSON.parse(json);
-                if (data.error) {
-                    console.error('Backend error:', data.error);
-                    return;
-                }
-                if (typeof populateSelectors === 'function') populateSelectors(data.spectra);
-                if (typeof renderResults === 'function') renderResults(data.results, data.best);
-                if (typeof logStatus === 'function') logStatus('Loaded optimizer data');
-            });
-        });
-        """
+        return (
+            "try {"
+            "  new QWebChannel(qt.webChannelTransport, function(channel) {"
+            "    channel.objects.backend.get_initial_data(function(json) {"
+            "      var data = JSON.parse(json);"
+            "      if (data.error) { logStatus('Backend error: ' + data.error); return; }"
+            "      populateSelectors(data.spectra);"
+            "      renderResults(data.results, data.best);"
+            "      logStatus('Loaded optimizer data');"
+            "    });"
+            "  });"
+            "} catch (e) { logStatus('JS error: ' + e.message); }"
+        )
 
     def connect_auto_refresh(self, window: QWidget) -> None:
         window.page_about_to_show.connect(self._on_page_about_to_show)

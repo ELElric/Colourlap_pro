@@ -24,7 +24,7 @@ class WhitePointPageBackend(QObject):
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
-        """Return placeholder white point data as JSON."""
+        """Return default RGB primaries and placeholder results as JSON."""
         import json
 
         return json.dumps(
@@ -32,12 +32,115 @@ class WhitePointPageBackend(QObject):
                 "red_xy": [0.6400, 0.3300],
                 "green_xy": [0.3000, 0.6000],
                 "blue_xy": [0.1500, 0.0600],
+                "ratios": {"R": 0.333, "G": 0.333, "B": 0.333},
                 "white_xy": [0.3127, 0.3290],
                 "white_uv": [0.1978, 0.4683],
                 "cct": 6504,
-                "ratio": {"R": 0.30, "G": 0.59, "B": 0.11},
+                "results": [
+                    {"standard": std, "coverage_1931": 0.0, "match_1931": 0.0,
+                     "coverage_1976": 0.0, "match_1976": 0.0}
+                    for std in ["sRGB", "NTSC", "DCI-P3", "BT2020"]
+                ],
             }
         )
+
+    @Slot(str, result=str)
+    def calculate_white_point(self, payload: str) -> str:
+        """Compute white point and gamut metrics from RGB xy coordinates."""
+        import json
+        import traceback
+
+        try:
+            data = json.loads(payload)
+            red_xy = data["red_xy"]
+            green_xy = data["green_xy"]
+            blue_xy = data["blue_xy"]
+            ratios = data["ratios"]
+
+            def xy_to_xyz(x: float, y: float) -> tuple[float, float, float]:
+                if y == 0:
+                    return 0.0, 0.0, 0.0
+                Y = 1.0
+                X = Y * x / y
+                Z = Y * (1.0 - x - y) / y
+                return X, Y, Z
+
+            xyzs = [xy_to_xyz(*c) for c in [red_xy, green_xy, blue_xy]]
+            r, g, b = ratios["R"], ratios["G"], ratios["B"]
+            mix = [r * xyzs[0][i] + g * xyzs[1][i] + b * xyzs[2][i] for i in range(3)]
+            X, Y, Z = mix
+            total = X + Y + Z
+            if total == 0:
+                wx = wy = 0.0
+            else:
+                wx, wy = X / total, Y / total
+
+            denom = -2.0 * wx + 12.0 * wy + 3.0
+            if denom == 0:
+                u = v = 0.0
+            else:
+                u = (4.0 * wx) / denom
+                v = (9.0 * wy) / denom
+
+            try:
+                import colour
+
+                cct = float(colour.temperature.xy_to_CCT([wx, wy], method="Hernandez 1999"))
+            except Exception:  # noqa: BLE001
+                cct = 0.0
+
+            from colorlab_pro.dto.color import XY
+            from colorlab_pro.engines.gamut_calculator import (
+                build_gamut_from_primaries,
+                coverage,
+                coverage_1976,
+                match,
+                match_1976,
+                standard_gamuts,
+            )
+
+            device = build_gamut_from_primaries(
+                "Device",
+                XY(red_xy[0], red_xy[1]),
+                XY(green_xy[0], green_xy[1]),
+                XY(blue_xy[0], blue_xy[1]),
+                XY(wx, wy),
+            )
+
+            results = []
+            for std in ["sRGB", "NTSC", "DCI-P3", "BT2020"]:
+                try:
+                    target = standard_gamuts(std)
+                    cov = coverage(target, device)
+                    m = match(target, device)
+                    cov76 = coverage_1976(target, device)
+                    m76 = match_1976(target, device)
+                except Exception:  # noqa: BLE001
+                    cov = m = cov76 = m76 = 0.0
+                results.append(
+                    {
+                        "standard": std,
+                        "coverage_1931": round(cov, 1),
+                        "match_1931": round(m, 1),
+                        "coverage_1976": round(cov76, 1),
+                        "match_1976": round(m76, 1),
+                    }
+                )
+
+            return json.dumps(
+                {
+                    "red_xy": red_xy,
+                    "green_xy": green_xy,
+                    "blue_xy": blue_xy,
+                    "ratios": ratios,
+                    "white_xy": [round(wx, 4), round(wy, 4)],
+                    "white_uv": [round(u, 4), round(v, 4)],
+                    "cct": round(cct, 0),
+                    "results": results,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
 
 class WhitePointPage(WebViewPage):
@@ -65,19 +168,18 @@ class WhitePointPage(WebViewPage):
         return WhitePointPageBackend(self._color_controller, self)
 
     def page_script(self) -> str:
-        return """
-        if (typeof qt === 'undefined' || !qt.webChannelTransport) {
-            console.error('QWebChannel transport not available');
-            return;
-        }
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            channel.objects.backend.get_initial_data(function(json) {
-                var data = JSON.parse(json);
-                if (typeof renderWhitePoint === 'function') renderWhitePoint(data);
-                if (typeof logStatus === 'function') logStatus('Loaded white point data');
-            });
-        });
-        """
+        return (
+            "try {"
+            "  new QWebChannel(qt.webChannelTransport, function(channel) {"
+            "    channel.objects.backend.get_initial_data(function(json) {"
+            "      var data = JSON.parse(json);"
+            "      if (data.error) { logStatus('Backend error: ' + data.error); return; }"
+            "      if (typeof renderWhitePoint === 'function') renderWhitePoint(data);"
+            "      logStatus('Loaded white point data');"
+            "    });"
+            "  });"
+            "} catch (e) { logStatus('JS error: ' + e.message); }"
+        )
 
     def connect_auto_refresh(self, window: QWidget) -> None:
         window.page_about_to_show.connect(self._on_page_about_to_show)

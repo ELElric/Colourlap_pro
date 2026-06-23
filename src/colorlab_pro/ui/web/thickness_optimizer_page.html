@@ -149,14 +149,14 @@
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-r">R</span>
-            <select class="spectrum-select"><option>-- Select --</option><option>LED_R_630nm</option></select>
+            <select id="source-r" class="spectrum-select"><option>-- Select --</option><option>LED_R_630nm</option></select>
             <button class="paste-btn">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-rcf">RCF</span>
-            <select class="spectrum-select"><option>-- Select --</option><option>CF_Red_1um</option></select>
+            <select id="cf-r" class="spectrum-select"><option>-- Select --</option><option>CF_Red_1um</option></select>
             <button class="paste-btn">Paste</button>
           </div>
         </td>
@@ -174,14 +174,14 @@
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-g">G</span>
-            <select class="spectrum-select"><option>-- Select --</option><option>LED_G_525nm</option></select>
+            <select id="source-g" class="spectrum-select"><option>-- Select --</option><option>LED_G_525nm</option></select>
             <button class="paste-btn">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-gcf">GCF</span>
-            <select class="spectrum-select"><option>-- Select --</option><option>CF_Green_1.5um</option></select>
+            <select id="cf-g" class="spectrum-select"><option>-- Select --</option><option>CF_Green_1.5um</option></select>
             <button class="paste-btn">Paste</button>
           </div>
         </td>
@@ -199,14 +199,14 @@
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-b">B</span>
-            <select class="spectrum-select"><option>-- Select --</option><option>LED_B_450nm</option></select>
+            <select id="source-b" class="spectrum-select"><option>-- Select --</option><option>LED_B_450nm</option></select>
             <button class="paste-btn">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-bcf">BCF</span>
-            <select class="spectrum-select"><option>-- Select --</option><option>CF_Blue_2um</option></select>
+            <select id="cf-b" class="spectrum-select"><option>-- Select --</option><option>CF_Blue_2um</option></select>
             <button class="paste-btn">Paste</button>
           </div>
         </td>
@@ -226,7 +226,7 @@
 
 <!-- Buttons -->
 <div class="button-row">
-  <button class="btn-start">▶ Start Optimization</button>
+  <button class="btn-start" onclick="startOptimization()">▶ Start Optimization</button>
   <button class="btn-stop" disabled>⏹ Stop</button>
 </div>
 
@@ -248,7 +248,7 @@
       <div class="result-count">Top 20</div>
     </div>
     <div style="max-height: 380px; overflow-y: auto;">
-      <table class="result-table">
+      <table class="result-table" id="result-table">
         <thead>
           <tr>
             <th>#</th>
@@ -260,7 +260,7 @@
             <th>White Pt</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="result-tbody">
           <tr class="result-best selected">
             <td class="result-rank">1</td>
             <td class="result-value">1.20</td>
@@ -343,14 +343,89 @@
 </div>
 
 <script>
+function logStatus(msg) {
+    var el = document.querySelector('.status-left');
+    if (el) el.textContent = msg;
+}
 function toggleCoord() {
-  const sel = document.getElementById('targetSelect').value;
-  const coord = document.getElementById('coordInput');
+  var sel = document.getElementById('targetSelect').value;
+  var coord = document.getElementById('coordInput');
   if (sel === 'white' || sel === 'coord') {
     coord.classList.add('visible');
   } else {
     coord.classList.remove('visible');
   }
+}
+function populateSelectors(spectra) {
+    var ids = ['source-r', 'source-g', 'source-b', 'cf-r', 'cf-g', 'cf-b'];
+    ids.forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        var val = sel.value;
+        sel.innerHTML = '<option value="">-- Select --</option>';
+        spectra.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = String(s.id);
+            opt.textContent = s.name + ' (' + (s.category || '') + ')';
+            sel.appendChild(opt);
+        });
+        if (val) sel.value = val;
+    });
+}
+function renderResults(results, best) {
+    var tbody = document.getElementById('result-tbody');
+    if (!tbody || !results) return;
+    tbody.innerHTML = '';
+    results.forEach(function(r) {
+        var tr = document.createElement('tr');
+        if (r.rank === 1) tr.className = 'result-best selected';
+        tr.innerHTML = '<td class="result-rank">' + r.rank + '</td>' +
+            '<td class="result-value">' + r.thickness_r.toFixed(2) + '</td>' +
+            '<td class="result-value">' + r.thickness_g.toFixed(2) + '</td>' +
+            '<td class="result-value">' + r.thickness_b.toFixed(2) + '</td>' +
+            '<td class="result-value ' + (r.coverage >= 90 ? 'result-cov-high' : 'result-cov-medium') + '">' + r.coverage.toFixed(1) + '</td>' +
+            '<td class="result-value">' + (r.match || 0).toFixed(1) + '</td>' +
+            '<td class="result-value">(' + (r.white_xy ? r.white_xy[0].toFixed(3) : '-') + ', ' + (r.white_xy ? r.white_xy[1].toFixed(3) : '-') + ')</td>';
+        tbody.appendChild(tr);
+    });
+    var summary = document.querySelector('.progress-summary');
+    if (best && summary) {
+        summary.textContent = 'Best: Coverage = ' + best.coverage.toFixed(1) + '% (RCF=' + best.thickness_r.toFixed(2) + 'μm, GCF=' + best.thickness_g.toFixed(2) + 'μm, BCF=' + best.thickness_b.toFixed(2) + 'μm)';
+    }
+}
+function getInputs() {
+    return {
+        source_ids: [
+            document.getElementById('source-r').value,
+            document.getElementById('source-g').value,
+            document.getElementById('source-b').value
+        ],
+        cf_ids: [
+            document.getElementById('cf-r').value,
+            document.getElementById('cf-g').value,
+            document.getElementById('cf-b').value
+        ],
+        bounds: [
+            [parseFloat(document.querySelectorAll('.range-field')[0].value), parseFloat(document.querySelectorAll('.range-field')[1].value)],
+            [parseFloat(document.querySelectorAll('.range-field')[2].value), parseFloat(document.querySelectorAll('.range-field')[3].value)],
+            [parseFloat(document.querySelectorAll('.range-field')[4].value), parseFloat(document.querySelectorAll('.range-field')[5].value)]
+        ],
+        target_standard: document.getElementById('targetSelect').value === 'bt2020' ? 'BT2020' :
+            (document.getElementById('targetSelect').value === 'dci-p3' ? 'DCI-P3' : 'BT2020')
+    };
+}
+function startOptimization() {
+    logStatus('Optimizing...');
+    try {
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+            channel.objects.backend.optimize(JSON.stringify(getInputs()), function(json) {
+                var data = JSON.parse(json);
+                if (data.error) { logStatus('Error: ' + data.error); return; }
+                renderResults(data.results, data.best);
+                logStatus('Optimization complete');
+            });
+        });
+    } catch (e) { logStatus('JS error: ' + e.message); }
 }
 </script>
 
