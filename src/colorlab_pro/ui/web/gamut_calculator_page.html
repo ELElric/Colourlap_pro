@@ -379,7 +379,6 @@ function calculateGamut() {
             renderChromaticityData(data.primaries);
             renderSpectrumPreview();
             renderCIECharts(data.primaries);
-            updateDisplay();
             logStatus('Calculation complete');
         });
     });
@@ -405,21 +404,49 @@ function xyToUV(x, y) {
     if (denom === 0) return { u: 0, v: 0 };
     return { u: 4 * x / denom, v: 9 * y / denom };
 }
+var previewChart = null;
+var currentPreviewTab = 'original';
+
 function switchPreviewTab(tab, el) {
-    document.querySelectorAll('#spectrum-preview-chart').parentElement.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    currentPreviewTab = tab;
+    var panel = document.getElementById('spectrum-preview-chart').parentElement;
+    if (panel) {
+        panel.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    }
     if (el) el.classList.add('active');
     renderSpectrumPreview();
 }
 function renderSpectrumPreview() {
-    // Placeholder: show selected spectra original data when available
     var ids = ['red-select','green-select','blue-select'];
     var selected = [];
     ids.forEach(function(id) {
         var val = document.getElementById(id).value;
-        if (val) selected.push(val);
+        if (val) selected.push(currentSpectra.find(function(s) { return String(s.id) === val; }));
     });
+    selected = selected.filter(Boolean);
+    var dom = document.getElementById('spectrum-preview-chart');
     var empty = document.getElementById('spectrum-empty');
-    if (empty) empty.style.display = selected.length ? 'none' : 'flex';
+    if (selected.length === 0) {
+        if (previewChart) previewChart.clear();
+        if (empty) empty.style.display = 'flex';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
+    var series = selected.map(function(s, idx) {
+        var colors = ['#FF4444', '#44FF44', '#4488FF'];
+        var data = (s.data || []).map(function(p) { return [p[0], currentPreviewTab === 'normalized' ? (p[1] / Math.max(1e-9, Math.max.apply(null, s.data.map(function(q){return q[1];}))) : p[1]]; });
+        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: data, lineStyle: { color: colors[idx] || '#ccc', width: 2 } };
+    });
+    previewChart.setOption({
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis' },
+        legend: { data: selected.map(function(s){return s.name;}), textStyle: { color: '#ccc' }, bottom: 0 },
+        grid: { top: 30, right: 20, bottom: 40, left: 50 },
+        xAxis: { type: 'value', name: 'Wavelength (nm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: currentPreviewTab === 'normalized' ? 'Normalized' : 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: series
+    }, true);
 }
 function pasteSpectrum(selectId) {
     var text = prompt('Paste wavelength/value pairs (nm a.u.):');
@@ -561,6 +588,12 @@ function renderCIECharts(primaries) {
     if (!xyDom || !uvDom) return;
     if (!cieXYChart) cieXYChart = echarts.init(xyDom, 'dark');
     if (!cieUVChart) cieUVChart = echarts.init(uvDom, 'dark');
+    function axisRange(points) {
+        var xs = points.map(function(p){return p[0];}), ys = points.map(function(p){return p[1];});
+        var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+        var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+        return { minX: Math.min(0, minX - 0.05), maxX: Math.max(0.8, maxX + 0.05), minY: Math.min(0, minY - 0.05), maxY: Math.max(0.9, maxY + 0.05) };
+    }
 
     var refs = [];
     ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
@@ -591,8 +624,8 @@ function renderCIECharts(primaries) {
         title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
         grid: { top: 30, right: 20, bottom: 30, left: 40 },
         legend: { data: refs.concat(['Device', 'White']), textStyle: { color: '#ccc' }, bottom: 0 },
-        xAxis: { type: 'value', min: 0, max: 0.8, name: 'x', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', min: 0, max: 0.9, name: 'y', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        xAxis: { type: 'value', min: axisRange(xySeries.flatMap(function(s){return s.data;})).minX, max: axisRange(xySeries.flatMap(function(s){return s.data;})).maxX, name: 'x', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: axisRange(xySeries.flatMap(function(s){return s.data;})).minY, max: axisRange(xySeries.flatMap(function(s){return s.data;})).maxY, name: 'y', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: xySeries
     }, true);
 
@@ -620,6 +653,7 @@ function renderCIECharts(primaries) {
 }
 
 function computeWhitePoint(primaries) {
+    if (!primaries || primaries.length < 3) return { x: 0, y: 0 };
     var x = (primaries[0].x + primaries[1].x + primaries[2].x) / 3;
     var y = (primaries[0].y + primaries[1].y + primaries[2].y) / 3;
     return { x: x, y: y };

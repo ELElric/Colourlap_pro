@@ -126,9 +126,9 @@
     <span class="target-hint">Find optimal RCF/GCF/BCF thicknesses for maximum gamut coverage</span>
     <div class="coord-input" id="coordInput">
       <span class="coord-label">x:</span>
-      <input type="text" class="coord-field" value="0.3127">
+      <input type="text" class="coord-field" id="coord-x" value="0.3127">
       <span class="coord-label">y:</span>
-      <input type="text" class="coord-field" value="0.3290">
+      <input type="text" class="coord-field" id="coord-y" value="0.3290">
     </div>
   </div>
 </div>
@@ -271,9 +271,9 @@
       <div class="chart-title">Scan Curves</div>
     </div>
     <div class="chart-tabs">
-      <div class="chart-tab active" onclick="switchScanTab('coverage', this)">Thickness vs Coverage</div>
-      <div class="chart-tab" onclick="switchScanTab('coordinate', this)">Thickness vs Coordinate</div>
-      <div class="chart-tab" onclick="switchScanTab('whitepoint', this)">Thickness vs White Point</div>
+      <div class="chart-tab active" onclick="switchScanTab('coverage', this)">Coverage</div>
+      <div class="chart-tab" onclick="switchScanTab('whitex', this)">White Point x</div>
+      <div class="chart-tab" onclick="switchScanTab('whitey', this)">White Point y</div>
     </div>
     <div id="scan-chart" style="width:100%;height:300px;"></div>
   </div>
@@ -341,8 +341,8 @@ function getInputs() {
     var target_standard = targetSelect.value;
     var target_xy = null;
     if (target_standard === 'coord' || target_standard === 'white') {
-        var x = parseFloat(document.querySelector('#coordInput input:nth-of-type(1)').value);
-        var y = parseFloat(document.querySelector('#coordInput input:nth-of-type(2)').value);
+        var x = parseFloat(document.getElementById('coord-x').value);
+        var y = parseFloat(document.getElementById('coord-y').value);
         if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
     } else {
         target_standard = target_standard === 'dci-p3' ? 'DCI-P3' : (target_standard === 'bt2020' ? 'BT2020' : 'sRGB');
@@ -469,7 +469,7 @@ function switchScanTab(tab, el) {
     if (el) el.classList.add('active');
     if (tab === 'coverage') {
         renderScanCharts(lastResults, lastBest);
-    } else {
+    } else if (tab === 'whitex' || tab === 'whitey') {
         runSensitivity(tab);
     }
 }
@@ -479,6 +479,7 @@ function runSensitivity(metric) {
     var data = getInputs();
     data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
     data.vary_channel = document.getElementById('sens-channel').value || 'R';
+    data.metric = metric;
     setLoading(true);
     updateProgress(0, 'Running sensitivity...');
     new QWebChannel(qt.webChannelTransport, function(channel) {
@@ -498,29 +499,26 @@ function renderSensitivityChart(points, metric) {
     var dom = document.getElementById('scan-chart');
     if (!dom) return;
     if (!scanChart) scanChart = echarts.init(dom, 'dark');
-    var rData = [], gData = [], bData = [];
+    var data = [];
     points.forEach(function(p) {
-        if (metric === 'coordinate') {
-            rData.push([p.thickness, p.white_x]);
-        } else {
-            rData.push([p.thickness, p.white_y]);
-        }
+        data.push([p.thickness, metric === 'whitex' ? p.white_x : p.white_y]);
     });
-    var title = metric === 'coordinate' ? 'Thickness vs White x' : 'Thickness vs White y';
+    var title = metric === 'whitex' ? 'White Point x vs Thickness' : 'White Point y vs Thickness';
     var option = {
         backgroundColor: 'transparent',
         title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
         grid: { top: 40, right: 20, bottom: 40, left: 50 },
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: metric === 'coordinate' ? 'x' : 'y', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        series: [{ name: 'White point', type: 'line', smooth: true, showSymbol: false, data: rData, itemStyle: { color: '#ffd700' }, lineStyle: { width: 2 } }]
+        yAxis: { type: 'value', name: metric === 'whitex' ? "x" : "y", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: [{ name: 'White point', type: 'line', smooth: true, showSymbol: false, data: data, itemStyle: { color: '#ffd700' }, lineStyle: { width: 2 } }]
     };
     scanChart.setOption(option, true);
 }
 
 function runSensitivityPanel() {
-    switchScanTab(currentTab === 'coverage' ? 'whitepoint' : currentTab, null);
+    var tab = (currentTab === 'coverage' || currentTab === 'whitex' || currentTab === 'whitey') ? currentTab : 'whitey';
+    switchScanTab(tab, null);
 }
 
 function pasteSpectrumToSelect(btn) {

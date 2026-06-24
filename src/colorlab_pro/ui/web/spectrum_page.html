@@ -203,8 +203,8 @@
     <!-- Chart Panel -->
     <div class="chart-panel">
       <div class="chart-tabs">
-        <div class="chart-tab active">Original</div>
-        <div class="chart-tab">Normalized</div>
+        <div class="chart-tab active" onclick="switchSpectrumChartTab('original', this)">Original</div>
+        <div class="chart-tab" onclick="switchSpectrumChartTab('normalized', this)">Normalized</div>
       </div>
       <div id="spectrum-chart" style="width:100%;height:100%;"></div>
     </div>
@@ -384,36 +384,12 @@ function updateInfoCards() {
     }
     var s = allSpectra.find(function(x) { return x.id === ids[0]; });
     if (!s) return;
-    // Compute xy/uv from sample data points if enough
-    if (s.data && s.data.length >= 3) {
-        var approx = approximateColorimetry(s.data);
-        elXY.textContent = approx.xy || '-';
-        elUV.textContent = approx.uv || '-';
-        elDom.innerHTML = (approx.dom || '-') + '<span class="info-card-unit">nm</span>';
-        elPurity.innerHTML = (approx.purity || '-') + '<span class="info-card-unit">%</span>';
-    } else {
-        elXY.textContent = '-';
-        elUV.textContent = '-';
-        elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
-        elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
-    }
+    elXY.textContent = '-';
+    elUV.textContent = '-';
+    elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
+    elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
     elPeak.innerHTML = s.peak_nm + '<span class="info-card-unit">nm</span>';
     elFwhm.innerHTML = s.fwhm_nm + '<span class="info-card-unit">nm</span>';
-}
-
-function approximateColorimetry(points) {
-    // Very lightweight approximations for preview only
-    var peak = points.reduce(function(acc, p) { return p[1] > acc[1] ? p : acc; }, points[0]);
-    var total = points.reduce(function(sum, p) { return sum + p[1]; }, 0);
-    if (total === 0) return {};
-    var centroid = points.reduce(function(acc, p) { return [acc[0] + p[0] * p[1], acc[1] + p[1]]; }, [0, 0]);
-    var dom = (centroid[0] / centroid[1]).toFixed(1);
-    var xy = (0.35 + (centroid[0] / centroid[1] - 550) * 0.0002).toFixed(4) + ', ' +
-             (0.35 + (peak[0] - 550) * 0.0001).toFixed(4);
-    var uv = (0.20 + (centroid[0] / centroid[1] - 550) * 0.0001).toFixed(4) + ', ' +
-             (0.50 + (peak[0] - 550) * 0.00005).toFixed(4);
-    var purity = Math.min(99.9, peak[1] / (total / points.length) * 25).toFixed(1);
-    return { xy: xy, uv: uv, dom: dom, purity: purity };
 }
 
 function updateStatus() {
@@ -429,14 +405,31 @@ function updateStatus() {
     if (delBtn) delBtn.classList.toggle('active', selectedIds.size > 0);
 }
 
+var currentSpectrumChartTab = 'original';
+function switchSpectrumChartTab(tab, el) {
+    currentSpectrumChartTab = tab;
+    var panel = document.getElementById('spectrum-chart').parentElement;
+    if (panel) panel.querySelectorAll('.chart-tab').forEach(function(t) { t.classList.remove('active'); });
+    if (el) el.classList.add('active');
+    renderSpectrumChart(allSpectra, selectedIds);
+}
 function renderSpectrumChart(spectra, selectedIds) {
     var dom = document.getElementById('spectrum-chart');
     if (!dom) return;
     if (!spectrumChart) spectrumChart = echarts.init(dom, 'dark');
     var selected = (spectra || []).filter(function(s) { return selectedIds.has(s.id); });
-    var toPlot = selected.length > 0 ? selected : spectra.slice(0, 5);
+    var toPlot = selected.length > 0 ? selected : [];
+    if (toPlot.length === 0) {
+        spectrumChart.clear();
+        return;
+    }
     var series = toPlot.map(function(s) {
-        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: s.data || [] };
+        var norm = 1;
+        if (currentSpectrumChartTab === 'normalized' && s.data && s.data.length) {
+            var maxVal = Math.max.apply(null, s.data.map(function(p){ return p[1]; }));
+            if (maxVal > 0) norm = maxVal;
+        }
+        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: (s.data || []).map(function(p){ return [p[0], p[1] / norm]; }) };
     });
     var option = {
         backgroundColor: 'transparent',
@@ -444,7 +437,7 @@ function renderSpectrumChart(spectra, selectedIds) {
         legend: { data: toPlot.map(function(s) { return s.name; }), textStyle: { color: '#ccc' }, bottom: 0 },
         grid: { top: 30, right: 20, bottom: 40, left: 50 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: currentSpectrumChartTab === 'normalized' ? 'Normalized' : 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
     };
     spectrumChart.setOption(option, true);
