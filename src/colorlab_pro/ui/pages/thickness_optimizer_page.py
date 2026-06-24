@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import traceback
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QWidget
 
@@ -16,6 +19,9 @@ from colorlab_pro.ui.webview_page import WebViewPage
 class OptimizerPageBackend(QObject):
     """Backend exposed to the Thickness Optimizer page JavaScript."""
 
+    progress = Signal(int)
+    """Emitted with percent complete during optimization/sensitivity."""
+
     def __init__(
         self,
         spectrum_controller: SpectrumController,
@@ -27,6 +33,12 @@ class OptimizerPageBackend(QObject):
         self._spectrum_controller = spectrum_controller
         self._color_controller = color_controller
         self._optimization_controller = optimization_controller
+        self._stop_requested = False
+
+    @Slot()
+    def stop(self) -> None:
+        """Request cancellation of the running optimization."""
+        self._stop_requested = True
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
@@ -47,18 +59,11 @@ class OptimizerPageBackend(QObject):
 
             return json.dumps({"spectra": spectra, "results": results, "best": results[0]})
         except Exception as exc:  # noqa: BLE001
-            import traceback
-
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
     @Slot(str, result=str)
     def optimize(self, payload: str) -> str:
         """Run a grid-search thickness optimization and return ranked results."""
-        import json
-        import traceback
-
-        import numpy as np
-
         try:
             data = json.loads(payload)
             source_ids = [int(x) for x in data["source_ids"]]
@@ -117,9 +122,16 @@ class OptimizerPageBackend(QObject):
             # Grid search (3 steps per channel => 27 combos)
             steps = 4
             candidates = []
+            total = steps ** 3
+            count = 0
+            self._stop_requested = False
             for dr in np.linspace(bounds[0][0], bounds[0][1], steps):
                 for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
                     for db in np.linspace(bounds[2][0], bounds[2][1], steps):
+                        count += 1
+                        if self._stop_requested:
+                            return json.dumps({"results": [], "best": None, "stopped": True})
+                        self.progress.emit(int(100 * count / total))
                         filtered = []
                         for src, alpha, d in zip(sources, alphas, [dr, dg, db], strict=False):
                             t = np.power(10.0, -alpha * d)
@@ -169,11 +181,6 @@ class OptimizerPageBackend(QObject):
     @Slot(str, result=str)
     def sensitivity_analysis(self, payload: str) -> str:
         """Vary one CF thickness at a time and return coverage / white point drift."""
-        import json
-        import traceback
-
-        import numpy as np
-
         try:
             data = json.loads(payload)
             base = data["base"]
@@ -219,7 +226,12 @@ class OptimizerPageBackend(QObject):
             lo, hi = bounds[channel_idx]
 
             points = []
-            for d in np.linspace(lo, hi, 21):
+            self._stop_requested = False
+            steps = 21
+            for idx, d in enumerate(np.linspace(lo, hi, steps)):
+                if self._stop_requested:
+                    break
+                self.progress.emit(int(100 * (idx + 1) / steps))
                 ds = [base[0], base[1], base[2]]
                 ds[channel_idx] = d
                 filtered = []
@@ -240,6 +252,25 @@ class OptimizerPageBackend(QObject):
             return json.dumps({"channel": vary_channel, "points": points})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+    @Slot(str, result=str)
+    def paste_spectrum(self, payload: str) -> str:
+        """Parse clipboard text and save as a new spectrum."""
+        try:
+            data = json.loads(payload)
+            from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
+
+            spectrum = parse_spectrum_from_text(data.get("text", ""))
+            name = data.get("name", "Pasted Spectrum")
+            if spectrum.meta is None:
+                spectrum.meta = {}
+            spectrum.meta["name"] = name
+            sid = self._spectrum_controller.import_spectrum(spectrum, name=name, category="Pasted")
+            if sid is None:
+                return json.dumps({"error": "Failed to import pasted spectrum"})
+            return json.dumps({"id": sid})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
 
 class ThicknessOptimizerPage(WebViewPage):
     """Thickness Optimizer workspace page rendered as HTML."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QFileDialog, QWidget
 
 from colorlab_pro.controllers.color_controller import ColorController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
@@ -153,8 +153,17 @@ class GamutPageBackend(QObject):
 
         try:
             data = json.loads(payload)
+            parent = self.parent()
+            path_str, _ = QFileDialog.getSaveFileName(
+                parent,
+                "Export Gamut Report",
+                "colorlab_gamut_report.html",
+                "HTML Files (*.html);;All Files (*)",
+            )
+            if not path_str:
+                return json.dumps({"cancelled": True})
             exporter = ReportExporter()
-            out = Path(data.get("output_path", "colorlab_report.html"))
+            out = Path(path_str)
             exporter.export_gamut_report(
                 data.get("primaries") or self._last_primaries,
                 data.get("results") or self._last_results,
@@ -162,6 +171,28 @@ class GamutPageBackend(QObject):
                 title=data.get("title", "Gamut Analysis Report"),
             )
             return json.dumps({"path": str(out.resolve())})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+    @Slot(str, result=str)
+    def paste_spectrum(self, payload: str) -> str:
+        """Parse clipboard text and save as a new spectrum."""
+        import json
+        import traceback
+
+        try:
+            data = json.loads(payload)
+            from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
+
+            spectrum = parse_spectrum_from_text(data.get("text", ""))
+            name = data.get("name", "Pasted Spectrum")
+            if spectrum.meta is None:
+                spectrum.meta = {}
+            spectrum.meta["name"] = name
+            sid = self._spectrum_controller.import_spectrum(spectrum, name=name, category="Pasted")
+            if sid is None:
+                return json.dumps({"error": "Failed to import pasted spectrum"})
+            return json.dumps({"id": sid})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 

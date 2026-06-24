@@ -140,13 +140,13 @@
     <!-- Search -->
     <div class="search-box">
       <span class="search-icon">Q</span>
-      <input type="text" placeholder="Search spectra by name..." />
+      <input type="text" id="search-input" placeholder="Search spectra by name..." oninput="filterSpectra()" />
     </div>
 
     <!-- Filters -->
     <div class="filter-group">
       <span class="filter-label">Category:</span>
-      <select class="filter-select">
+      <select class="filter-select" id="category-filter" onchange="filterSpectra()">
         <option value="">All</option>
         <option value="LED">LED</option>
         <option value="CF">CF</option>
@@ -155,7 +155,7 @@
     </div>
     <div class="filter-group">
       <span class="filter-label">Channel:</span>
-      <select class="filter-select">
+      <select class="filter-select" id="channel-filter" onchange="filterSpectra()">
         <option value="">All</option>
         <option value="R">R</option>
         <option value="G">G</option>
@@ -166,9 +166,9 @@
   </div>
 
   <div class="toolbar-right">
-    <button class="btn btn-primary">Import</button>
-    <button class="btn btn-secondary">Export</button>
-    <button class="btn btn-danger tooltip" data-tooltip="Select spectra first to delete">Delete</button>
+    <button class="btn btn-primary" onclick="importSpectra()">Import</button>
+    <button class="btn btn-secondary" onclick="exportSelected()">Export</button>
+    <button class="btn btn-danger tooltip" id="delete-btn" data-tooltip="Select spectra first to delete" onclick="deleteSelected()">Delete</button>
   </div>
 </div>
 
@@ -184,7 +184,7 @@
       <table class="spectrum-table">
         <thead>
           <tr>
-            <th><input type="checkbox" class="row-checkbox" /></th>
+            <th><input type="checkbox" class="row-checkbox" id="select-all" onclick="toggleSelectAll()" /></th>
             <th>Name</th>
             <th>Category</th>
             <th>Channel</th>
@@ -193,7 +193,7 @@
             <th>Thickness (μm)</th>
           </tr>
         </thead>
-        <tbody id="spectrum-table-body"><tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No spectra loaded</td></tr></tbody>
+        <tbody id="spectrum-table-body"></tbody>
       </table>
     </div>
   </div>
@@ -273,47 +273,246 @@
 
 <script src="echarts.min.js"></script>
 <script>
+var allSpectra = [];
+var selectedIds = new Set();
 var spectrumChart = null;
+
+function renderSpectra(spectra) {
+    allSpectra = spectra || [];
+    renderSpectraTable(allSpectra);
+    renderSpectrumChart(allSpectra, selectedIds);
+    updateStatus();
+}
+
+function renderSpectraTable(spectra) {
+    var tbody = document.getElementById('spectrum-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!spectra || spectra.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No spectra match</td></tr>';
+        return;
+    }
+    var html = '';
+    spectra.forEach(function(s) {
+        var isSelected = selectedIds.has(s.id);
+        var catClass = s.category === 'LED' ? 'badge-led' : (s.category === 'CF' ? 'badge-cf' : 'badge-qd');
+        var chClass = s.channel === 'R' ? 'channel-r' : (s.channel === 'G' ? 'channel-g' : (s.channel === 'B' ? 'channel-b' : 'channel-w'));
+        html += '<tr class="' + (isSelected ? 'selected' : '') + '" data-id="' + s.id + '" onclick="toggleRowSelection(' + s.id + ')">' +
+            '<td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ' + (isSelected ? 'checked' : '') + ' onchange="toggleRowSelection(' + s.id + ')"></td>' +
+            '<td><span class="row-name">' + escapeHtml(s.name) + '</span></td>' +
+            '<td><span class="row-badge ' + catClass + '">' + escapeHtml(s.category || '-') + '</span></td>' +
+            '<td><span class="channel-tag ' + chClass + '">' + escapeHtml(s.channel || '-') + '</span></td>' +
+            '<td class="row-value">' + s.peak_nm + '</td>' +
+            '<td class="row-value">' + s.fwhm_nm + '</td>' +
+            '<td class="row-value">' + s.thickness_um + '</td>' +
+            '</tr>';
+    });
+    tbody.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    if (text === undefined || text === null) return '';
+    return String(text).replace(/[&<>"']/g, function(m) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+}
+
+function filterSpectra() {
+    var query = document.getElementById('search-input').value.toLowerCase();
+    var cat = document.getElementById('category-filter').value;
+    var ch = document.getElementById('channel-filter').value;
+    var filtered = allSpectra.filter(function(s) {
+        var nameMatch = (s.name || '').toLowerCase().indexOf(query) !== -1;
+        var catMatch = !cat || (s.category || '').toLowerCase() === cat.toLowerCase();
+        var chMatch = !ch || (s.channel || '').toUpperCase() === ch.toUpperCase();
+        return nameMatch && catMatch && chMatch;
+    });
+    renderSpectraTable(filtered);
+}
+
+function toggleSelectAll() {
+    var cb = document.getElementById('select-all');
+    var checked = cb.checked;
+    var filtered = getFilteredSpectra();
+    filtered.forEach(function(s) {
+        if (checked) selectedIds.add(s.id);
+        else selectedIds.delete(s.id);
+    });
+    renderSpectraTable(filtered);
+    updateInfoCards();
+    updateStatus();
+}
+
+function toggleRowSelection(id) {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+    renderSpectraTable(getFilteredSpectra());
+    updateInfoCards();
+    updateStatus();
+}
+
+function getFilteredSpectra() {
+    var query = document.getElementById('search-input').value.toLowerCase();
+    var cat = document.getElementById('category-filter').value;
+    var ch = document.getElementById('channel-filter').value;
+    return allSpectra.filter(function(s) {
+        var nameMatch = (s.name || '').toLowerCase().indexOf(query) !== -1;
+        var catMatch = !cat || (s.category || '').toLowerCase() === cat.toLowerCase();
+        var chMatch = !ch || (s.channel || '').toUpperCase() === ch.toUpperCase();
+        return nameMatch && catMatch && chMatch;
+    });
+}
+
+function updateInfoCards() {
+    var ids = Array.from(selectedIds);
+    var elXY = document.getElementById('info-xy');
+    var elUV = document.getElementById('info-uv');
+    var elPeak = document.getElementById('info-peak');
+    var elFwhm = document.getElementById('info-fwhm');
+    var elDom = document.getElementById('info-dom');
+    var elPurity = document.getElementById('info-purity');
+
+    if (ids.length !== 1) {
+        var label = ids.length === 0 ? '-' : '(' + ids.length + ' selected)';
+        elXY.textContent = label;
+        elUV.textContent = label;
+        elPeak.innerHTML = '-<span class="info-card-unit">nm</span>';
+        elFwhm.innerHTML = '-<span class="info-card-unit">nm</span>';
+        elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
+        elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
+        return;
+    }
+    var s = allSpectra.find(function(x) { return x.id === ids[0]; });
+    if (!s) return;
+    // Compute xy/uv from sample data points if enough
+    if (s.data && s.data.length >= 3) {
+        var approx = approximateColorimetry(s.data);
+        elXY.textContent = approx.xy || '-';
+        elUV.textContent = approx.uv || '-';
+        elDom.innerHTML = (approx.dom || '-') + '<span class="info-card-unit">nm</span>';
+        elPurity.innerHTML = (approx.purity || '-') + '<span class="info-card-unit">%</span>';
+    } else {
+        elXY.textContent = '-';
+        elUV.textContent = '-';
+        elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
+        elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
+    }
+    elPeak.innerHTML = s.peak_nm + '<span class="info-card-unit">nm</span>';
+    elFwhm.innerHTML = s.fwhm_nm + '<span class="info-card-unit">nm</span>';
+}
+
+function approximateColorimetry(points) {
+    // Very lightweight approximations for preview only
+    var peak = points.reduce(function(acc, p) { return p[1] > acc[1] ? p : acc; }, points[0]);
+    var total = points.reduce(function(sum, p) { return sum + p[1]; }, 0);
+    if (total === 0) return {};
+    var centroid = points.reduce(function(acc, p) { return [acc[0] + p[0] * p[1], acc[1] + p[1]]; }, [0, 0]);
+    var dom = (centroid[0] / centroid[1]).toFixed(1);
+    var xy = (0.35 + (centroid[0] / centroid[1] - 550) * 0.0002).toFixed(4) + ', ' +
+             (0.35 + (peak[0] - 550) * 0.0001).toFixed(4);
+    var uv = (0.20 + (centroid[0] / centroid[1] - 550) * 0.0001).toFixed(4) + ', ' +
+             (0.50 + (peak[0] - 550) * 0.00005).toFixed(4);
+    var purity = Math.min(99.9, peak[1] / (total / points.length) * 25).toFixed(1);
+    return { xy: xy, uv: uv, dom: dom, purity: purity };
+}
+
+function updateStatus() {
+    var countEl = document.getElementById('spectrum-count');
+    var totalEl = document.getElementById('status-total');
+    var selectedEl = document.getElementById('status-selected');
+    if (countEl) countEl.textContent = allSpectra.length + ' spectra';
+    if (totalEl) totalEl.textContent = 'Total: ' + allSpectra.length + ' spectra';
+    if (selectedEl) selectedEl.textContent = 'Selected: ' + selectedIds.size;
+    var badge = document.querySelector('.change-badge');
+    if (badge) badge.textContent = selectedIds.size + ' selected';
+    var delBtn = document.getElementById('delete-btn');
+    if (delBtn) delBtn.classList.toggle('active', selectedIds.size > 0);
+}
+
 function renderSpectrumChart(spectra, selectedIds) {
     var dom = document.getElementById('spectrum-chart');
     if (!dom) return;
     if (!spectrumChart) spectrumChart = echarts.init(dom, 'dark');
-    var series = [];
-    var colors = ['#ff6666', '#66ff66', '#6666ff', '#ffd700', '#ff8a65', '#4fc3f7'];
-    var sel = selectedIds || [];
-    spectra.forEach(function(s, idx) {
-        if (sel.length && sel.indexOf(s.id) === -1) return;
-        series.push({
-            name: s.name,
-            type: 'line',
-            smooth: true,
-            showSymbol: false,
-            data: s.data || [],
-            lineStyle: { color: colors[idx % colors.length], width: 2 }
-        });
+    var selected = (spectra || []).filter(function(s) { return selectedIds.has(s.id); });
+    var toPlot = selected.length > 0 ? selected : spectra.slice(0, 5);
+    var series = toPlot.map(function(s) {
+        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: s.data || [] };
     });
     var option = {
         backgroundColor: 'transparent',
-        grid: { top: 40, right: 20, bottom: 40, left: 50 },
-        legend: { textStyle: { color: '#ccc' }, top: 5 },
         tooltip: { trigger: 'axis' },
-        xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: 'Intensity', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        legend: { data: toPlot.map(function(s) { return s.name; }), textStyle: { color: '#ccc' }, bottom: 0 },
+        grid: { top: 30, right: 20, bottom: 40, left: 50 },
+        xAxis: { type: 'value', name: 'Wavelength (nm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
     };
     spectrumChart.setOption(option, true);
 }
-function renderSpectra(spectra) {
-    // existing table render placeholder
-    logStatus('Loaded ' + spectra.length + ' spectra');
-    // update chart with all spectra initially
-    renderSpectrumChart(spectra, []);
-}
+
 function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
 }
-</script>
+
+function importSpectra() {
+    if (!window.backend) { logStatus('Backend not ready'); return; }
+    window.backend.import_spectra(function(json) {
+        var res = JSON.parse(json);
+        if (res.error) { logStatus('Import failed: ' + res.error); return; }
+        logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
+        refreshSpectra();
+    });
+}
+
+function exportSelected() {
+    if (selectedIds.size === 0) { logStatus('No spectra selected to export'); return; }
+    if (!window.backend) { logStatus('Backend not ready'); return; }
+    window.backend.export_selected(JSON.stringify(Array.from(selectedIds)), function(json) {
+        var res = JSON.parse(json);
+        if (res.error) { logStatus('Export failed: ' + res.error); return; }
+        logStatus('Exported to ' + res.path);
+    });
+}
+
+function deleteSelected() {
+    if (selectedIds.size === 0) { logStatus('No spectra selected'); return; }
+    if (!confirm('Delete ' + selectedIds.size + ' selected spectra?')) return;
+    if (!window.backend) { logStatus('Backend not ready'); return; }
+    window.backend.delete_spectra(JSON.stringify(Array.from(selectedIds)), function(json) {
+        var res = JSON.parse(json);
+        if (res.error) { logStatus('Delete failed: ' + res.error); return; }
+        selectedIds.clear();
+        logStatus('Deleted ' + res.deleted + ' spectra');
+        refreshSpectra();
+    });
+}
+
+function pasteSpectrum() {
+    var text = prompt('Paste wavelength/value pairs (nm a.u.):');
+    if (!text) return;
+    var name = prompt('Spectrum name:', 'Pasted Spectrum');
+    if (!window.backend) { logStatus('Backend not ready'); return; }
+    window.backend.paste_spectrum(JSON.stringify({ text: text, name: name || 'Pasted Spectrum' }), function(json) {
+        var res = JSON.parse(json);
+        if (res.error) { logStatus('Paste failed: ' + res.error); return; }
+        logStatus('Pasted spectrum ' + res.id);
+        refreshSpectra();
+    });
+}
+
+function refreshSpectra() {
+    if (!window.backend) { logStatus('Backend not ready'); return; }
+    window.backend.get_spectra(function(json) {
+        var data = JSON.parse(json);
+        if (data.error) { logStatus('Refresh failed: ' + data.error); return; }
+        renderSpectra(data);
+    });
+}
+
+// Expose a global helper so individual Paste buttons in other pages can call it
+window.pasteSpectrum = pasteSpectrum;
+
 
 </body>
 </html>

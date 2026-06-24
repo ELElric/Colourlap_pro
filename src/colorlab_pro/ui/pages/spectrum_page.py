@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Slot
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QFileDialog, QWidget
 
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
+from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
 from colorlab_pro.ui.webview_page import WebViewPage
 
 
@@ -50,13 +53,88 @@ class SpectrumPageBackend(QObject):
                         "data": _sample_points(full_spec),
                     }
                 )
-            import json
-
             return json.dumps(spectra)
         except Exception as exc:  # noqa: BLE001
-            import json
-            import traceback
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
+    @Slot(str, result=str)
+    def delete_spectra(self, ids_json: str) -> str:
+        """Delete selected spectra. Returns {deleted: int} or {error}."""
+        try:
+            ids = json.loads(ids_json)
+            deleted = 0
+            for sid in ids:
+                if self._controller.delete_spectrum(sid):
+                    deleted += 1
+            return json.dumps({"deleted": deleted})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+    @Slot(result=str)
+    def import_spectra(self) -> str:
+        """Open a file dialog and import CSV/XLSX/TXT spectra."""
+        parent = self.parent()
+        path_str, _ = QFileDialog.getOpenFileName(
+            parent,
+            "Import Spectrum",
+            "",
+            "Spectrum Files (*.csv *.xlsx *.txt);;All Files (*)",
+        )
+        if not path_str:
+            return json.dumps({"ids": [], "cancelled": True})
+        path = Path(path_str)
+        try:
+            suffix = path.suffix.lower()
+            if suffix == ".xlsx":
+                result = self._controller.import_xlsx_file(path)
+            else:
+                result = self._controller.import_csv_file(path)
+            ids = result if isinstance(result, list) else ([result] if result else [])
+            return json.dumps({"ids": [i for i in ids if i is not None]})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+    @Slot(str, result=str)
+    def export_selected(self, ids_json: str) -> str:
+        """Export selected spectra to a user-chosen directory."""
+        parent = self.parent()
+        ids = json.loads(ids_json)
+        if not ids:
+            return json.dumps({"error": "No spectra selected"})
+        dir_str = QFileDialog.getExistingDirectory(parent, "Export Spectra", "")
+        if not dir_str:
+            return json.dumps({"cancelled": True})
+        from colorlab_pro.exporters.csv_exporter import export_spectrum
+
+        out_dir = Path(dir_str)
+        exported = 0
+        for sid in ids:
+            spec = self._controller.get_spectrum(sid)
+            if spec is None:
+                continue
+            name = spec.meta.get("name", f"spectrum_{sid}") if spec.meta else f"spectrum_{sid}"
+            safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+            export_spectrum(spec, out_dir / f"{safe_name}.csv")
+            exported += 1
+        return json.dumps({"path": str(out_dir), "exported": exported})
+
+    @Slot(str, result=str)
+    def paste_spectrum(self, payload: str) -> str:
+        """Parse clipboard text and save as a new spectrum."""
+        try:
+            data = json.loads(payload)
+            text = data.get("text", "")
+            name = data.get("name", "Pasted Spectrum")
+            spectrum = parse_spectrum_from_text(text)
+            if spectrum.meta is None:
+                spectrum.meta = {}
+            spectrum.meta["name"] = name
+            spectrum.meta["category"] = spectrum.meta.get("category", "Pasted")
+            sid = self._controller.import_spectrum(spectrum, name=name, category="Pasted")
+            if sid is None:
+                return json.dumps({"error": "Failed to import pasted spectrum"})
+            return json.dumps({"id": sid})
+        except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
 

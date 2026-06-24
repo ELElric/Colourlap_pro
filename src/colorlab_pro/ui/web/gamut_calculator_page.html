@@ -118,24 +118,21 @@
 <div class="controls-bar">
   <!-- Row 1: Mode & Display Options -->
   <div class="controls-row" style="margin-bottom: 10px;">
-    <div class="controls-section">
+    <div class="controls-section" style="opacity:0.5;" title="Mode selection is not available in this version">
       <span class="section-label">Mode:</span>
-      <select class="mode-select">
+      <select class="mode-select" disabled>
         <option>RGB + Color Filter</option>
-        <option>White + Color Filter</option>
       </select>
     </div>
-    
+
     <div class="divider"></div>
-    
+
     <div class="controls-section">
       <span class="section-label">Display:</span>
       <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" checked> Original</label>
-        <label class="checkbox-label"><input type="checkbox" checked> Filtered</label>
-        <label class="checkbox-label"><input type="checkbox" checked> White Point</label>
-        <label class="checkbox-label"><input type="checkbox" checked> Trajectory</label>
-        <label class="checkbox-label"><input type="checkbox" checked> Triangle</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateDisplay()"> Original</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-triangle" checked onchange="updateDisplay()"> Triangle</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-white" checked onchange="updateDisplay()"> White Point</label>
       </div>
     </div>
   </div>
@@ -145,10 +142,10 @@
     <div class="controls-section">
       <span class="section-label">Reference Gamuts:</span>
       <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox"> sRGB</label>
-        <label class="checkbox-label"><input type="checkbox" checked> NTSC</label>
-        <label class="checkbox-label"><input type="checkbox" checked> DCI-P3</label>
-        <label class="checkbox-label"><input type="checkbox" checked> BT2020</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults()"> sRGB</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults()"> NTSC</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults()"> DCI-P3</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults()"> BT2020</label>
       </div>
     </div>
   </div>
@@ -164,73 +161,28 @@
       <div class="selector-row">
         <span class="channel-tag channel-r">R</span>
         <select id="red-select" class="spectrum-select"><option value="">-- Select --</option></select>
-        <button class="paste-btn">Paste</button>
+        <button class="paste-btn" onclick="pasteSpectrum('red-select')">Paste</button>
       </div>
       <div class="selector-row">
         <span class="channel-tag channel-g">G</span>
         <select id="green-select" class="spectrum-select"><option value="">-- Select --</option></select>
-        <button class="paste-btn">Paste</button>
+        <button class="paste-btn" onclick="pasteSpectrum('green-select')">Paste</button>
       </div>
       <div class="selector-row">
         <span class="channel-tag channel-b">B</span>
         <select id="blue-select" class="spectrum-select"><option value="">-- Select --</option></select>
-        <button class="paste-btn">Paste</button>
+        <button class="paste-btn" onclick="pasteSpectrum('blue-select')">Paste</button>
       </div>
     </div>
 
-    <!-- Filter Panel -->
-    <div class="input-panel">
+    <!-- Filter Panel (hidden until backend supports CF) -->
+    <div class="input-panel" style="display:none;">
       <div class="panel-label panel-label-filter">Color Filter</div>
-      <div class="selector-row">
-        <span class="channel-tag channel-rcf">RCF</span>
-        <select id="rcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
-        <button class="paste-btn">Paste</button>
-      </div>
-      <div class="selector-row">
-        <span class="channel-tag channel-gcf">GCF</span>
-        <select id="gcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
-        <button class="paste-btn">Paste</button>
-      </div>
-      <div class="selector-row">
-        <span class="channel-tag channel-bcf">BCF</span>
-        <select id="bcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
-        <button class="paste-btn">Paste</button>
-      </div>
     </div>
 
-    <!-- Thickness Panel -->
-    <div class="input-panel">
+    <!-- Thickness Panel (hidden until backend supports CF) -->
+    <div class="input-panel" style="display:none;">
       <div class="panel-label panel-label-thickness">Thickness (μm)</div>
-      <div class="selector-row">
-        <span class="channel-tag channel-rcf">RCF</span>
-        <div class="thickness-control">
-          <button class="spin-btn">-</button>
-          <input type="text" class="spin-value" value="1.00">
-          <button class="spin-btn">+</button>
-          <span class="step-label">Step:</span>
-          <input type="text" class="step-value" value="0.01">
-        </div>
-      </div>
-      <div class="selector-row">
-        <span class="channel-tag channel-gcf">GCF</span>
-        <div class="thickness-control">
-          <button class="spin-btn">-</button>
-          <input type="text" class="spin-value" value="1.00">
-          <button class="spin-btn">+</button>
-          <span class="step-label">Step:</span>
-          <input type="text" class="step-value" value="0.01">
-        </div>
-      </div>
-      <div class="selector-row">
-        <span class="channel-tag channel-bcf">BCF</span>
-        <div class="thickness-control">
-          <button class="spin-btn">-</button>
-          <input type="text" class="spin-value" value="1.00">
-          <button class="spin-btn">+</button>
-          <span class="step-label">Step:</span>
-          <input type="text" class="step-value" value="0.01">
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -256,9 +208,9 @@
       <div class="panel-title">Spectrum Preview</div>
     </div>
     <div class="tabs">
-      <div class="tab active">Filtered</div>
-      <div class="tab">Original</div>
-      <div class="tab">Compare</div>
+      <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
+      <div class="tab" onclick="switchPreviewTab('filtered', this)" title="Requires Color Filter support">Filtered</div>
+      <div class="tab" onclick="switchPreviewTab('compare', this)">Compare</div>
     </div>
     <div id="spectrum-preview-chart" style="width:100%;height:100%;"></div><div id="spectrum-empty" class="chart-area" style="display:none;">Select spectra to preview</div>
   </div>
@@ -334,20 +286,22 @@
 
 
 <script>
+var lastPrimaries = null;
+var lastResults = [];
+var currentSpectra = [];
+
 function logStatus(msg) {
     var el = document.getElementById('status-left');
     if (el) el.textContent = msg;
 }
 
 function populateSelectors(spectra) {
-    logStatus('Populating ' + spectra.length + ' spectra');
-    var ids = ['red-select', 'green-select', 'blue-select', 'rcf-select', 'gcf-select', 'bcf-select'];
+    currentSpectra = spectra || [];
+    var ids = ['red-select', 'green-select', 'blue-select'];
     ids.forEach(function(id) {
         var sel = document.getElementById(id);
-        if (!sel) {
-            logStatus('Missing select: ' + id);
-            return;
-        }
+        if (!sel) return;
+        var current = sel.value;
         sel.innerHTML = '<option value="">-- Select --</option>';
         spectra.forEach(function(s) {
             var opt = document.createElement('option');
@@ -355,16 +309,29 @@ function populateSelectors(spectra) {
             opt.textContent = s.name + ' (' + s.category + ')';
             sel.appendChild(opt);
         });
+        if (current) sel.value = current;
     });
 }
 
 function renderResults(results) {
+    lastResults = results || [];
+    filterReferenceResults();
+}
+
+function filterReferenceResults() {
+    var refs = [];
+    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
+        var cb = document.getElementById(id);
+        if (cb && cb.checked) refs.push(cb.value);
+    });
+    var filtered = lastResults.filter(function(r) { return refs.indexOf(r.standard) !== -1; });
+
     var t1931 = document.getElementById('gamut-1931-body');
     var t1976 = document.getElementById('gamut-1976-body');
     if (!t1931 || !t1976) return;
     t1931.innerHTML = '';
     t1976.innerHTML = '';
-    results.forEach(function(r) {
+    filtered.forEach(function(r) {
         var clsCov1931 = r.coverage_1931 >= 90 ? 'gamut-high' : (r.coverage_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
         var clsMatch1931 = r.match_1931 >= 90 ? 'gamut-high' : (r.match_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
         var clsCov1976 = r.coverage_1976 >= 90 ? 'gamut-high' : (r.coverage_1976 >= 70 ? 'gamut-medium' : 'gamut-low');
@@ -410,6 +377,9 @@ function calculateGamut() {
             lastPrimaries = data.primaries;
             renderResults(data.results);
             renderChromaticityData(data.primaries);
+            renderSpectrumPreview();
+            renderCIECharts(data.primaries);
+            updateDisplay();
             logStatus('Calculation complete');
         });
     });
@@ -419,13 +389,55 @@ function renderChromaticityData(primaries) {
     if (!tbody || !primaries) return;
     tbody.innerHTML = '';
     primaries.forEach(function(p){
+        var uv = xyToUV(p.x, p.y);
         var row = document.createElement('tr');
         row.innerHTML = '<td class="channel-' + p.ch.toLowerCase() + '">' + p.ch + '</td>' +
             '<td class="data-value">' + p.x.toFixed(4) + '</td>' +
             '<td class="data-value">' + p.y.toFixed(4) + '</td>' +
-            '<td class="data-value">-</td><td class="data-value">-</td>' +
+            '<td class="data-value">' + uv.u.toFixed(4) + '</td>' +
+            '<td class="data-value">' + uv.v.toFixed(4) + '</td>' +
             '<td class="data-value">-</td><td class="data-value">-</td><td class="data-value">-</td>';
         tbody.appendChild(row);
+    });
+}
+function xyToUV(x, y) {
+    var denom = -2 * x + 12 * y + 3;
+    if (denom === 0) return { u: 0, v: 0 };
+    return { u: 4 * x / denom, v: 9 * y / denom };
+}
+function switchPreviewTab(tab, el) {
+    document.querySelectorAll('#spectrum-preview-chart').parentElement.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    if (el) el.classList.add('active');
+    renderSpectrumPreview();
+}
+function renderSpectrumPreview() {
+    // Placeholder: show selected spectra original data when available
+    var ids = ['red-select','green-select','blue-select'];
+    var selected = [];
+    ids.forEach(function(id) {
+        var val = document.getElementById(id).value;
+        if (val) selected.push(val);
+    });
+    var empty = document.getElementById('spectrum-empty');
+    if (empty) empty.style.display = selected.length ? 'none' : 'flex';
+}
+function pasteSpectrum(selectId) {
+    var text = prompt('Paste wavelength/value pairs (nm a.u.):');
+    if (!text) return;
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: 'Pasted Spectrum' }), function(json) {
+            var res = JSON.parse(json);
+            if (res.error) { logStatus('Paste failed: ' + res.error); return; }
+            logStatus('Pasted spectrum ' + res.id);
+            channel.objects.backend.get_initial_data(function(json2) {
+                var data = JSON.parse(json2);
+                if (data.error) return;
+                populateSelectors(data.spectra);
+                var sel = document.getElementById(selectId);
+                if (sel) sel.value = String(res.id);
+            });
+        });
     });
 }
 
@@ -435,7 +447,7 @@ function renderChromaticityData(primaries) {
     var exp = document.getElementById('export-btn');
     if (exp) exp.addEventListener('click', exportReport);
 })();
-</script>
+
 
 <script src="echarts.min.js"></script>
 <script>
@@ -498,36 +510,124 @@ function toggleCompare(){ var p=document.getElementById('compare-panel'); p.styl
 
 function exportReport() {
     new QWebChannel(qt.webChannelTransport, function(channel){
-        var rows1931 = document.querySelectorAll('#gamut-1931-body tr');
-        var rows1976 = document.querySelectorAll('#gamut-1976-body tr');
-        var results = [];
-        rows1931.forEach(function(row, idx){
-            var c1931 = row.querySelectorAll('td');
-            var c1976 = rows1976[idx] ? rows1976[idx].querySelectorAll('td') : [];
-            if (c1931.length < 3 || c1976.length < 3) return;
-            results.push({
-                standard: c1931[0].textContent,
-                coverage_1931: parseFloat(c1931[1].textContent) || 0,
-                match_1931: parseFloat(c1931[2].textContent) || 0,
-                coverage_1976: parseFloat(c1976[1].textContent) || 0,
-                match_1976: parseFloat(c1976[2].textContent) || 0
-            });
-        });
         var payload = JSON.stringify({
             title: 'Gamut Analysis Report',
-            output_path: 'colorlab_gamut_report.html',
             primaries: lastPrimaries || [{ch:'R',x:0,y:0},{ch:'G',x:0,y:0},{ch:'B',x:0,y:0}],
-            results: results
+            results: lastResults
         });
         channel.objects.backend.export_report(payload, function(json){
             var data = JSON.parse(json);
             if(data.error){ logStatus('Export failed: ' + data.error); return; }
+            if(data.cancelled){ logStatus('Export cancelled'); return; }
             logStatus('Report saved to ' + data.path);
         });
     });
 }
-var lastPrimaries = null;
 
+</script>
+
+
+<script>
+var cieXYChart = null;
+var cieUVChart = null;
+var currentCIETab = 'xy';
+
+function switchCIETab(tab) {
+    currentCIETab = tab;
+    document.getElementById('cie-xy-chart').style.display = tab === 'xy' ? 'block' : 'none';
+    document.getElementById('cie-uv-chart').style.display = tab === 'uv' ? 'block' : 'none';
+    var tabs = document.querySelectorAll('.tab');
+    // Simple toggle based on text
+    tabs.forEach(function(t) {
+        if (t.textContent.indexOf('CIE 1931') !== -1) t.classList.toggle('active', tab === 'xy');
+        if (t.textContent.indexOf('CIE 1976') !== -1) t.classList.toggle('active', tab === 'uv');
+    });
+}
+
+function standardGamutPolygon(name) {
+    var gamuts = {
+        'sRGB':   [[0.6400,0.3300],[0.3000,0.6000],[0.1500,0.0600],[0.6400,0.3300]],
+        'NTSC':   [[0.6700,0.3300],[0.2100,0.7100],[0.1400,0.0800],[0.6700,0.3300]],
+        'DCI-P3': [[0.6800,0.3200],[0.2650,0.6900],[0.1500,0.0600],[0.6800,0.3200]],
+        'BT2020': [[0.7080,0.2920],[0.1700,0.7970],[0.1310,0.0460],[0.7080,0.2920]]
+    };
+    return gamuts[name] || [];
+}
+
+function renderCIECharts(primaries) {
+    if (!primaries || primaries.length < 3) return;
+    var xyDom = document.getElementById('cie-xy-chart');
+    var uvDom = document.getElementById('cie-uv-chart');
+    if (!xyDom || !uvDom) return;
+    if (!cieXYChart) cieXYChart = echarts.init(xyDom, 'dark');
+    if (!cieUVChart) cieUVChart = echarts.init(uvDom, 'dark');
+
+    var refs = [];
+    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
+        var cb = document.getElementById(id);
+        if (cb && cb.checked) refs.push(cb.value);
+    });
+
+    var devicePoly = [[primaries[0].x, primaries[0].y], [primaries[1].x, primaries[1].y], [primaries[2].x, primaries[2].y], [primaries[0].x, primaries[0].y]];
+    var deviceUVPoly = [xyToUV(primaries[0].x, primaries[0].y), xyToUV(primaries[1].x, primaries[1].y), xyToUV(primaries[2].x, primaries[2].y), xyToUV(primaries[0].x, primaries[0].y)];
+
+    var showTriangle = document.getElementById('disp-triangle') ? document.getElementById('disp-triangle').checked : true;
+    var showWhite = document.getElementById('disp-white') ? document.getElementById('disp-white').checked : true;
+
+    var xySeries = [];
+    refs.forEach(function(std) {
+        xySeries.push({ name: std, type: 'line', smooth: false, showSymbol: false, data: standardGamutPolygon(std), lineStyle: { width: 1, type: 'dashed' } });
+    });
+    if (showTriangle) {
+        xySeries.push({ name: 'Device', type: 'line', data: devicePoly, lineStyle: { width: 2, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.1)' } });
+    }
+    if (showWhite) {
+        var white = computeWhitePoint(primaries);
+        xySeries.push({ name: 'White', type: 'scatter', data: [[white.x, white.y]], symbolSize: 10, itemStyle: { color: '#ffd700' } });
+    }
+
+    cieXYChart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 30, right: 20, bottom: 30, left: 40 },
+        legend: { data: refs.concat(['Device', 'White']), textStyle: { color: '#ccc' }, bottom: 0 },
+        xAxis: { type: 'value', min: 0, max: 0.8, name: 'x', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: 0, max: 0.9, name: 'y', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: xySeries
+    }, true);
+
+    var uvSeries = [];
+    refs.forEach(function(std) {
+        uvSeries.push({ name: std, type: 'line', smooth: false, showSymbol: false, data: standardGamutPolygon(std).map(function(p){ var uv = xyToUV(p[0], p[1]); return [uv.u, uv.v]; }), lineStyle: { width: 1, type: 'dashed' } });
+    });
+    if (showTriangle) {
+        uvSeries.push({ name: 'Device', type: 'line', data: deviceUVPoly.map(function(p){ return [p.u, p.v]; }), lineStyle: { width: 2, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.1)' } });
+    }
+    if (showWhite) {
+        var whiteUV = xyToUV(computeWhitePoint(primaries).x, computeWhitePoint(primaries).y);
+        uvSeries.push({ name: 'White', type: 'scatter', data: [[whiteUV.u, whiteUV.v]], symbolSize: 10, itemStyle: { color: '#ffd700' } });
+    }
+
+    cieUVChart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 30, right: 20, bottom: 30, left: 40 },
+        legend: { data: refs.concat(['Device', 'White']), textStyle: { color: '#ccc' }, bottom: 0 },
+        xAxis: { type: 'value', min: 0, max: 0.65, name: "u'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: uvSeries
+    }, true);
+}
+
+function computeWhitePoint(primaries) {
+    var x = (primaries[0].x + primaries[1].x + primaries[2].x) / 3;
+    var y = (primaries[0].y + primaries[1].y + primaries[2].y) / 3;
+    return { x: x, y: y };
+}
+
+function updateDisplay() {
+    if (lastPrimaries) renderCIECharts(lastPrimaries);
+}
 </script>
 
 <div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>
