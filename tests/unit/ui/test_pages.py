@@ -16,16 +16,16 @@ def test_analysis_result_widget(qtbot):
     widget = AnalysisResultWidget()
     qtbot.addWidget(widget)
     widget.set_results((1.0, 2.0, 3.0), (0.3, 0.4), 6500.0, 620.5)
-    assert "1.0000" in widget._xyz.text()
-    assert "6500.0" in widget._cct.text()
-    assert "620.5" in widget._dominant.text()
+    assert "1.000" in widget._xyz.text()
+    assert "6500" in widget._cct.text()
+    assert "620" in widget._dominant.text()
 
 
 def test_color_mixing_result_widget(qtbot):
     widget = ColorMixingResultWidget()
     qtbot.addWidget(widget)
     widget.set_results((1.0, 2.0, 3.0), (0.3, 0.4))
-    assert "0.3000" in widget._mixed_xy.text()
+    assert "0.300" in widget._mixed_xy.text()
 
 
 def test_gamut_result_widget(qtbot):

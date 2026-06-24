@@ -70,7 +70,7 @@ class OptimizerPageBackend(QObject):
 
             import numpy as np
 
-            from colorlab_pro.dto.color import XY, Gamut
+            from colorlab_pro.dto.color import XY
             from colorlab_pro.dto.spectrum import Spectrum
             from colorlab_pro.engines.gamut_calculator import (
                 build_gamut_from_primaries,
@@ -121,7 +121,7 @@ class OptimizerPageBackend(QObject):
                 for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
                     for db in np.linspace(bounds[2][0], bounds[2][1], steps):
                         filtered = []
-                        for src, alpha, d in zip(sources, alphas, [dr, dg, db]):
+                        for src, alpha, d in zip(sources, alphas, [dr, dg, db], strict=False):
                             t = np.power(10.0, -alpha * d)
                             filtered.append(src.values * t)
                         white = Spectrum(

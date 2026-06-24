@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.skip(reason="SpectrumPage was migrated to WebView; legacy QWidget internals no longer exist")
+
 from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.controllers.project_controller import ProjectController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController

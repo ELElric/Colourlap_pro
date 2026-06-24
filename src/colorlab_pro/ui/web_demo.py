@@ -34,13 +34,12 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from colorlab_pro.controllers.color_controller import ColorController
-from colorlab_pro.controllers.main_controller import MainController
-from colorlab_pro.controllers.optimization_controller import OptimizationController
-from colorlab_pro.controllers.project_controller import ProjectController
-from colorlab_pro.controllers.spectrum_controller import SpectrumController
-from colorlab_pro.dto.color import XY
-from colorlab_pro.dto.spectrum import Spectrum
+from colorlab_pro.controllers.color_controller import ColorController  # noqa: E402
+from colorlab_pro.controllers.main_controller import MainController  # noqa: E402
+from colorlab_pro.controllers.optimization_controller import OptimizationController  # noqa: E402
+from colorlab_pro.controllers.project_controller import ProjectController  # noqa: E402
+from colorlab_pro.controllers.spectrum_controller import SpectrumController  # noqa: E402
+from colorlab_pro.dto.spectrum import Spectrum  # noqa: E402
 
 # --------------------------------------------------------------------------- #
 # Qt's qwebchannel.js inlined so the demo works without extra files.
@@ -81,7 +80,7 @@ var QWebChannel = function(transport, initCallback, converters)
         Date : function(response) {
             if (typeof response === "string"
                 && response.match(
-                        /^-?\d+-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d*)?([-+\u2212](\d{2}):(\d{2})|Z)?$/)) {
+                        /^-?\\d+-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d*)?([-+\u2212](\\d{2}):(\\d{2})|Z)?$/)) {
                 var date = new Date(response);
                 if (!isNaN(date))
                     return date;

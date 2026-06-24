@@ -44,7 +44,7 @@ colorlab-pro-gui = "colorlab_pro.ui.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"colorlab_pro.ui" = ["**/*.qss", "**/*.ui"]
+"colorlab_pro.ui" = ["**/*.qss", "**/*.ui", "**/*.html", "**/*.js"]
 "colorlab_pro.resources" = ["**/*"]
 
 [tool.coverage.run]

@@ -60,20 +60,20 @@ class WhitePointPageBackend(QObject):
             def xy_to_xyz(x: float, y: float) -> tuple[float, float, float]:
                 if y == 0:
                     return 0.0, 0.0, 0.0
-                Y = 1.0
-                X = Y * x / y
-                Z = Y * (1.0 - x - y) / y
-                return X, Y, Z
+                yy = 1.0
+                xx = yy * x / y
+                zz = yy * (1.0 - x - y) / y
+                return xx, yy, zz
 
             xyzs = [xy_to_xyz(*c) for c in [red_xy, green_xy, blue_xy]]
             r, g, b = ratios["R"], ratios["G"], ratios["B"]
             mix = [r * xyzs[0][i] + g * xyzs[1][i] + b * xyzs[2][i] for i in range(3)]
-            X, Y, Z = mix
-            total = X + Y + Z
+            xx, yy, zz = mix
+            total = xx + yy + zz
             if total == 0:
                 wx = wy = 0.0
             else:
-                wx, wy = X / total, Y / total
+                wx, wy = xx / total, yy / total
 
             denom = -2.0 * wx + 12.0 * wy + 3.0
             if denom == 0:
