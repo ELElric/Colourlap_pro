@@ -149,6 +149,18 @@
     </div>
   </div>
 <button class="preset-btn" onclick="calculateWhitePoint()" style="margin-left:auto;">Calculate</button>
+          <button class="preset-btn" onclick="toggleReverseMode()" style="margin-left:8px;">Reverse Mode</button>
+        </div>
+</div>
+
+
+<div id="reverse-panel" style="display:none;padding:12px 24px;background:#1a1a1a;border-bottom:1px solid #333;">
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+    <span style="color:#aaa;">Target White xy:</span>
+    <input id="target-wx" class="input-field" type="number" step="0.0001" value="0.3127" style="width:90px;">
+    <input id="target-wy" class="input-field" type="number" step="0.0001" value="0.3290" style="width:90px;">
+    <button class="preset-btn" onclick="calculateRgbRatios()">Solve Ratios</button>
+  </div>
 </div>
 
 <!-- Quick Info Cards -->
@@ -276,18 +288,14 @@
         <div class="cie-title">CIE 1931 xy Chromaticity Diagram</div>
         <div style="color: #666; font-size: 10px;">● R ● G ● B ● W</div>
       </div>
-      <div class="cie-chart">
-        [ CIE 1931 xy Diagram: R/G/B Triangle + White Point + Reference Gamuts ]
-      </div>
+      <div id="cie-1931-chart" style="width:100%;height:100%;"></div>
     </div>
     <div class="cie-panel">
       <div class="cie-header">
         <div class="cie-title">CIE 1976 u'v' Chromaticity Diagram</div>
         <div style="color: #666; font-size: 10px;">● R ● G ● B ● W</div>
       </div>
-      <div class="cie-chart">
-        [ CIE 1976 u'v' Diagram: R/G/B Triangle + White Point + Reference Gamuts ]
-      </div>
+      <div id="cie-1976-chart" style="width:100%;height:100%;"></div>
     </div>
   </div>
 </div>
@@ -340,6 +348,7 @@ function renderWhitePoint(data) {
     var wOutputs = document.querySelectorAll('.row-highlight .output-value');
     if (data.white_xy) { wOutputs[0].textContent = data.white_xy[0].toFixed(4); wOutputs[1].textContent = data.white_xy[1].toFixed(4); }
     renderGamutResults(data.results);
+    renderCIECharts(data);
     logStatus('White point updated');
 }
 function getInputValues() {
@@ -373,5 +382,72 @@ function setRGBCoordinates(data) {
 }
 </script>
 
+
+<script src="echarts.min.js"></script>
+<script>
+var chart1931 = null, chart1976 = null;
+function renderCIECharts(data) {
+    var c1931 = document.getElementById('cie-1931-chart');
+    var c1976 = document.getElementById('cie-1976-chart');
+    if (!c1931 || !c1976) return;
+    if (!chart1931) chart1931 = echarts.init(c1931, 'dark');
+    if (!chart1976) chart1976 = echarts.init(c1976, 'dark');
+    var standards = data.results || [];
+    var r = data.red_xy || [0.64, 0.33];
+    var g = data.green_xy || [0.3, 0.6];
+    var b = data.blue_xy || [0.15, 0.06];
+    var w = data.white_xy || [0.3127, 0.3290];
+    function stdPolygon(std) {
+        var pts = {sRGB:[[0.64,0.33],[0.3,0.6],[0.15,0.06]], NTSC:[[0.67,0.33],[0.21,0.71],[0.14,0.08]], DCI_P3:[[0.68,0.32],[0.265,0.69],[0.15,0.06]], BT2020:[[0.708,0.292],[0.17,0.797],[0.131,0.046]]};
+        return (pts[std] || []).map(function(p){return [p[0], p[1], std];});
+    }
+    function buildOption(title, xName, yName, r, g, b, w) {
+        return {
+            backgroundColor: 'transparent', title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+            grid: { top: 40, right: 20, bottom: 40, left: 50 },
+            tooltip: { trigger: 'item' },
+            xAxis: { type: 'value', name: xName, min: 0, max: 0.9, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            yAxis: { type: 'value', name: yName, min: 0, max: 0.9, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            series: [
+                { name: 'Device', type: 'line', data: [r,g,b,r], lineStyle: { color: '#4fc3f7' }, itemStyle: { color: '#4fc3f7' }, symbolSize: 6, areaStyle: { color: 'rgba(79,195,247,0.1)' } },
+                { name: 'White', type: 'scatter', data: [w], symbolSize: 10, itemStyle: { color: '#fff' } },
+                { name: 'sRGB', type: 'line', data: stdPolygon('sRGB'), lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
+                { name: 'BT2020', type: 'line', data: stdPolygon('BT2020'), lineStyle: { color: '#aaa', type: 'dotted' }, symbol: 'none' }
+            ],
+            legend: { data: ['Device', 'White', 'sRGB', 'BT2020'], textStyle: { color: '#ccc' }, bottom: 0 }
+        };
+    }
+    chart1931.setOption(buildOption('CIE 1931 xy', 'x', 'y', r, g, b, w), true);
+    chart1976.setOption(buildOption('CIE 1976 u'v'', 'u'', 'v'', data.white_uv || [0.1978,0.4683], data.white_uv || [0.1978,0.4683], data.white_uv || [0.1978,0.4683], data.white_uv || [0.1978,0.4683]), true);
+}
+</script>
+
+<script>
+
+function toggleReverseMode() {
+    var panel = document.getElementById('reverse-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+function calculateRgbRatios() {
+    logStatus('Solving RGB ratios...');
+    try {
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+            var payload = JSON.stringify({
+                red_xy: [parseFloat(document.querySelectorAll('.input-field')[0].value), parseFloat(document.querySelectorAll('.input-field')[1].value)],
+                green_xy: [parseFloat(document.querySelectorAll('.input-field')[3].value), parseFloat(document.querySelectorAll('.input-field')[4].value)],
+                blue_xy: [parseFloat(document.querySelectorAll('.input-field')[6].value), parseFloat(document.querySelectorAll('.input-field')[7].value)],
+                target_xy: [parseFloat(document.getElementById('target-wx').value), parseFloat(document.getElementById('target-wy').value)]
+            });
+            channel.objects.backend.calculate_rgb_ratios(payload, function(json) {
+                var data = JSON.parse(json);
+                if (data.error) { logStatus('Error: ' + data.error); return; }
+                renderWhitePoint(data);
+                logStatus('RGB ratios solved');
+            });
+        });
+    } catch (e) { logStatus('JS error: ' + e.message); }
+}
+
+</script>
 </body>
 </html>

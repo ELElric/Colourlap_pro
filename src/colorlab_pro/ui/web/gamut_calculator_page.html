@@ -307,6 +307,18 @@
 </div>
 
 
+
+<!-- Comparison Panel -->
+<div id="compare-panel" style="margin:12px 24px;padding:12px;background:#1a1a1a;border:1px solid #333;border-radius:4px;display:none;">
+  <div style="color:#ccc;font-weight:600;margin-bottom:8px;">Project Comparison</div>
+  <div id="compare-rows"></div>
+  <div style="margin-top:8px;">
+    <button class="preset-btn" onclick="addCompareRow()">+ Add Config</button>
+    <button class="preset-btn" onclick="runComparison()" style="margin-left:8px;">Compare</button>
+  </div>
+  <div id="compare-chart" style="width:100%;height:280px;margin-top:12px;"></div>
+</div>
+
 <!-- Calculate Button -->
 <div style="margin: 12px 0; text-align: center;">
   <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button>
@@ -389,6 +401,90 @@ function calculateGamut() {
     var btn = document.getElementById('calculate-btn');
     if (btn) btn.addEventListener('click', calculateGamut);
 })();
+</script>
+
+<script src="echarts.min.js"></script>
+<script>
+var compareChart = null;
+var compareCount = 0;
+function addCompareRow() {
+    var container = document.getElementById('compare-rows');
+    compareCount++;
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+    row.innerHTML = '<input class="input-field" placeholder="Config name" style="width:120px;" id="cmp-name-' + compareCount + '">' +
+        '<select class="spectrum-select" id="cmp-r-' + compareCount + '"></select>' +
+        '<select class="spectrum-select" id="cmp-g-' + compareCount + '"></select>' +
+        '<select class="spectrum-select" id="cmp-b-' + compareCount + '"></select>';
+    container.appendChild(row);
+    populateSelectorsForRow(compareCount);
+}
+function populateSelectorsForRow(idx) {
+    var spectra = [];
+    var sels = ['red-select','green-select','blue-select'];
+    sels.forEach(function(id){ var sel = document.getElementById(id); if(sel) for(var i=0;i<sel.options.length;i++) spectra.push({id:sel.options[i].value,name:sel.options[i].text}); });
+    ['r','g','b'].forEach(function(ch){ var sel = document.getElementById('cmp-' + ch + '-' + idx); if(!sel) return; sel.innerHTML = '<option value="">--</option>'; spectra.forEach(function(s){ var opt=document.createElement('option'); opt.value=s.id; opt.textContent=s.name; sel.appendChild(opt); }); });
+}
+function runComparison() {
+    var configs = [];
+    for(var i=1;i<=compareCount;i++){
+        var name = document.getElementById('cmp-name-' + i).value || ('Config ' + i);
+        configs.push({name: name, red_id: document.getElementById('cmp-r-' + i).value, green_id: document.getElementById('cmp-g-' + i).value, blue_id: document.getElementById('cmp-b-' + i).value});
+    }
+    new QWebChannel(qt.webChannelTransport, function(channel){
+        channel.objects.backend.compare_configurations(JSON.stringify({configs: configs}), function(json){
+            var data = JSON.parse(json);
+            if(data.error){ logStatus('Error: ' + data.error); return; }
+            renderCompareChart(data.results);
+            logStatus('Comparison complete');
+        });
+    });
+}
+function renderCompareChart(results) {
+    var dom = document.getElementById('compare-chart');
+    if(!dom) return;
+    if(!compareChart) compareChart = echarts.init(dom, 'dark');
+    var names = results.map(function(r){return r.name;});
+    var covs = results.map(function(r){return r.coverage;});
+    var matches = results.map(function(r){return r.match;});
+    compareChart.setOption({
+        backgroundColor: 'transparent', tooltip: {trigger: 'axis'}, legend: {data:['Coverage','Match'],textStyle:{color:'#ccc'},bottom:0},
+        xAxis: {type:'category',data:names,axisLine:{lineStyle:{color:'#555'}},axisLabel:{color:'#aaa'}},
+        yAxis: {type:'value',name:'%',axisLine:{lineStyle:{color:'#555'}},splitLine:{lineStyle:{color:'#333'}}},
+        series: [
+            {name:'Coverage',type:'bar',data:covs,itemStyle:{color:'#4fc3f7'}},
+            {name:'Match',type:'bar',data:matches,itemStyle:{color:'#ff8a65'}}
+        ]
+    }, true);
+}
+function toggleCompare(){ var p=document.getElementById('compare-panel'); p.style.display=p.style.display==='none'?'block':'none'; }
+</script>
+
+<script>
+
+function exportReport() {
+    new QWebChannel(qt.webChannelTransport, function(channel){
+        // Collect latest results from DOM
+        var rows = document.querySelectorAll('#gamut-1931-body tr');
+        var results = [];
+        rows.forEach(function(row){
+            var cells = row.querySelectorAll('td');
+            results.push({standard: cells[0].textContent, coverage_1931: cells[1].textContent, match_1931: cells[2].textContent, coverage_1976: cells[1].textContent, match_1976: cells[2].textContent});
+        });
+        var payload = JSON.stringify({
+            title: 'Gamut Analysis Report',
+            output_path: 'colorlab_gamut_report.html',
+            primaries: lastPrimaries || [{ch:'R',x:0,y:0},{ch:'G',x:0,y:0},{ch:'B',x:0,y:0}],
+            results: results
+        });
+        channel.objects.backend.export_report(payload, function(json){
+            var data = JSON.parse(json);
+            if(data.error){ logStatus('Export failed: ' + data.error); return; }
+            logStatus('Report saved to ' + data.path);
+        });
+    });
+}
+
 </script>
 </body>
 </html>

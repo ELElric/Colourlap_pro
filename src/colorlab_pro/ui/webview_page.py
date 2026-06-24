@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -21,8 +21,8 @@ class WebViewPage(QWidget):
 
     The page uses :meth:`QWebEngineView.setHtml` instead of loading a local
     file so that the Qt WebChannel transport is available to the page JS.
-    The page script is executed after a short delay so the transport is fully
-    ready (calling it immediately after ``setHtml`` is too early).
+    The page script is run as soon as the QWebEnginePage signals that the
+    main frame has finished loading, plus a tiny safety margin.
     """
 
     status_message = Signal(str)
@@ -41,6 +41,7 @@ class WebViewPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self._view = QWebEngineView(self)
+        self._view.loadFinished.connect(self._on_load_finished)
         layout.addWidget(self._view)
 
     def html_path(self) -> Path:
@@ -70,13 +71,25 @@ class WebViewPage(QWidget):
         html = self.html_path()
         if not html.exists():
             self._view.setHtml(f"<html><body><h1>Missing page: {html.name}</h1></body></html>")
-            self._finish_setup()
             return
 
         # setHtml makes the Qt WebChannel transport available; loading a
-        # plain local file does not. Wait briefly so the transport is ready.
+        # plain local file does not. The actual script injection is deferred
+        # to loadFinished to avoid a hard-coded timeout.
         self._view.setHtml(html.read_text(encoding="utf-8"))
-        QTimer.singleShot(1200, self._finish_setup)
+
+    def _on_load_finished(self, ok: bool) -> None:  # noqa: FBT001
+        """Run the page script once the page is fully loaded."""
+        if self._setup_done:
+            return
+        self._setup_done = True
+        if not ok:
+            self.status_message.emit("Page load failed")
+            return
+        script = self.page_script()
+        if script:
+            self._view.page().runJavaScript(script)
+        self.status_message.emit("Ready")
 
     def _finish_setup(self) -> None:
         """Run the page script and notify that the page is ready."""

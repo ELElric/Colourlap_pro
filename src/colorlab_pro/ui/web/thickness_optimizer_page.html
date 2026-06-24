@@ -321,14 +321,7 @@
       <div class="chart-tab">Thickness vs Coordinate</div>
       <div class="chart-tab">Thickness vs White Point</div>
     </div>
-    <div class="chart-area">
-      [ Line Chart: GCF Thickness vs Coverage (%) ]
-      <div class="chart-legend">
-        <div class="legend-item"><span class="legend-dot" style="background: #FF4444;"></span> RCF</div>
-        <div class="legend-item"><span class="legend-dot" style="background: #44FF44;"></span> GCF</div>
-        <div class="legend-item"><span class="legend-dot" style="background: #4488FF;"></span> BCF</div>
-      </div>
-    </div>
+    <div id="scan-chart" style="width:100%;height:300px;"></div>
   </div>
 </div>
 
@@ -341,6 +334,38 @@
     <span class="status-item">Time: 12.3s</span>
   </div>
 </div>
+
+
+<script src="echarts.min.js"></script>
+<script>
+var scanChart = null;
+function renderScanCharts(results) {
+    var dom = document.getElementById('scan-chart');
+    if (!dom) return;
+    if (!scanChart) scanChart = echarts.init(dom, 'dark');
+    var rData = [], gData = [], bData = [];
+    results.forEach(function(r) {
+        rData.push([r.thickness_r, r.coverage]);
+        gData.push([r.thickness_g, r.coverage]);
+        bData.push([r.thickness_b, r.coverage]);
+    });
+    var option = {
+        backgroundColor: 'transparent',
+        title: { text: 'Thickness vs Coverage', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 40, right: 20, bottom: 40, left: 50 },
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['RCF', 'GCF', 'BCF'], textStyle: { color: '#ccc' }, bottom: 0 },
+        xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Coverage (%)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: [
+            { name: 'RCF', type: 'scatter', data: rData, itemStyle: { color: '#FF4444' } },
+            { name: 'GCF', type: 'scatter', data: gData, itemStyle: { color: '#44FF44' } },
+            { name: 'BCF', type: 'scatter', data: bData, itemStyle: { color: '#4488FF' } }
+        ]
+    };
+    scanChart.setOption(option, true);
+}
+</script>
 
 <script>
 function logStatus(msg) {
@@ -422,11 +447,58 @@ function startOptimization() {
                 var data = JSON.parse(json);
                 if (data.error) { logStatus('Error: ' + data.error); return; }
                 renderResults(data.results, data.best);
+                renderScanCharts(data.results);
                 logStatus('Optimization complete');
             });
         });
     } catch (e) { logStatus('JS error: ' + e.message); }
 }
+</script>
+
+
+<script>
+var sensChart = null;
+function runSensitivity() {
+    var ch = document.getElementById('sens-channel').value;
+    var base = [parseFloat(document.querySelectorAll('.range-field')[0].value), parseFloat(document.querySelectorAll('.range-field')[1].value), parseFloat(document.querySelectorAll('.range-field')[4].value)];
+    logStatus('Running sensitivity analysis...');
+    new QWebChannel(qt.webChannelTransport, function(channel){
+        var payload = JSON.stringify({
+            base: base, vary_channel: ch,
+            source_ids: [document.getElementById('source-r').value, document.getElementById('source-g').value, document.getElementById('source-b').value],
+            cf_ids: [document.getElementById('cf-r').value, document.getElementById('cf-g').value, document.getElementById('cf-b').value],
+            bounds: [[parseFloat(document.querySelectorAll('.range-field')[0].value), parseFloat(document.querySelectorAll('.range-field')[1].value)],
+                     [parseFloat(document.querySelectorAll('.range-field')[2].value), parseFloat(document.querySelectorAll('.range-field')[3].value)],
+                     [parseFloat(document.querySelectorAll('.range-field')[4].value), parseFloat(document.querySelectorAll('.range-field')[5].value)]]
+        });
+        channel.objects.backend.sensitivity_analysis(payload, function(json){
+            var data = JSON.parse(json);
+            if(data.error){ logStatus('Error: ' + data.error); return; }
+            renderSensitivityChart(data);
+            logStatus('Sensitivity analysis complete');
+        });
+    });
+}
+function renderSensitivityChart(data) {
+    var dom = document.getElementById('sensitivity-chart');
+    if(!dom) return;
+    if(!sensChart) sensChart = echarts.init(dom, 'dark');
+    var xs = data.points.map(function(p){return p.thickness;});
+    var covs = data.points.map(function(p){return p.coverage;});
+    var wxs = data.points.map(function(p){return p.white_x;});
+    var wys = data.points.map(function(p){return p.white_y;});
+    sensChart.setOption({
+        backgroundColor: 'transparent', tooltip: {trigger: 'axis'}, legend: {data:['Coverage','White x','White y'],textStyle:{color:'#ccc'},bottom:0},
+        xAxis: {type:'category',data:xs,name:'Thickness (μm)',axisLine:{lineStyle:{color:'#555'}},axisLabel:{color:'#aaa'}},
+        yAxis: [{type:'value',name:'Coverage %',axisLine:{lineStyle:{color:'#555'}},splitLine:{lineStyle:{color:'#333'}}}, {type:'value',name:'White xy',axisLine:{lineStyle:{color:'#555'}},splitLine:{show:false}}],
+        series: [
+            {name:'Coverage',type:'line',data:covs,itemStyle:{color:'#4fc3f7'},yAxisIndex:0},
+            {name:'White x',type:'line',data:wxs,itemStyle:{color:'#ff8a65'},yAxisIndex:1},
+            {name:'White y',type:'line',data:wys,itemStyle:{color:'#a0de83'},yAxisIndex:1}
+        ]
+    }, true);
+}
+function toggleSensitivity(){ var p=document.getElementById('sensitivity-panel'); p.style.display=p.style.display==='none'?'block':'none'; }
 </script>
 
 </body>

@@ -165,6 +165,78 @@ class OptimizerPageBackend(QObject):
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
 
+
+    @Slot(str, result=str)
+    def sensitivity_analysis(self, payload: str) -> str:
+        """Vary one CF thickness at a time and return coverage / white point drift."""
+        import json
+        import traceback
+
+        try:
+            data = json.loads(payload)
+            base = data["base"]
+            vary_channel = data["vary_channel"]
+            source_ids = [int(x) for x in data["source_ids"]]
+            cf_ids = [int(x) for x in data["cf_ids"]]
+            bounds = data["bounds"]
+
+            sources = [self._spectrum_controller.get_spectrum(sid) for sid in source_ids]
+            cfs = [self._spectrum_controller.get_spectrum(sid) for sid in cf_ids]
+
+            import numpy as np
+
+            from colorlab_pro.dto.spectrum import Spectrum
+            from colorlab_pro.engines.gamut_calculator import build_gamut_from_primaries, coverage, standard_gamuts
+            from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
+
+            wavelengths = sources[0].wavelengths.copy()
+            for s in sources[1:]:
+                wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+            for c in cfs:
+                wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+
+            def resample(spec):
+                vals = np.interp(wavelengths, spec.wavelengths, spec.values)
+                return Spectrum(wavelengths=wavelengths, values=vals, unit=spec.unit)
+
+            sources = [resample(s) for s in sources]
+            cfs = [resample(c) for c in cfs]
+
+            def transmittance_to_alpha(t):
+                t = np.asarray(t, dtype=float)
+                if np.max(t) > 1.5:
+                    t = t / 100.0
+                t = np.clip(t, 1e-6, 1.0)
+                return -np.log10(t)
+
+            alphas = [transmittance_to_alpha(c.values) for c in cfs]
+            target = standard_gamuts("BT2020")
+            channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
+            lo, hi = bounds[channel_idx]
+
+            points = []
+            for d in np.linspace(lo, hi, 21):
+                ds = [base[0], base[1], base[2]]
+                ds[channel_idx] = d
+                filtered = []
+                for src, alpha, dd in zip(sources, alphas, ds):
+                    t = np.power(10.0, -alpha * dd)
+                    filtered.append(src.values * t)
+                primaries_xy = [spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit)) for v in filtered]
+                white = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=sources[0].unit)
+                white_xy = spectrum_xy(white)
+                device = build_gamut_from_primaries("Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy)
+                cov = coverage(target, device)
+                points.append({
+                    "thickness": round(float(d), 3),
+                    "coverage": round(float(cov), 1),
+                    "white_x": round(float(white_xy.x), 4),
+                    "white_y": round(float(white_xy.y), 4),
+                })
+            return json.dumps({"channel": vary_channel, "points": points})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
 class ThicknessOptimizerPage(WebViewPage):
     """Thickness Optimizer workspace page rendered as HTML."""
 

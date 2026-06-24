@@ -11,6 +11,16 @@ from colorlab_pro.controllers.spectrum_controller import SpectrumController
 from colorlab_pro.ui.webview_page import WebViewPage
 
 
+def _sample_points(spectrum, step: int = 5) -> list[list[float]]:
+    """Return a down-sampled list of [wavelength, value] for charting."""
+    if spectrum is None or len(spectrum.wavelengths) == 0:
+        return []
+    return [
+        [round(float(w), 1), round(float(v), 4)]
+        for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step])
+    ]
+
+
 class SpectrumPageBackend(QObject):
     """Backend exposed to the Spectrum page JavaScript via QWebChannel."""
 
@@ -25,6 +35,7 @@ class SpectrumPageBackend(QObject):
             summaries = self._controller.list_spectra()
             spectra = []
             for s in summaries:
+                full_spec = self._controller.get_spectrum(s.id)
                 spectra.append(
                     {
                         "id": s.id,
@@ -34,8 +45,9 @@ class SpectrumPageBackend(QObject):
                         "peak_nm": s.peak_wavelength if s.peak_wavelength is not None else "-",
                         "fwhm_nm": s.fwhm if s.fwhm is not None else "-",
                         "thickness_um": (
-                            f"{s.thickness:.2f}" if s.thickness is not None else "-"
+                            f"{s.thickness_um:.2f}" if s.thickness_um is not None else "-"
                         ),
+                        "data": _sample_points(full_spec),
                     }
                 )
             import json

@@ -167,6 +167,61 @@ class WhitePointPage(WebViewPage):
     def create_backend(self) -> QObject:
         return WhitePointPageBackend(self._color_controller, self)
 
+    @Slot(str, result=str)
+    def calculate_rgb_ratios(self, payload: str) -> str:
+        """Solve RGB mixing ratios to hit a target white point (xy).
+
+        Uses linear least squares in XYZ space with non-negative constraints.
+        """
+        import json
+        import traceback
+
+        try:
+            data = json.loads(payload)
+            red_xy = data["red_xy"]
+            green_xy = data["green_xy"]
+            blue_xy = data["blue_xy"]
+            target_xy = data["target_xy"]
+
+            def xy_to_xyz(x, y):
+                if y == 0:
+                    return [0.0, 0.0, 0.0]
+                Y = 1.0
+                X = Y * x / y
+                Z = Y * (1.0 - x - y) / y
+                return [X, Y, Z]
+
+            M = [
+                xy_to_xyz(*red_xy),
+                xy_to_xyz(*green_xy),
+                xy_to_xyz(*blue_xy),
+            ]
+            # Target with unit Y
+            target_xyz = xy_to_xyz(*target_xy)
+
+            import numpy as np
+
+            # Non-negative least squares: find weights such that M^T * w ~= target_xyz
+            coeffs, residuals, rank, s = np.linalg.lstsq(np.array(M).T, np.array(target_xyz), rcond=None)
+            # Clamp negatives to zero and re-normalize so sum = 1
+            coeffs = np.maximum(coeffs, 0)
+            total = float(np.sum(coeffs))
+            if total == 0:
+                ratios = {"R": 0.333, "G": 0.333, "B": 0.333}
+            else:
+                ratios = {"R": round(float(coeffs[0]) / total, 4), "G": round(float(coeffs[1]) / total, 4), "B": round(float(coeffs[2]) / total, 4)}
+
+            # Compute resulting white with these ratios
+            calc_payload = json.dumps({
+                "red_xy": red_xy, "green_xy": green_xy, "blue_xy": blue_xy, "ratios": ratios
+            })
+            result = json.loads(self.calculate_white_point(calc_payload))
+            result["ratios"] = ratios
+            return json.dumps(result)
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+
     def page_script(self) -> str:
         return (
             "try {"

@@ -93,6 +93,59 @@ class GamutPageBackend(QObject):
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
 
+
+    @Slot(str, result=str)
+    def compare_configurations(self, payload: str) -> str:
+        """Compare multiple RGB+CF configurations and return ranked results."""
+        import json
+        import traceback
+
+        try:
+            data = json.loads(payload)
+            configs = data["configs"]  # list of {name, red_id, green_id, blue_id}
+            gs = self._color_controller._gamut_service()
+            results = []
+            for cfg in configs:
+                ids = [int(cfg["red_id"]), int(cfg["green_id"]), int(cfg["blue_id"])]
+                specs = [self._spectrum_controller.get_spectrum(sid) for sid in ids]
+                device = gs.build_from_primaries(specs[0], specs[1], specs[2], name=cfg["name"])
+                try:
+                    cov = gs.coverage("BT2020", device)
+                    match = gs.match("BT2020", device)
+                except Exception:  # noqa: BLE001
+                    cov = match = 0.0
+                results.append({
+                    "name": cfg["name"],
+                    "coverage": round(cov, 1),
+                    "match": round(match, 1),
+                    "red_xy": [round(device.red[0], 4), round(device.red[1], 4)],
+                    "green_xy": [round(device.green[0], 4), round(device.green[1], 4)],
+                    "blue_xy": [round(device.blue[0], 4), round(device.blue[1], 4)],
+                })
+            results.sort(key=lambda x: (-x["coverage"], -x["match"]))
+            return json.dumps({"results": results})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+
+    @Slot(str, result=str)
+    def export_report(self, payload: str) -> str:
+        """Generate an HTML report from current gamut results and return file path."""
+        import json
+        import traceback
+        from pathlib import Path
+
+        try:
+            data = json.loads(payload)
+            from colorlab_pro.services.report_service import ReportService
+
+            service = ReportService()
+            out = Path(data.get("output_path", "colorlab_report.html"))
+            service.generate_gamut_report(data["primaries"], data["results"], out, title=data.get("title", "Gamut Analysis Report"))
+            return json.dumps({"path": str(out.resolve())})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
 class GamutCalculatorPage(WebViewPage):
     """Gamut Calculator workspace page rendered as HTML."""
 
