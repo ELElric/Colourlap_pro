@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-
-from colorlab_pro.dto.color import Gamut
 
 
 class ReportService:
@@ -18,7 +16,7 @@ class ReportService:
         output_path: Path,
     ) -> Path:
         """Write an HTML report with embedded tables to *output_path*."""
-        html = ["<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>", title, "</title>"]
+        html = ['<!DOCTYPE html><html><head><meta charset="utf-8"><title>', title, "</title>"]
         html.append("""<style>
 body{font-family:Arial,sans-serif;margin:40px;background:#f5f5f5;color:#222}
 h1{color:#1a1a1a}
@@ -28,9 +26,9 @@ th,td{border:1px solid #ddd;padding:8px;text-align:left}
 th{background:#333;color:#fff}
 </style></head><body>""")
         html.append(f"<h1>{title}</h1>")
-        html.append(f"<p>Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>")
+        html.append(f"<p>Generated at {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC</p>")
         for section in sections:
-            html.append(f"<div class=\"section\"><h2>{section['title']}</h2>")
+            html.append(f'<div class="section"><h2>{section["title"]}</h2>')
             if section.get("text"):
                 html.append(f"<p>{section['text']}</p>")
             if section.get("rows"):

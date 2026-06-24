@@ -57,6 +57,8 @@ class OptimizerPageBackend(QObject):
         import json
         import traceback
 
+        import numpy as np
+
         try:
             data = json.loads(payload)
             source_ids = [int(x) for x in data["source_ids"]]
@@ -67,8 +69,6 @@ class OptimizerPageBackend(QObject):
 
             sources = [self._spectrum_controller.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_controller.get_spectrum(sid) for sid in cf_ids]
-
-            import numpy as np
 
             from colorlab_pro.dto.color import XY
             from colorlab_pro.dto.spectrum import Spectrum
@@ -172,6 +172,8 @@ class OptimizerPageBackend(QObject):
         import json
         import traceback
 
+        import numpy as np
+
         try:
             data = json.loads(payload)
             base = data["base"]
@@ -183,10 +185,12 @@ class OptimizerPageBackend(QObject):
             sources = [self._spectrum_controller.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_controller.get_spectrum(sid) for sid in cf_ids]
 
-            import numpy as np
-
             from colorlab_pro.dto.spectrum import Spectrum
-            from colorlab_pro.engines.gamut_calculator import build_gamut_from_primaries, coverage, standard_gamuts
+            from colorlab_pro.engines.gamut_calculator import (
+                build_gamut_from_primaries,
+                coverage,
+                standard_gamuts,
+            )
             from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
 
             wavelengths = sources[0].wavelengths.copy()
@@ -219,7 +223,7 @@ class OptimizerPageBackend(QObject):
                 ds = [base[0], base[1], base[2]]
                 ds[channel_idx] = d
                 filtered = []
-                for src, alpha, dd in zip(sources, alphas, ds):
+                for src, alpha, dd in zip(sources, alphas, ds, strict=False):
                     t = np.power(10.0, -alpha * dd)
                     filtered.append(src.values * t)
                 primaries_xy = [spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit)) for v in filtered]

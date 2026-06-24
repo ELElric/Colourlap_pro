@@ -128,7 +128,7 @@
 
 <!-- Page Header -->
 <div class="page-header">
-  <div class="page-title">📊 Spectrum Page</div>
+  <div class="page-title">Spectrum Page</div>
   <div class="header-actions">
     <button class="btn btn-secondary">⚙ Settings</button>
   </div>
@@ -139,7 +139,7 @@
   <div class="toolbar-left">
     <!-- Search -->
     <div class="search-box">
-      <span class="search-icon">🔍</span>
+      <span class="search-icon">Q</span>
       <input type="text" placeholder="Search spectra by name..." />
     </div>
 
@@ -166,9 +166,9 @@
   </div>
 
   <div class="toolbar-right">
-    <button class="btn btn-primary">📥 Import</button>
-    <button class="btn btn-secondary">📤 Export</button>
-    <button class="btn btn-danger tooltip" data-tooltip="Select spectra first to delete">🗑 Delete</button>
+    <button class="btn btn-primary">Import</button>
+    <button class="btn btn-secondary">Export</button>
+    <button class="btn btn-danger tooltip" data-tooltip="Select spectra first to delete">Delete</button>
   </div>
 </div>
 
@@ -178,7 +178,7 @@
   <div class="left-panel">
     <div class="panel-header">
       <div class="panel-title">Spectrum List</div>
-      <div class="panel-count">6 spectra • 2 selected</div>
+      <div class="panel-count" id="spectrum-count">0 spectra</div>
     </div>
     <div class="table-container">
       <table class="spectrum-table">
@@ -193,62 +193,7 @@
             <th>Thickness (μm)</th>
           </tr>
         </thead>
-        <tbody>
-          <tr class="selected">
-            <td><input type="checkbox" class="row-checkbox" checked /></td>
-            <td class="row-name">LED_R_630nm</td>
-            <td><span class="row-badge badge-led">LED</span></td>
-            <td><span class="channel-tag channel-r">R</span></td>
-            <td class="row-value">630</td>
-            <td class="row-value">21</td>
-            <td class="row-value">-</td>
-          </tr>
-          <tr class="selected">
-            <td><input type="checkbox" class="row-checkbox" checked /></td>
-            <td class="row-name">LED_G_525nm</td>
-            <td><span class="row-badge badge-led">LED</span></td>
-            <td><span class="channel-tag channel-g">G</span></td>
-            <td class="row-value">526</td>
-            <td class="row-value">32</td>
-            <td class="row-value">-</td>
-          </tr>
-          <tr>
-            <td><input type="checkbox" class="row-checkbox" /></td>
-            <td class="row-name">LED_B_450nm</td>
-            <td><span class="row-badge badge-led">LED</span></td>
-            <td><span class="channel-tag channel-b">B</span></td>
-            <td class="row-value">450</td>
-            <td class="row-value">19</td>
-            <td class="row-value">-</td>
-          </tr>
-          <tr>
-            <td><input type="checkbox" class="row-checkbox" /></td>
-            <td class="row-name">CF_Red_1um</td>
-            <td><span class="row-badge badge-cf">CF</span></td>
-            <td><span class="channel-tag channel-r">R</span></td>
-            <td class="row-value">-</td>
-            <td class="row-value">-</td>
-            <td class="row-value">1.00</td>
-          </tr>
-          <tr>
-            <td><input type="checkbox" class="row-checkbox" /></td>
-            <td class="row-name">CF_Green_1.5um</td>
-            <td><span class="row-badge badge-cf">CF</span></td>
-            <td><span class="channel-tag channel-g">G</span></td>
-            <td class="row-value">-</td>
-            <td class="row-value">-</td>
-            <td class="row-value">1.50</td>
-          </tr>
-          <tr>
-            <td><input type="checkbox" class="row-checkbox" /></td>
-            <td class="row-name">QD_Red_630</td>
-            <td><span class="row-badge badge-qd">QD</span></td>
-            <td><span class="channel-tag channel-r">R</span></td>
-            <td class="row-value">630</td>
-            <td class="row-value">25</td>
-            <td class="row-value">-</td>
-          </tr>
-        </tbody>
+        <tbody id="spectrum-table-body"><tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No spectra loaded</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -258,8 +203,8 @@
     <!-- Chart Panel -->
     <div class="chart-panel">
       <div class="chart-tabs">
-        <div class="chart-tab active">📈 Original</div>
-        <div class="chart-tab">📊 Normalized</div>
+        <div class="chart-tab active">Original</div>
+        <div class="chart-tab">Normalized</div>
       </div>
       <div id="spectrum-chart" style="width:100%;height:100%;"></div>
     </div>
@@ -273,42 +218,42 @@
             <div class="info-card-icon color-xy"></div>
             <span class="info-card-label">CIE 1931 xy</span>
           </div>
-          <div class="info-card-value">0.642, 0.331</div>
+          <div class="info-card-value" id="info-xy">-</div>
         </div>
         <div class="info-card">
           <div class="info-card-header">
             <div class="info-card-icon color-uv"></div>
             <span class="info-card-label">CIE 1976 u'v'</span>
           </div>
-          <div class="info-card-value">0.432, 0.521</div>
+          <div class="info-card-value" id="info-uv">-</div>
         </div>
         <div class="info-card">
           <div class="info-card-header">
             <div class="info-card-icon color-peak"></div>
             <span class="info-card-label">Peak Wavelength</span>
           </div>
-          <div class="info-card-value">630.2<span class="info-card-unit">nm</span></div>
+          <div class="info-card-value" id="info-peak">-<span class="info-card-unit">nm</span></div>
         </div>
         <div class="info-card">
           <div class="info-card-header">
             <div class="info-card-icon color-fwhm"></div>
             <span class="info-card-label">FWHM</span>
           </div>
-          <div class="info-card-value">20.5<span class="info-card-unit">nm</span></div>
+          <div class="info-card-value" id="info-fwhm">-<span class="info-card-unit">nm</span></div>
         </div>
         <div class="info-card">
           <div class="info-card-header">
             <div class="info-card-icon color-dom"></div>
             <span class="info-card-label">Dominant λ</span>
           </div>
-          <div class="info-card-value">632.8<span class="info-card-unit">nm</span></div>
+          <div class="info-card-value" id="info-dom">-<span class="info-card-unit">nm</span></div>
         </div>
         <div class="info-card">
           <div class="info-card-header">
             <div class="info-card-icon color-purity"></div>
             <span class="info-card-label">Purity</span>
           </div>
-          <div class="info-card-value">98.5<span class="info-card-unit">%</span></div>
+          <div class="info-card-value" id="info-purity">-<span class="info-card-unit">%</span></div>
         </div>
       </div>
     </div>
@@ -317,11 +262,11 @@
 
 <!-- Status Bar -->
 <div class="status-bar">
-  <div class="status-left">✅ Ready</div>
+  <div class="status-left">Ready</div>
   <div class="status-right">
-    <span class="status-item">Total: 6 spectra</span>
-    <span class="status-item">Selected: 2</span>
-    <span class="status-item">Last import: 2026-06-23 14:32</span>
+    <span class="status-item" id="status-total">Total: 0 spectra</span>
+    <span class="status-item" id="status-selected">Selected: 0</span>
+    <span class="status-item" id="status-last">Last import: -</span>
   </div>
 </div>
 

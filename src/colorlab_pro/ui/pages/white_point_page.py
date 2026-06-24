@@ -8,11 +8,16 @@ from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QWidget
 
 from colorlab_pro.controllers.color_controller import ColorController
+from colorlab_pro.engines.gamut_calculator import xy_to_uv
 from colorlab_pro.ui.webview_page import WebViewPage
+from colorlab_pro.utils.validation import validate_ratio, validate_xy
 
 
 class WhitePointPageBackend(QObject):
     """Backend exposed to the White Point page JavaScript."""
+
+    calculation_started = Signal()
+    calculation_finished = Signal()
 
     def __init__(
         self,
@@ -24,7 +29,7 @@ class WhitePointPageBackend(QObject):
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
-        """Return default RGB primaries and placeholder results as JSON."""
+        """Return default RGB primaries and empty results as JSON."""
         import json
 
         return json.dumps(
@@ -36,13 +41,17 @@ class WhitePointPageBackend(QObject):
                 "white_xy": [0.3127, 0.3290],
                 "white_uv": [0.1978, 0.4683],
                 "cct": 6504,
-                "results": [
-                    {"standard": std, "coverage_1931": 0.0, "match_1931": 0.0,
-                     "coverage_1976": 0.0, "match_1976": 0.0}
-                    for std in ["sRGB", "NTSC", "DCI-P3", "BT2020"]
-                ],
+                "results": [],
             }
         )
+
+    def _xy_to_xyz(self, x: float, y: float) -> tuple[float, float, float]:
+        if y == 0:
+            return 0.0, 0.0, 0.0
+        yy = 1.0
+        xx = yy * x / y
+        zz = yy * (1.0 - x - y) / y
+        return xx, yy, zz
 
     @Slot(str, result=str)
     def calculate_white_point(self, payload: str) -> str:
@@ -50,22 +59,19 @@ class WhitePointPageBackend(QObject):
         import json
         import traceback
 
+        self.calculation_started.emit()
         try:
             data = json.loads(payload)
-            red_xy = data["red_xy"]
-            green_xy = data["green_xy"]
-            blue_xy = data["blue_xy"]
-            ratios = data["ratios"]
+            red_xy = validate_xy(data["red_xy"], "red_xy")
+            green_xy = validate_xy(data["green_xy"], "green_xy")
+            blue_xy = validate_xy(data["blue_xy"], "blue_xy")
+            ratios = {
+                "R": validate_ratio(data["ratios"]["R"], "R ratio"),
+                "G": validate_ratio(data["ratios"]["G"], "G ratio"),
+                "B": validate_ratio(data["ratios"]["B"], "B ratio"),
+            }
 
-            def xy_to_xyz(x: float, y: float) -> tuple[float, float, float]:
-                if y == 0:
-                    return 0.0, 0.0, 0.0
-                yy = 1.0
-                xx = yy * x / y
-                zz = yy * (1.0 - x - y) / y
-                return xx, yy, zz
-
-            xyzs = [xy_to_xyz(*c) for c in [red_xy, green_xy, blue_xy]]
+            xyzs = [self._xy_to_xyz(*c) for c in [red_xy, green_xy, blue_xy]]
             r, g, b = ratios["R"], ratios["G"], ratios["B"]
             mix = [r * xyzs[0][i] + g * xyzs[1][i] + b * xyzs[2][i] for i in range(3)]
             xx, yy, zz = mix
@@ -75,12 +81,7 @@ class WhitePointPageBackend(QObject):
             else:
                 wx, wy = xx / total, yy / total
 
-            denom = -2.0 * wx + 12.0 * wy + 3.0
-            if denom == 0:
-                u = v = 0.0
-            else:
-                u = (4.0 * wx) / denom
-                v = (9.0 * wy) / denom
+            u, v = xy_to_uv(wx, wy)
 
             try:
                 import colour
@@ -129,9 +130,9 @@ class WhitePointPageBackend(QObject):
 
             return json.dumps(
                 {
-                    "red_xy": red_xy,
-                    "green_xy": green_xy,
-                    "blue_xy": blue_xy,
+                    "red_xy": [round(red_xy[0], 4), round(red_xy[1], 4)],
+                    "green_xy": [round(green_xy[0], 4), round(green_xy[1], 4)],
+                    "blue_xy": [round(blue_xy[0], 4), round(blue_xy[1], 4)],
                     "ratios": ratios,
                     "white_xy": [round(wx, 4), round(wy, 4)],
                     "white_uv": [round(u, 4), round(v, 4)],
@@ -141,6 +142,62 @@ class WhitePointPageBackend(QObject):
             )
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+        finally:
+            self.calculation_finished.emit()
+
+    @Slot(str, result=str)
+    def calculate_rgb_ratios(self, payload: str) -> str:
+        """Solve RGB mixing ratios to hit a target white point (xy)."""
+        import json
+        import traceback
+
+        self.calculation_started.emit()
+        try:
+            data = json.loads(payload)
+            red_xy = validate_xy(data["red_xy"], "red_xy")
+            green_xy = validate_xy(data["green_xy"], "green_xy")
+            blue_xy = validate_xy(data["blue_xy"], "blue_xy")
+            target_xy = validate_xy(data["target_xy"], "target_xy")
+
+            def xy_to_xyz(x, y):
+                if y == 0:
+                    return [0.0, 0.0, 0.0]
+                yy = 1.0
+                xx = yy * x / y
+                zz = yy * (1.0 - x - y) / y
+                return [xx, yy, zz]
+
+            matrix = [
+                xy_to_xyz(*red_xy),
+                xy_to_xyz(*green_xy),
+                xy_to_xyz(*blue_xy),
+            ]
+            target_xyz = xy_to_xyz(*target_xy)
+
+            import numpy as np
+
+            coeffs, _residuals, _rank, _s = np.linalg.lstsq(np.array(matrix).T, np.array(target_xyz), rcond=None)
+            coeffs = np.maximum(coeffs, 0)
+            total = float(np.sum(coeffs))
+            if total == 0:
+                ratios = {"R": 0.333, "G": 0.333, "B": 0.333}
+            else:
+                ratios = {
+                    "R": round(float(coeffs[0]) / total, 4),
+                    "G": round(float(coeffs[1]) / total, 4),
+                    "B": round(float(coeffs[2]) / total, 4),
+                }
+
+            calc_payload = json.dumps({
+                "red_xy": red_xy, "green_xy": green_xy, "blue_xy": blue_xy, "ratios": ratios
+            })
+            result = json.loads(self.calculate_white_point(calc_payload))
+            result["ratios"] = ratios
+            return json.dumps(result)
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+        finally:
+            self.calculation_finished.emit()
 
 
 class WhitePointPage(WebViewPage):
@@ -166,61 +223,6 @@ class WhitePointPage(WebViewPage):
 
     def create_backend(self) -> QObject:
         return WhitePointPageBackend(self._color_controller, self)
-
-    @Slot(str, result=str)
-    def calculate_rgb_ratios(self, payload: str) -> str:
-        """Solve RGB mixing ratios to hit a target white point (xy).
-
-        Uses linear least squares in XYZ space with non-negative constraints.
-        """
-        import json
-        import traceback
-
-        try:
-            data = json.loads(payload)
-            red_xy = data["red_xy"]
-            green_xy = data["green_xy"]
-            blue_xy = data["blue_xy"]
-            target_xy = data["target_xy"]
-
-            def xy_to_xyz(x, y):
-                if y == 0:
-                    return [0.0, 0.0, 0.0]
-                Y = 1.0
-                X = Y * x / y
-                Z = Y * (1.0 - x - y) / y
-                return [X, Y, Z]
-
-            M = [
-                xy_to_xyz(*red_xy),
-                xy_to_xyz(*green_xy),
-                xy_to_xyz(*blue_xy),
-            ]
-            # Target with unit Y
-            target_xyz = xy_to_xyz(*target_xy)
-
-            import numpy as np
-
-            # Non-negative least squares: find weights such that M^T * w ~= target_xyz
-            coeffs, residuals, rank, s = np.linalg.lstsq(np.array(M).T, np.array(target_xyz), rcond=None)
-            # Clamp negatives to zero and re-normalize so sum = 1
-            coeffs = np.maximum(coeffs, 0)
-            total = float(np.sum(coeffs))
-            if total == 0:
-                ratios = {"R": 0.333, "G": 0.333, "B": 0.333}
-            else:
-                ratios = {"R": round(float(coeffs[0]) / total, 4), "G": round(float(coeffs[1]) / total, 4), "B": round(float(coeffs[2]) / total, 4)}
-
-            # Compute resulting white with these ratios
-            calc_payload = json.dumps({
-                "red_xy": red_xy, "green_xy": green_xy, "blue_xy": blue_xy, "ratios": ratios
-            })
-            result = json.loads(self.calculate_white_point(calc_payload))
-            result["ratios"] = ratios
-            return json.dumps(result)
-        except Exception as exc:  # noqa: BLE001
-            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
-
 
     def page_script(self) -> str:
         return (

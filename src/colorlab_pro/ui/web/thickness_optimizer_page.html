@@ -59,7 +59,7 @@
   .progress-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; text-align: center; }
   .progress-text { color: #888; font-size: 12px; margin-bottom: 8px; }
   .progress-bar-bg { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; height: 8px; overflow: hidden; }
-  .progress-bar-fill { background: linear-gradient(90deg, #4fc3f7, #0078d4); height: 100%; width: 65%; border-radius: 4px; transition: width 0.3s; }
+  .progress-bar-fill { background: linear-gradient(90deg, #4fc3f7, #0078d4); height: 100%; width: 0%; border-radius: 4px; transition: width 0.3s; }
   .progress-summary { color: #66bb6a; font-size: 12px; margin-top: 8px; }
 
   /* Results Area */
@@ -110,7 +110,7 @@
 
 <!-- Page Header -->
 <div class="page-header">
-  <div class="page-title">🔬 Thickness Optimizer</div>
+  <div class="page-title">Thickness Optimizer</div>
 </div>
 
 <!-- Optimization Target -->
@@ -226,17 +226,17 @@
 
 <!-- Buttons -->
 <div class="button-row">
-  <button class="btn-start" onclick="startOptimization()">▶ Start Optimization</button>
-  <button class="btn-stop" disabled>⏹ Stop</button>
+  <button class="btn-start" onclick="startOptimization()">Start Optimization</button>
+  <button class="btn-stop" disabled>Stop</button>
 </div>
 
 <!-- Progress -->
 <div class="progress-section">
-  <div class="progress-text">Optimization complete. Scanning 100 steps per channel...</div>
+  <div class="progress-text" id="progress-text">Ready to optimize</div>
   <div class="progress-bar-bg">
     <div class="progress-bar-fill"></div>
   </div>
-  <div class="progress-summary">✅ Best result: Coverage = 95.23% (RCF=1.20μm, GCF=0.80μm, BCF=1.50μm)</div>
+  <div class="progress-summary">Best result: -</div>
 </div>
 
 <!-- Results -->
@@ -260,53 +260,7 @@
             <th>White Pt</th>
           </tr>
         </thead>
-        <tbody id="result-tbody">
-          <tr class="result-best selected">
-            <td class="result-rank">1</td>
-            <td class="result-value">1.20</td>
-            <td class="result-value">0.80</td>
-            <td class="result-value">1.50</td>
-            <td class="result-value result-cov-high">95.23</td>
-            <td class="result-value result-cov-high">92.10</td>
-            <td class="result-value">(0.312, 0.329)</td>
-          </tr>
-          <tr>
-            <td class="result-rank">2</td>
-            <td class="result-value">1.25</td>
-            <td class="result-value">0.82</td>
-            <td class="result-value">1.48</td>
-            <td class="result-value result-cov-high">94.87</td>
-            <td class="result-value result-cov-high">91.85</td>
-            <td class="result-value">(0.314, 0.331)</td>
-          </tr>
-          <tr>
-            <td class="result-rank">3</td>
-            <td class="result-value">1.18</td>
-            <td class="result-value">0.78</td>
-            <td class="result-value">1.52</td>
-            <td class="result-value result-cov-high">94.52</td>
-            <td class="result-value result-cov-medium">91.60</td>
-            <td class="result-value">(0.310, 0.327)</td>
-          </tr>
-          <tr>
-            <td class="result-rank">4</td>
-            <td class="result-value">1.30</td>
-            <td class="result-value">0.85</td>
-            <td class="result-value">1.45</td>
-            <td class="result-value result-cov-medium">94.18</td>
-            <td class="result-value result-cov-medium">91.32</td>
-            <td class="result-value">(0.316, 0.333)</td>
-          </tr>
-          <tr>
-            <td class="result-rank">5</td>
-            <td class="result-value">1.15</td>
-            <td class="result-value">0.75</td>
-            <td class="result-value">1.55</td>
-            <td class="result-value result-cov-medium">93.85</td>
-            <td class="result-value result-cov-medium">91.05</td>
-            <td class="result-value">(0.308, 0.325)</td>
-          </tr>
-        </tbody>
+        <tbody id="result-tbody"><tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No results</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -327,11 +281,11 @@
 
 <!-- Status Bar -->
 <div class="status-bar">
-  <div class="status-left">✅ Optimization complete</div>
+  <div class="status-left">Ready</div>
   <div class="status-right">
-    <span class="status-item">Target: Max BT2020</span>
-    <span class="status-item">Best: 95.23%</span>
-    <span class="status-item">Time: 12.3s</span>
+    <span class="status-item" id="status-target">Target: -</span>
+    <span class="status-item" id="status-best">Best: -</span>
+    <span class="status-item" id="status-time">Time: -</span>
   </div>
 </div>
 
@@ -339,7 +293,7 @@
 <script src="echarts.min.js"></script>
 <script>
 var scanChart = null;
-function renderScanCharts(results) {
+function renderScanCharts(results, best) {
     var dom = document.getElementById('scan-chart');
     if (!dom) return;
     if (!scanChart) scanChart = echarts.init(dom, 'dark');
@@ -349,18 +303,21 @@ function renderScanCharts(results) {
         gData.push([r.thickness_g, r.coverage]);
         bData.push([r.thickness_b, r.coverage]);
     });
+    var rBest = best ? { coord: [best.thickness_r, best.coverage], value: 'Best RCF' } : null;
+    var gBest = best ? { coord: [best.thickness_g, best.coverage], value: 'Best GCF' } : null;
+    var bBest = best ? { coord: [best.thickness_b, best.coverage], value: 'Best BCF' } : null;
     var option = {
         backgroundColor: 'transparent',
         title: { text: 'Thickness vs Coverage', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 40, right: 20, bottom: 40, left: 50 },
+        grid: { top: 40, right: 20, bottom: 50, left: 50 },
         tooltip: { trigger: 'axis' },
         legend: { data: ['RCF', 'GCF', 'BCF'], textStyle: { color: '#ccc' }, bottom: 0 },
         xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: 'Coverage (%)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: [
-            { name: 'RCF', type: 'scatter', data: rData, itemStyle: { color: '#FF4444' } },
-            { name: 'GCF', type: 'scatter', data: gData, itemStyle: { color: '#44FF44' } },
-            { name: 'BCF', type: 'scatter', data: bData, itemStyle: { color: '#4488FF' } }
+            { name: 'RCF', type: 'line', smooth: true, showSymbol: false, data: rData, itemStyle: { color: '#FF4444' }, lineStyle: { width: 2 }, markPoint: { data: rBest ? [rBest] : [], symbolSize: 48, itemStyle: { color: '#FF4444' } } },
+            { name: 'GCF', type: 'line', smooth: true, showSymbol: false, data: gData, itemStyle: { color: '#44FF44' }, lineStyle: { width: 2 }, markPoint: { data: gBest ? [gBest] : [], symbolSize: 48, itemStyle: { color: '#44FF44' } } },
+            { name: 'BCF', type: 'line', smooth: true, showSymbol: false, data: bData, itemStyle: { color: '#4488FF' }, lineStyle: { width: 2 }, markPoint: { data: bBest ? [bBest] : [], symbolSize: 48, itemStyle: { color: '#4488FF' } } }
         ]
     };
     scanChart.setOption(option, true);
@@ -447,7 +404,7 @@ function startOptimization() {
                 var data = JSON.parse(json);
                 if (data.error) { logStatus('Error: ' + data.error); return; }
                 renderResults(data.results, data.best);
-                renderScanCharts(data.results);
+                renderScanCharts(data.results, data.best);
                 logStatus('Optimization complete');
             });
         });

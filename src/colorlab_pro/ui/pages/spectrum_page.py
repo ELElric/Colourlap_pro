@@ -17,7 +17,7 @@ def _sample_points(spectrum, step: int = 5) -> list[list[float]]:
         return []
     return [
         [round(float(w), 1), round(float(v), 4)]
-        for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step])
+        for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step], strict=False)
     ]
 
 

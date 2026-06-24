@@ -9,11 +9,16 @@ from PySide6.QtWidgets import QWidget
 
 from colorlab_pro.controllers.color_controller import ColorController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
+from colorlab_pro.exporters.report_exporter import ReportExporter
 from colorlab_pro.ui.webview_page import WebViewPage
+from colorlab_pro.utils.validation import validate_spectrum_id
 
 
 class GamutPageBackend(QObject):
     """Backend exposed to the Gamut Calculator page JavaScript."""
+
+    calculation_started = Signal()
+    calculation_finished = Signal()
 
     def __init__(
         self,
@@ -24,27 +29,28 @@ class GamutPageBackend(QObject):
         super().__init__(parent)
         self._spectrum_controller = spectrum_controller
         self._color_controller = color_controller
+        self._last_primaries: list[dict] = [
+            {"ch": "R", "x": 0.0, "y": 0.0},
+            {"ch": "G", "x": 0.0, "y": 0.0},
+            {"ch": "B", "x": 0.0, "y": 0.0},
+        ]
+        self._last_results: list[dict] = []
+
+    def _spectra_json(self) -> list[dict]:
+        summaries = self._spectrum_controller.list_spectra()
+        return [
+            {"id": s.id, "name": s.name, "category": s.category or "", "channel": s.channel or ""}
+            for s in summaries
+        ]
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
-        """Return spectra list and placeholder gamut results as JSON."""
+        """Return spectra list and empty gamut results as JSON."""
         import json
 
         try:
-            summaries = self._spectrum_controller.list_spectra()
-            spectra = [
-                {"id": s.id, "name": s.name, "category": s.category or "", "channel": s.channel or ""}
-                for s in summaries
-            ]
-
-            results = [
-                {"standard": std, "coverage_1931": 0.0, "match_1931": 0.0, "coverage_1976": 0.0, "match_1976": 0.0}
-                for std in ["sRGB", "NTSC", "DCI-P3", "BT2020"]
-            ]
-
-            return json.dumps({"spectra": spectra, "results": results})
+            return json.dumps({"spectra": self._spectra_json(), "results": []})
         except Exception as exc:  # noqa: BLE001
-            import json
             import traceback
 
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
@@ -55,9 +61,13 @@ class GamutPageBackend(QObject):
         import json
         import traceback
 
+        self.calculation_started.emit()
         try:
-            ids = [int(red_id), int(green_id), int(blue_id)]
+            ids = [validate_spectrum_id(red_id), validate_spectrum_id(green_id), validate_spectrum_id(blue_id)]
             specs = [self._spectrum_controller.get_spectrum(sid) for sid in ids]
+            if any(s is None for s in specs):
+                raise ValueError("One or more selected spectra were not found")
+
             gs = self._color_controller._gamut_service()
             device = gs.build_from_primaries(
                 specs[0], specs[1], specs[2], name="Device"
@@ -68,6 +78,7 @@ class GamutPageBackend(QObject):
                 {"ch": "G", "x": round(device.green[0], 4), "y": round(device.green[1], 4)},
                 {"ch": "B", "x": round(device.blue[0], 4), "y": round(device.blue[1], 4)},
             ]
+            self._last_primaries = primaries
 
             results = []
             for std in ["sRGB", "NTSC", "DCI-P3", "BT2020"]:
@@ -87,12 +98,13 @@ class GamutPageBackend(QObject):
                         "match_1976": round(match_1976, 1),
                     }
                 )
+            self._last_results = results
 
             return json.dumps({"primaries": primaries, "results": results})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
-
-
+        finally:
+            self.calculation_finished.emit()
 
     @Slot(str, result=str)
     def compare_configurations(self, payload: str) -> str:
@@ -100,14 +112,17 @@ class GamutPageBackend(QObject):
         import json
         import traceback
 
+        self.calculation_started.emit()
         try:
             data = json.loads(payload)
             configs = data["configs"]  # list of {name, red_id, green_id, blue_id}
             gs = self._color_controller._gamut_service()
             results = []
             for cfg in configs:
-                ids = [int(cfg["red_id"]), int(cfg["green_id"]), int(cfg["blue_id"])]
+                ids = [validate_spectrum_id(cfg["red_id"]), validate_spectrum_id(cfg["green_id"]), validate_spectrum_id(cfg["blue_id"])]
                 specs = [self._spectrum_controller.get_spectrum(sid) for sid in ids]
+                if any(s is None for s in specs):
+                    continue
                 device = gs.build_from_primaries(specs[0], specs[1], specs[2], name=cfg["name"])
                 try:
                     cov = gs.coverage("BT2020", device)
@@ -126,7 +141,8 @@ class GamutPageBackend(QObject):
             return json.dumps({"results": results})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
-
+        finally:
+            self.calculation_finished.emit()
 
     @Slot(str, result=str)
     def export_report(self, payload: str) -> str:
@@ -137,14 +153,18 @@ class GamutPageBackend(QObject):
 
         try:
             data = json.loads(payload)
-            from colorlab_pro.services.report_service import ReportService
-
-            service = ReportService()
+            exporter = ReportExporter()
             out = Path(data.get("output_path", "colorlab_report.html"))
-            service.generate_gamut_report(data["primaries"], data["results"], out, title=data.get("title", "Gamut Analysis Report"))
+            exporter.export_gamut_report(
+                data.get("primaries") or self._last_primaries,
+                data.get("results") or self._last_results,
+                out,
+                title=data.get("title", "Gamut Analysis Report"),
+            )
             return json.dumps({"path": str(out.resolve())})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
 
 class GamutCalculatorPage(WebViewPage):
     """Gamut Calculator workspace page rendered as HTML."""

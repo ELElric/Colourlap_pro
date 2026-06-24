@@ -69,7 +69,8 @@ class TestGamutCalculatorBackend:
         assert "results" in data
         assert len(data["results"]) == 4
         standards = [r["standard"] for r in data["results"]]
-        assert "sRGB" in standards and "BT2020" in standards
+        assert "sRGB" in standards
+        assert "BT2020" in standards
         for r in data["results"]:
             assert isinstance(r["coverage_1931"], (int, float))
             assert isinstance(r["match_1931"], (int, float))
@@ -107,7 +108,8 @@ class TestWhitePointBackend:
         assert "cct" in data
         assert len(data["results"]) == 4
         wx, wy = data["white_xy"]
-        assert 0.0 <= wx <= 1.0 and 0.0 <= wy <= 1.0
+        assert 0.0 <= wx <= 1.0
+        assert 0.0 <= wy <= 1.0
 
     def test_calculate_white_point_zero_ratios(self, controllers, qtbot) -> None:
         backend = WhitePointPageBackend(controllers["color"])

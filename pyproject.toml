@@ -47,6 +47,11 @@ where = ["src"]
 "colorlab_pro.ui" = ["**/*.qss", "**/*.ui", "**/*.html", "**/*.js"]
 "colorlab_pro.resources" = ["**/*"]
 
+[tool.ruff.lint.per-file-ignores]
+# web_demo.py adjusts sys.path before project imports
+"src/colorlab_pro/ui/web_demo.py" = ["E402"]
+"tests/unit/ui/test_spectrum_page.py" = ["E402"]
+
 [tool.coverage.run]
 source = ["src/colorlab_pro"]
 # Business logic layers (engines/services/controllers) are fully covered and

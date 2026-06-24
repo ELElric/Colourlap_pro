@@ -10,6 +10,8 @@ ignore = [
 
 [lint.per-file-ignores]
 "tests/**" = ["B011"]
+"src/colorlab_pro/ui/web_demo.py" = ["E402", "N802"]
+"tests/unit/ui/test_spectrum_page.py" = ["E402"]
 
 [format]
 quote-style = "double"

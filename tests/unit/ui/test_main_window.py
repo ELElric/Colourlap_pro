@@ -25,7 +25,8 @@ def test_central_widget_is_stacked(window):
     central = window.centralWidget()
     assert isinstance(central, QWidget)
     # central widget is a composite container, not the stack directly
-    assert hasattr(window, '_stack') and isinstance(window._stack, QStackedWidget)
+    assert hasattr(window, "_stack")
+    assert isinstance(window._stack, QStackedWidget)
 
 
 def test_sidebar_has_four_items(window):

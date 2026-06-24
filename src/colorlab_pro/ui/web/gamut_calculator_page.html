@@ -6,6 +6,13 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+  /* Loading overlay */
+  .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.7); display: none; align-items: center; justify-content: center; z-index: 9999; }
+  .loading-overlay.active { display: flex; }
+  .loading-spinner { width: 40px; height: 40px; border: 4px solid #444; border-top-color: #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+  .input-error { border-color: #ff6666 !important; background: rgba(255,102,102,0.1) !important; }
+
 
   /* Page Header */
   .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
@@ -104,7 +111,7 @@
 
 <!-- Page Header -->
 <div class="page-header">
-  <div class="page-title">🎨 Gamut Calculator</div>
+  <div class="page-title">Gamut Calculator</div>
 </div>
 
 <!-- Controls Bar (2 rows) -->
@@ -236,10 +243,11 @@
       <div class="panel-title">CIE Chromaticity Diagrams</div>
     </div>
     <div class="tabs">
-      <div class="tab active">CIE 1931 xy</div>
-      <div class="tab">CIE 1976 u'v'</div>
+      <div class="tab active" onclick="switchCIETab('xy')">CIE 1931 xy</div>
+      <div class="tab" onclick="switchCIETab('uv')">CIE 1976 u'v'</div>
     </div>
-    <div class="chart-area">[ CIE Diagram Canvas ]</div>
+    <div id="cie-xy-chart" style="width:100%;height:240px;display:block;"></div>
+    <div id="cie-uv-chart" style="width:100%;height:240px;display:none;"></div>
   </div>
 
   <!-- Spectrum Preview -->
@@ -252,7 +260,7 @@
       <div class="tab">Original</div>
       <div class="tab">Compare</div>
     </div>
-    <div class="chart-area">[ Spectrum Chart ]</div>
+    <div id="spectrum-preview-chart" style="width:100%;height:100%;"></div><div id="spectrum-empty" class="chart-area" style="display:none;">Select spectra to preview</div>
   </div>
 
   <!-- Gamut Result -->
@@ -284,23 +292,14 @@
       <div class="data-title">RGBW Chromaticity Data</div>
       <table class="data-table">
         <thead><tr><th>Ch</th><th>x</th><th>y</th><th>u'</th><th>v'</th><th>X</th><th>Y</th><th>CCT</th></tr></thead>
-        <tbody>
-          <tr><td class="channel-r">R</td><td class="data-value">0.642</td><td class="data-value">0.331</td><td class="data-value">0.432</td><td class="data-value">0.521</td><td class="data-value">41.2</td><td class="data-value">21.3</td><td class="data-value">-</td></tr>
-          <tr><td class="channel-g">G</td><td class="data-value">0.315</td><td class="data-value">0.598</td><td class="data-value">0.128</td><td class="data-value">0.562</td><td class="data-value">38.5</td><td class="data-value">72.8</td><td class="data-value">-</td></tr>
-          <tr><td class="channel-b">B</td><td class="data-value">0.152</td><td class="data-value">0.062</td><td class="data-value">0.175</td><td class="data-value">0.158</td><td class="data-value">12.8</td><td class="data-value">5.3</td><td class="data-value">-</td></tr>
-          <tr><td style="color:#fff;font-weight:bold;">W</td><td class="data-value">0.312</td><td class="data-value">0.329</td><td class="data-value">0.198</td><td class="data-value">0.442</td><td class="data-value">92.5</td><td class="data-value">99.4</td><td class="data-value">6504</td></tr>
-        </tbody>
+        <tbody id="chromaticity-body"><tr><td colspan="8" style="text-align:center;color:#666;padding:12px;">No data</td></tr></tbody>
       </table>
     </div>
     <div>
       <div class="data-title">RGB Spectrum Data</div>
       <table class="data-table">
         <thead><tr><th>Ch</th><th>Peak (nm)</th><th>FWHM (nm)</th><th>Dom. λ (nm)</th><th>Purity</th></tr></thead>
-        <tbody>
-          <tr><td class="channel-r">R</td><td class="data-value">630</td><td class="data-value">21</td><td class="data-value">633</td><td class="data-value">0.985</td></tr>
-          <tr><td class="channel-g">G</td><td class="data-value">526</td><td class="data-value">32</td><td class="data-value">528</td><td class="data-value">0.972</td></tr>
-          <tr><td class="channel-b">B</td><td class="data-value">450</td><td class="data-value">19</td><td class="data-value">452</td><td class="data-value">0.991</td></tr>
-        </tbody>
+        <tbody id="spectrum-data-body"><tr><td colspan="5" style="text-align:center;color:#666;padding:12px;">No data</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -321,7 +320,7 @@
 
 <!-- Calculate Button -->
 <div style="margin: 12px 0; text-align: center;">
-  <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button>
+  <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button> <button id="export-btn" style="background: #3c3c3c; color: #e0e0e0; border: 1px solid #555; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer; margin-left: 8px;">Export Report</button>
 </div>
 
 <!-- Status Bar -->
@@ -375,31 +374,66 @@ function renderResults(results) {
     });
 }
 
+function setLoading(show) {
+    var overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.toggle('active', show);
+}
+function validateSelectors() {
+    var ids = ['red-select','green-select','blue-select'];
+    var valid = true;
+    ids.forEach(function(id){
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        if (!sel.value) { sel.classList.add('input-error'); valid = false; }
+        else { sel.classList.remove('input-error'); }
+    });
+    return valid;
+}
 function calculateGamut() {
     var red = document.getElementById('red-select').value;
     var green = document.getElementById('green-select').value;
     var blue = document.getElementById('blue-select').value;
-    if (!red || !green || !blue) {
+    if (!validateSelectors()) {
         logStatus('Please select R/G/B spectra');
         return;
     }
+    setLoading(true);
     logStatus('Calculating...');
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.calculate_gamut(red, green, blue, function(json) {
+            setLoading(false);
             var data = JSON.parse(json);
             if (data.error) {
                 logStatus('Error: ' + data.error);
                 return;
             }
+            lastPrimaries = data.primaries;
             renderResults(data.results);
+            renderChromaticityData(data.primaries);
             logStatus('Calculation complete');
         });
+    });
+}
+function renderChromaticityData(primaries) {
+    var tbody = document.getElementById('chromaticity-body');
+    if (!tbody || !primaries) return;
+    tbody.innerHTML = '';
+    primaries.forEach(function(p){
+        var row = document.createElement('tr');
+        row.innerHTML = '<td class="channel-' + p.ch.toLowerCase() + '">' + p.ch + '</td>' +
+            '<td class="data-value">' + p.x.toFixed(4) + '</td>' +
+            '<td class="data-value">' + p.y.toFixed(4) + '</td>' +
+            '<td class="data-value">-</td><td class="data-value">-</td>' +
+            '<td class="data-value">-</td><td class="data-value">-</td><td class="data-value">-</td>';
+        tbody.appendChild(row);
     });
 }
 
 (function() {
     var btn = document.getElementById('calculate-btn');
     if (btn) btn.addEventListener('click', calculateGamut);
+    var exp = document.getElementById('export-btn');
+    if (exp) exp.addEventListener('click', exportReport);
 })();
 </script>
 
@@ -464,12 +498,20 @@ function toggleCompare(){ var p=document.getElementById('compare-panel'); p.styl
 
 function exportReport() {
     new QWebChannel(qt.webChannelTransport, function(channel){
-        // Collect latest results from DOM
-        var rows = document.querySelectorAll('#gamut-1931-body tr');
+        var rows1931 = document.querySelectorAll('#gamut-1931-body tr');
+        var rows1976 = document.querySelectorAll('#gamut-1976-body tr');
         var results = [];
-        rows.forEach(function(row){
-            var cells = row.querySelectorAll('td');
-            results.push({standard: cells[0].textContent, coverage_1931: cells[1].textContent, match_1931: cells[2].textContent, coverage_1976: cells[1].textContent, match_1976: cells[2].textContent});
+        rows1931.forEach(function(row, idx){
+            var c1931 = row.querySelectorAll('td');
+            var c1976 = rows1976[idx] ? rows1976[idx].querySelectorAll('td') : [];
+            if (c1931.length < 3 || c1976.length < 3) return;
+            results.push({
+                standard: c1931[0].textContent,
+                coverage_1931: parseFloat(c1931[1].textContent) || 0,
+                match_1931: parseFloat(c1931[2].textContent) || 0,
+                coverage_1976: parseFloat(c1976[1].textContent) || 0,
+                match_1976: parseFloat(c1976[2].textContent) || 0
+            });
         });
         var payload = JSON.stringify({
             title: 'Gamut Analysis Report',
@@ -484,7 +526,10 @@ function exportReport() {
         });
     });
 }
+var lastPrimaries = null;
 
 </script>
+
+<div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>
 </body>
 </html>

@@ -6,6 +6,13 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+  /* Loading overlay */
+  .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.7); display: none; align-items: center; justify-content: center; z-index: 9999; }
+  .loading-overlay.active { display: flex; }
+  .loading-spinner { width: 40px; height: 40px; border: 4px solid #444; border-top-color: #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+  .input-error { border-color: #ff6666 !important; background: rgba(255,102,102,0.1) !important; }
+
 
   /* Page Header */
   .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
@@ -105,7 +112,7 @@
 
 <!-- Page Header -->
 <div class="page-header">
-  <div class="page-title">⚪ White Point Calculator</div>
+  <div class="page-title">White Point Calculator</div>
   <div class="calc-indicator">
     <span class="calc-dot"></span>
     Auto-calculate
@@ -114,52 +121,24 @@
 
 <!-- Mode Selection -->
 <div class="mode-section">
-  <div class="mode-row">
+  <div class="mode-row" style="justify-content: space-between;">
     <div class="mode-group">
-      <span class="mode-label">Calculation Mode:</span>
-      <div class="radio-group">
-        <label class="radio-label">
-          <input type="radio" name="mode" checked>
-          Forward (RGB → White)
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="mode">
-          Reverse (White → RGB)
-        </label>
-      </div>
+      <span class="mode-label">White Point Mode:</span>
+      <span style="color:#e0e0e0;font-size:12px;">Forward (RGB → White)</span>
     </div>
-
-    <div class="divider"></div>
-
-    <div class="mode-group">
-      <span class="mode-label">Standards:</span>
-      <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" checked> sRGB</label>
-        <label class="checkbox-label"><input type="checkbox" checked> NTSC</label>
-        <label class="checkbox-label"><input type="checkbox" checked> DCI-P3</label>
-        <label class="checkbox-label"><input type="checkbox" checked> BT2020</label>
-      </div>
-    </div>
-
     <div class="preset-section">
-      <span class="mode-label">Presets:</span>
-      <button class="preset-btn active">D65</button>
-      <button class="preset-btn">D50</button>
-      <button class="preset-btn">Equal</button>
+      <button class="preset-btn" onclick="calculateWhitePoint()">Calculate</button>
+      <button class="preset-btn" onclick="toggleReverseMode()" id="reverse-toggle">Solve Ratios</button>
     </div>
   </div>
-<button class="preset-btn" onclick="calculateWhitePoint()" style="margin-left:auto;">Calculate</button>
-          <button class="preset-btn" onclick="toggleReverseMode()" style="margin-left:8px;">Reverse Mode</button>
-        </div>
 </div>
-
 
 <div id="reverse-panel" style="display:none;padding:12px 24px;background:#1a1a1a;border-bottom:1px solid #333;">
   <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
     <span style="color:#aaa;">Target White xy:</span>
     <input id="target-wx" class="input-field" type="number" step="0.0001" value="0.3127" style="width:90px;">
     <input id="target-wy" class="input-field" type="number" step="0.0001" value="0.3290" style="width:90px;">
-    <button class="preset-btn" onclick="calculateRgbRatios()">Solve Ratios</button>
+    <button class="preset-btn" onclick="calculateRgbRatios()">Solve</button>
   </div>
 </div>
 
@@ -167,21 +146,21 @@
 <div class="quick-info">
   <div class="info-card">
     <div class="info-label">White Point (xy)</div>
-    <div class="info-value">0.3127, 0.3290</div>
+    <div class="info-value" id="white-xy-value">-</div>
   </div>
   <div class="info-card">
     <div class="info-label">White Point (u'v')</div>
-    <div class="info-value">0.1978, 0.4683</div>
+    <div class="info-value" id="white-uv-value">-</div>
   </div>
   <div class="info-card">
     <div class="info-label">CCT</div>
-    <div class="info-value">6504<span class="info-unit">K</span></div>
+    <div class="info-value" id="cct-value">-<span class="info-unit">K</span></div>
     <div class="info-sub">Correlated Color Temperature</div>
   </div>
   <div class="info-card">
     <div class="info-label">Ratios (R:G:B)</div>
-    <div class="info-value">0.333 : 0.333 : 0.333</div>
-    <div class="info-sub">Equal power distribution</div>
+    <div class="info-value" id="ratio-value">-</div>
+    <div class="info-sub">R : G : B mixing ratio</div>
   </div>
 </div>
 
@@ -246,36 +225,7 @@
           <th>Match 1976 (%)</th>
         </tr>
       </thead>
-      <tbody>
-        <tr>
-          <td style="color: #888;">sRGB</td>
-          <td class="gamut-value gamut-high">132.5</td>
-          <td class="gamut-value gamut-high">99.1</td>
-          <td class="gamut-value gamut-high">128.3</td>
-          <td class="gamut-value gamut-high">98.7</td>
-        </tr>
-        <tr>
-          <td style="color: #888;">NTSC</td>
-          <td class="gamut-value gamut-high">98.2</td>
-          <td class="gamut-value gamut-medium">89.5</td>
-          <td class="gamut-value gamut-high">96.8</td>
-          <td class="gamut-value gamut-medium">88.2</td>
-        </tr>
-        <tr>
-          <td style="color: #888;">DCI-P3</td>
-          <td class="gamut-value gamut-high">118.6</td>
-          <td class="gamut-value gamut-high">97.8</td>
-          <td class="gamut-value gamut-high">115.2</td>
-          <td class="gamut-value gamut-high">96.5</td>
-        </tr>
-        <tr>
-          <td style="color: #888;">BT2020</td>
-          <td class="gamut-value gamut-medium">75.3</td>
-          <td class="gamut-value gamut-low">71.2</td>
-          <td class="gamut-value gamut-medium">73.8</td>
-          <td class="gamut-value gamut-low">69.8</td>
-        </tr>
-      </tbody>
+      <tbody id="gamut-results-body"><tr><td colspan="5" style="text-align:center;color:#666;padding:12px;">No data</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -302,10 +252,10 @@
 
 <!-- Status Bar -->
 <div class="status-bar">
-  <div class="status-left">✅ Calculated - Forward Mode</div>
+  <div class="status-left">Ready</div>
   <div class="status-right">
-    <span class="status-item">Primaries: sRGB standard</span>
-    <span class="status-item">White: D65 (6504K)</span>
+    <span class="status-item" id="status-primaries">Primaries: -</span>
+    <span class="status-item" id="status-white">White: -</span>
   </div>
 </div>
 
@@ -316,7 +266,7 @@ function logStatus(msg) {
     if (el) el.textContent = msg;
 }
 function renderGamutResults(results) {
-    var tbody = document.querySelector('.gamut-section tbody');
+    var tbody = document.getElementById('gamut-results-body');
     if (!tbody || !results) return;
     tbody.innerHTML = '';
     results.forEach(function(r) {
@@ -333,14 +283,53 @@ function renderGamutResults(results) {
         tbody.innerHTML += row;
     });
 }
+function setLoading(show) {
+    var overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.toggle('active', show);
+}
+function validateInput(el, valid) {
+    if (!el) return;
+    if (valid) el.classList.remove('input-error');
+    else el.classList.add('input-error');
+}
+function getInputValues() {
+    var inputs = document.querySelectorAll('.input-table .input-field');
+    var rx = parseFloat(inputs[0].value), ry = parseFloat(inputs[1].value);
+    var gx = parseFloat(inputs[3].value), gy = parseFloat(inputs[4].value);
+    var bx = parseFloat(inputs[6].value), by = parseFloat(inputs[7].value);
+    var rr = parseFloat(inputs[2].value), gr = parseFloat(inputs[5].value), br = parseFloat(inputs[8].value);
+    validateInput(inputs[0], !isNaN(rx) && rx >= 0 && rx <= 1);
+    validateInput(inputs[1], !isNaN(ry) && ry >= 0 && ry <= 1);
+    validateInput(inputs[3], !isNaN(gx) && gx >= 0 && gx <= 1);
+    validateInput(inputs[4], !isNaN(gy) && gy >= 0 && gy <= 1);
+    validateInput(inputs[6], !isNaN(bx) && bx >= 0 && bx <= 1);
+    validateInput(inputs[7], !isNaN(by) && by >= 0 && by <= 1);
+    validateInput(inputs[2], !isNaN(rr) && rr >= 0);
+    validateInput(inputs[5], !isNaN(gr) && gr >= 0);
+    validateInput(inputs[8], !isNaN(br) && br >= 0);
+    return {
+        red_xy: [rx, ry],
+        green_xy: [gx, gy],
+        blue_xy: [bx, by],
+        ratios: {R: rr, G: gr, B: br}
+    };
+}
+function inputsValid() {
+    var data = getInputValues();
+    return [data.red_xy, data.green_xy, data.blue_xy].every(function(c){ return !isNaN(c[0]) && c[0] >= 0 && c[0] <= 1 && !isNaN(c[1]) && c[1] >= 0 && c[1] <= 1; })
+        && [data.ratios.R, data.ratios.G, data.ratios.B].every(function(r){ return !isNaN(r) && r >= 0; });
+}
 function renderWhitePoint(data) {
     if (!data) return;
-    var cards = document.querySelectorAll('.info-value');
-    if (data.white_xy) cards[0].textContent = data.white_xy[0].toFixed(4) + ', ' + data.white_xy[1].toFixed(4);
-    if (data.white_uv) cards[1].textContent = data.white_uv[0].toFixed(4) + ', ' + data.white_uv[1].toFixed(4);
-    if (data.cct != null) cards[2].innerHTML = data.cct.toFixed(0) + '<span class="info-unit">K</span>';
-    if (data.ratio) cards[3].textContent = Number(data.ratio.R).toFixed(3) + ' : ' + Number(data.ratio.G).toFixed(3) + ' : ' + Number(data.ratio.B).toFixed(3);
-    var inputs = document.querySelectorAll('.input-field');
+    var xyEl = document.getElementById('white-xy-value');
+    var uvEl = document.getElementById('white-uv-value');
+    var cctEl = document.getElementById('cct-value');
+    var ratioEl = document.getElementById('ratio-value');
+    if (data.white_xy && xyEl) xyEl.textContent = data.white_xy[0].toFixed(4) + ', ' + data.white_xy[1].toFixed(4);
+    if (data.white_uv && uvEl) uvEl.textContent = data.white_uv[0].toFixed(4) + ', ' + data.white_uv[1].toFixed(4);
+    if (data.cct != null && cctEl) cctEl.innerHTML = data.cct.toFixed(0) + '<span class="info-unit">K</span>';
+    if (data.ratio && ratioEl) ratioEl.textContent = Number(data.ratio.R).toFixed(3) + ' : ' + Number(data.ratio.G).toFixed(3) + ' : ' + Number(data.ratio.B).toFixed(3);
+    var inputs = document.querySelectorAll('.input-table .input-field');
     if (data.red_xy) { inputs[0].value = data.red_xy[0]; inputs[1].value = data.red_xy[1]; }
     if (data.green_xy) { inputs[3].value = data.green_xy[0]; inputs[4].value = data.green_xy[1]; }
     if (data.blue_xy) { inputs[6].value = data.blue_xy[0]; inputs[7].value = data.blue_xy[1]; }
@@ -351,30 +340,27 @@ function renderWhitePoint(data) {
     renderCIECharts(data);
     logStatus('White point updated');
 }
-function getInputValues() {
-    var inputs = document.querySelectorAll('.input-field');
-    return {
-        red_xy: [parseFloat(inputs[0].value), parseFloat(inputs[1].value)],
-        green_xy: [parseFloat(inputs[3].value), parseFloat(inputs[4].value)],
-        blue_xy: [parseFloat(inputs[6].value), parseFloat(inputs[7].value)],
-        ratios: {R: parseFloat(inputs[2].value), G: parseFloat(inputs[5].value), B: parseFloat(inputs[8].value)}
-    };
-}
 function calculateWhitePoint() {
+    if (!inputsValid()) {
+        logStatus('Please fix invalid inputs');
+        return;
+    }
+    setLoading(true);
     logStatus('Calculating...');
     try {
         new QWebChannel(qt.webChannelTransport, function(channel) {
             channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
+                setLoading(false);
                 var data = JSON.parse(json);
                 if (data.error) { logStatus('Error: ' + data.error); return; }
                 renderWhitePoint(data);
                 logStatus('Calculation complete');
             });
         });
-    } catch (e) { logStatus('JS error: ' + e.message); }
+    } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
 }
 function setRGBCoordinates(data) {
-    var inputs = document.querySelectorAll('.input-field');
+    var inputs = document.querySelectorAll('.input-table .input-field');
     if (data.red_xy) { inputs[0].value = data.red_xy[0]; inputs[1].value = data.red_xy[1]; }
     if (data.green_xy) { inputs[3].value = data.green_xy[0]; inputs[4].value = data.green_xy[1]; }
     if (data.blue_xy) { inputs[6].value = data.blue_xy[0]; inputs[7].value = data.blue_xy[1]; }
@@ -417,8 +403,10 @@ function renderCIECharts(data) {
             legend: { data: ['Device', 'White', 'sRGB', 'BT2020'], textStyle: { color: '#ccc' }, bottom: 0 }
         };
     }
+    function xyToUV(xy) { var d = -2*xy[0] + 12*xy[1] + 3; if (d === 0) return [0,0]; return [4*xy[0]/d, 9*xy[1]/d]; }
     chart1931.setOption(buildOption('CIE 1931 xy', 'x', 'y', r, g, b, w), true);
-    chart1976.setOption(buildOption('CIE 1976 u'v'', 'u'', 'v'', data.white_uv || [0.1978,0.4683], data.white_uv || [0.1978,0.4683], data.white_uv || [0.1978,0.4683], data.white_uv || [0.1978,0.4683]), true);
+    var ruv = xyToUV(r), guv = xyToUV(g), buv = xyToUV(b), wuv = data.white_uv || xyToUV(w);
+    chart1976.setOption(buildOption("CIE 1976 u'v'", "u'", "v'", ruv, guv, buv, wuv), true);
 }
 </script>
 
@@ -429,25 +417,33 @@ function toggleReverseMode() {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 }
 function calculateRgbRatios() {
+    var wx = parseFloat(document.getElementById('target-wx').value);
+    var wy = parseFloat(document.getElementById('target-wy').value);
+    if (isNaN(wx) || wx < 0 || wx > 1 || isNaN(wy) || wy < 0 || wy > 1) {
+        logStatus('Invalid target white point'); return;
+    }
+    setLoading(true);
     logStatus('Solving RGB ratios...');
     try {
         new QWebChannel(qt.webChannelTransport, function(channel) {
             var payload = JSON.stringify({
-                red_xy: [parseFloat(document.querySelectorAll('.input-field')[0].value), parseFloat(document.querySelectorAll('.input-field')[1].value)],
-                green_xy: [parseFloat(document.querySelectorAll('.input-field')[3].value), parseFloat(document.querySelectorAll('.input-field')[4].value)],
-                blue_xy: [parseFloat(document.querySelectorAll('.input-field')[6].value), parseFloat(document.querySelectorAll('.input-field')[7].value)],
-                target_xy: [parseFloat(document.getElementById('target-wx').value), parseFloat(document.getElementById('target-wy').value)]
+                red_xy: [parseFloat(document.querySelectorAll('.input-table .input-field')[0].value), parseFloat(document.querySelectorAll('.input-table .input-field')[1].value)],
+                green_xy: [parseFloat(document.querySelectorAll('.input-table .input-field')[3].value), parseFloat(document.querySelectorAll('.input-table .input-field')[4].value)],
+                blue_xy: [parseFloat(document.querySelectorAll('.input-table .input-field')[6].value), parseFloat(document.querySelectorAll('.input-table .input-field')[7].value)],
+                target_xy: [wx, wy]
             });
             channel.objects.backend.calculate_rgb_ratios(payload, function(json) {
+                setLoading(false);
                 var data = JSON.parse(json);
                 if (data.error) { logStatus('Error: ' + data.error); return; }
                 renderWhitePoint(data);
                 logStatus('RGB ratios solved');
             });
         });
-    } catch (e) { logStatus('JS error: ' + e.message); }
+    } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
 }
 
 </script>
+<div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>
 </body>
 </html>
