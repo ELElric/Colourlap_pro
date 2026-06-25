@@ -42,22 +42,14 @@ class OptimizerPageBackend(QObject):
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
-        """Return spectra list and placeholder optimization results as JSON."""
-        import json
-
+        """Return spectra list and empty optimization results as JSON."""
         try:
             summaries = self._spectrum_controller.list_spectra()
             spectra = [
                 {"id": s.id, "name": s.name, "category": s.category or "", "channel": s.channel or ""}
                 for s in summaries
             ]
-
-            results = [
-                {"rank": i + 1, "thickness_r": 1.0 + i * 0.1, "thickness_g": 1.2 + i * 0.1, "thickness_b": 1.4 + i * 0.1, "coverage": 85.0 - i * 2.5, "match": 82.0 - i * 2.5}
-                for i in range(5)
-            ]
-
-            return json.dumps({"spectra": spectra, "results": results, "best": results[0]})
+            return json.dumps({"spectra": spectra, "results": [], "best": None})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 

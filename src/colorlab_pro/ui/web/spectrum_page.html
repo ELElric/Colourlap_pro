@@ -447,6 +447,10 @@ function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
 }
+function updateLastImport() {
+    var el = document.getElementById('status-last');
+    if (el) el.textContent = 'Last import: ' + new Date().toLocaleString();
+}
 
 function importSpectra() {
     if (!window.backend) { logStatus('Backend not ready'); return; }
@@ -454,6 +458,7 @@ function importSpectra() {
         var res = JSON.parse(json);
         if (res.error) { logStatus('Import failed: ' + res.error); return; }
         logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
+        updateLastImport();
         refreshSpectra();
     });
 }
@@ -490,6 +495,7 @@ function pasteSpectrum() {
         var res = JSON.parse(json);
         if (res.error) { logStatus('Paste failed: ' + res.error); return; }
         logStatus('Pasted spectrum ' + res.id);
+        updateLastImport();
         refreshSpectra();
     });
 }

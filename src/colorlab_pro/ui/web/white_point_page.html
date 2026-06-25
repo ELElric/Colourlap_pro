@@ -345,6 +345,7 @@ function calculateWhitePoint() {
         logStatus('Please fix invalid inputs');
         return;
     }
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     setLoading(true);
     logStatus('Calculating...');
     try {
@@ -378,35 +379,42 @@ function renderCIECharts(data) {
     if (!c1931 || !c1976) return;
     if (!chart1931) chart1931 = echarts.init(c1931, 'dark');
     if (!chart1976) chart1976 = echarts.init(c1976, 'dark');
-    var standards = data.results || [];
     var r = data.red_xy || [0.64, 0.33];
     var g = data.green_xy || [0.3, 0.6];
     var b = data.blue_xy || [0.15, 0.06];
     var w = data.white_xy || [0.3127, 0.3290];
-    function stdPolygon(std) {
-        var pts = {sRGB:[[0.64,0.33],[0.3,0.6],[0.15,0.06]], NTSC:[[0.67,0.33],[0.21,0.71],[0.14,0.08]], DCI_P3:[[0.68,0.32],[0.265,0.69],[0.15,0.06]], BT2020:[[0.708,0.292],[0.17,0.797],[0.131,0.046]]};
-        return (pts[std] || []).map(function(p){return [p[0], p[1], std];});
+    var stdPolygons = {
+        sRGB: [[0.64,0.33],[0.3,0.6],[0.15,0.06],[0.64,0.33]],
+        BT2020: [[0.708,0.292],[0.17,0.797],[0.131,0.046],[0.708,0.292]]
+    };
+    function axisRange(points) {
+        var xs = points.map(function(p){return p[0];}), ys = points.map(function(p){return p[1];});
+        var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+        var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+        return { minX: Math.min(0, minX - 0.05), maxX: maxX + 0.05, minY: Math.min(0, minY - 0.05), maxY: maxY + 0.05 };
     }
-    function buildOption(title, xName, yName, r, g, b, w) {
+    function buildOption(title, xName, yName, r, g, b, w, stds) {
+        var allPoints = [r,g,b,w].concat(stds.sRGB).concat(stds.BT2020);
+        var range = axisRange(allPoints);
         return {
             backgroundColor: 'transparent', title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
             grid: { top: 40, right: 20, bottom: 40, left: 50 },
             tooltip: { trigger: 'item' },
-            xAxis: { type: 'value', name: xName, min: 0, max: 0.9, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            yAxis: { type: 'value', name: yName, min: 0, max: 0.9, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            xAxis: { type: 'value', name: xName, min: range.minX, max: range.maxX, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            yAxis: { type: 'value', name: yName, min: range.minY, max: range.maxY, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
             series: [
                 { name: 'Device', type: 'line', data: [r,g,b,r], lineStyle: { color: '#4fc3f7' }, itemStyle: { color: '#4fc3f7' }, symbolSize: 6, areaStyle: { color: 'rgba(79,195,247,0.1)' } },
                 { name: 'White', type: 'scatter', data: [w], symbolSize: 10, itemStyle: { color: '#fff' } },
-                { name: 'sRGB', type: 'line', data: stdPolygon('sRGB'), lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
-                { name: 'BT2020', type: 'line', data: stdPolygon('BT2020'), lineStyle: { color: '#aaa', type: 'dotted' }, symbol: 'none' }
+                { name: 'sRGB', type: 'line', data: stds.sRGB, lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
+                { name: 'BT2020', type: 'line', data: stds.BT2020, lineStyle: { color: '#aaa', type: 'dotted' }, symbol: 'none' }
             ],
             legend: { data: ['Device', 'White', 'sRGB', 'BT2020'], textStyle: { color: '#ccc' }, bottom: 0 }
         };
     }
     function xyToUV(xy) { var d = -2*xy[0] + 12*xy[1] + 3; if (d === 0) return [0,0]; return [4*xy[0]/d, 9*xy[1]/d]; }
-    chart1931.setOption(buildOption('CIE 1931 xy', 'x', 'y', r, g, b, w), true);
+    chart1931.setOption(buildOption('CIE 1931 xy', 'x', 'y', r, g, b, w, stdPolygons), true);
     var ruv = xyToUV(r), guv = xyToUV(g), buv = xyToUV(b), wuv = data.white_uv || xyToUV(w);
-    chart1976.setOption(buildOption("CIE 1976 u'v'", "u'", "v'", ruv, guv, buv, wuv), true);
+    chart1976.setOption(buildOption("CIE 1976 u'v'", "u'", "v'", ruv, guv, buv, wuv, {sRGB: stdPolygons.sRGB.map(xyToUV), BT2020: stdPolygons.BT2020.map(xyToUV)}), true);
 }
 </script>
 
@@ -417,6 +425,7 @@ function toggleReverseMode() {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 }
 function calculateRgbRatios() {
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     var wx = parseFloat(document.getElementById('target-wx').value);
     var wy = parseFloat(document.getElementById('target-wy').value);
     if (isNaN(wx) || wx < 0 || wx > 1 || isNaN(wy) || wy < 0 || wy > 1) {
