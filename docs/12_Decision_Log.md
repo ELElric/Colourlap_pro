@@ -78,3 +78,16 @@
   - Thickness Optimizer 页面：参数配置 + 优化结果面板
 - 例外：仅允许修复功能性 Bug 所必须的极简 UI 修复（如标签拼写、tooltip 内容、状态显示逻辑），且须在 D-NNN 中记录。
 - 影响：`docs/13_UI_Design_Freeze.md` 建立当前 frozen 基线。
+
+## D-022：CIE 色度图固定背景 + 动态叠加
+
+- 日期：2026-06-26
+- 决策：CIE 1931 xy 与 CIE 1976 u\'v\' 色度图使用固定背景数据渲染；后端返回的 primaries/white 点仅作为动态层叠加在背景之上。
+- 理由：
+  - 用户可立即看到完整的色度图轮廓和标准色域参考，无需等待数据。
+  - 避免因数据缺失导致坐标轴范围异常、图表空白或变形。
+  - 固定坐标轴范围（xy [0,0.85]×[0,0.95]；uv [0,0.70]×[0,0.65]）使不同输入下的视觉对比一致。
+- 影响：
+  - 新增 `src/colorlab_pro/ui/web/cie_chromaticity_data.js`（由 `colour-science` 生成）。
+  - `gamut_calculator_page.html` 与 `white_point_page.html` 的 CIE 渲染逻辑拆分为 `renderCIEBackground()` 与 `renderCIECharts()`。
+  - 属于 D-021 UI 设计冻结的例外：功能性 Bug 修复，已记录。

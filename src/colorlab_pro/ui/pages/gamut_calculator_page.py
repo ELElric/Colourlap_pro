@@ -146,15 +146,39 @@ class GamutPageBackend(QObject):
                 float(data.get("thickness_b", 0)),
             ]
 
-            filtered_specs = [
-                self._apply_cf_filter(cast(Spectrum, specs[i]), cf_specs[i], thicknesses[i])
-                for i in range(3)
-            ]
-
+            mode = data.get("mode", "rgbcf")
             gs = self._color_controller._gamut_service()
-            device = gs.build_from_primaries(
-                filtered_specs[0], filtered_specs[1], filtered_specs[2], name="Device"
-            )
+
+            if mode == "whitecf":
+                white_id = data.get("white_id", "")
+                if not white_id:
+                    raise ValueError("White spectrum is required for White + Color Filter mode")
+                white_spec = self._spectrum_controller.get_spectrum(validate_spectrum_id(white_id))
+                if white_spec is None:
+                    raise ValueError("Selected white spectrum not found")
+
+                filtered_specs = []
+                for i in range(3):
+                    cf = cf_specs[i]
+                    thickness = thicknesses[i]
+                    if cf is None or thickness <= 0:
+                        filtered_specs.append(white_spec)
+                        continue
+                    cf_filtered = self._apply_cf_filter(white_spec, cf, thickness)
+                    filtered_specs.append(cf_filtered)
+
+                device = gs.build_from_primaries(
+                    filtered_specs[0], filtered_specs[1], filtered_specs[2],
+                    white=white_spec, name="Device"
+                )
+            else:
+                filtered_specs = [
+                    self._apply_cf_filter(cast(Spectrum, specs[i]), cf_specs[i], thicknesses[i])
+                    for i in range(3)
+                ]
+                device = gs.build_from_primaries(
+                    filtered_specs[0], filtered_specs[1], filtered_specs[2], name="Device"
+                )
 
             def _xy_to_xyz(x, y):
                 if y == 0:

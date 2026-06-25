@@ -37,7 +37,7 @@ class WhitePointPageBackend(QObject):
                 "red_xy": [0.6400, 0.3300],
                 "green_xy": [0.3000, 0.6000],
                 "blue_xy": [0.1500, 0.0600],
-                "ratios": {"R": 0.333, "G": 0.333, "B": 0.333},
+                "ratios": [0.333, 0.333, 0.333],
                 "white_xy": [0.3127, 0.3290],
                 "white_uv": [0.1978, 0.4683],
                 "cct": 6504,
@@ -133,7 +133,7 @@ class WhitePointPageBackend(QObject):
                     "red_xy": [round(red_xy[0], 4), round(red_xy[1], 4)],
                     "green_xy": [round(green_xy[0], 4), round(green_xy[1], 4)],
                     "blue_xy": [round(blue_xy[0], 4), round(blue_xy[1], 4)],
-                    "ratios": ratios,
+                    "ratios": [round(ratios["R"], 4), round(ratios["G"], 4), round(ratios["B"], 4)],
                     "white_xy": [round(wx, 4), round(wy, 4)],
                     "white_uv": [round(u, 4), round(v, 4)],
                     "cct": round(cct, 0),
@@ -192,7 +192,7 @@ class WhitePointPageBackend(QObject):
                 "red_xy": red_xy, "green_xy": green_xy, "blue_xy": blue_xy, "ratios": ratios
             })
             result = json.loads(self.calculate_white_point(calc_payload))
-            result["ratios"] = ratios
+            result["ratios"] = [round(ratios["R"], 4), round(ratios["G"], 4), round(ratios["B"], 4)]
             return json.dumps(result)
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})

@@ -272,9 +272,9 @@
       <div class="chart-title">Scan Curves</div>
     </div>
     <div class="chart-tabs">
-      <div class="chart-tab active" onclick="switchScanTab('coverage', this)">Thickness vs Coverage</div>
-      <div class="chart-tab" onclick="switchScanTab('whitex', this)">Thickness vs Coordinate</div>
-      <div class="chart-tab" onclick="switchScanTab('whitey', this)">Thickness vs White Point</div>
+      <div class="chart-tab active" onclick="switchScanTab('coverage', this)">Coverage vs Thickness</div>
+      <div class="chart-tab" onclick="switchScanTab('whitex', this)">White x vs Thickness</div>
+      <div class="chart-tab" onclick="switchScanTab('whitey', this)">White y vs Thickness</div>
     </div>
     <div id="scan-chart" style="width:100%;height:300px;"></div>
   </div>
@@ -322,7 +322,7 @@ function populateSelectors(spectra) {
         sel.innerHTML = '<option value="">-- Select --</option>';
         spectra.forEach(function(s) {
             var opt = document.createElement('option');
-            opt.value = s.id;
+            opt.value = String(s.id);
             opt.textContent = s.name;
             sel.appendChild(opt);
         });

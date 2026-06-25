@@ -99,6 +99,8 @@
   .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: #4fc3f7; animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 </style>
+<script src="cie_chromaticity_data.js?v=3"></script>
+<script src="echarts.min.js"></script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
@@ -130,7 +132,7 @@
       </div>
     </div>
     <div class="preset-section">
-      <button class="preset-btn" onclick="calculate()">Calculate</button>
+      <button class="preset-btn" onclick="calculate()">Recalculate</button>
     </div>
   </div>
 </div>
@@ -155,26 +157,26 @@
       <tbody>
         <tr>
           <td class="channel-cell channel-r">R</td>
-          <td class="input-cell"><input id="r-x" class="input-field" type="text" value="0.6400"></td>
-          <td class="input-cell"><input id="r-y" class="input-field" type="text" value="0.3300"></td>
-          <td class="input-cell"><input id="r-ratio" class="input-field" type="text" value="0.333"></td>
+          <td class="input-cell"><input id="r-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.6400"></td>
+          <td class="input-cell"><input id="r-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3300"></td>
+          <td class="input-cell"><input id="r-ratio" class="input-field" type="text" oninput="scheduleCalculate()" value="0.333"></td>
         </tr>
         <tr>
           <td class="channel-cell channel-g">G</td>
-          <td class="input-cell"><input id="g-x" class="input-field" type="text" value="0.3000"></td>
-          <td class="input-cell"><input id="g-y" class="input-field" type="text" value="0.6000"></td>
-          <td class="input-cell"><input id="g-ratio" class="input-field" type="text" value="0.333"></td>
+          <td class="input-cell"><input id="g-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3000"></td>
+          <td class="input-cell"><input id="g-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.6000"></td>
+          <td class="input-cell"><input id="g-ratio" class="input-field" type="text" oninput="scheduleCalculate()" value="0.333"></td>
         </tr>
         <tr>
           <td class="channel-cell channel-b">B</td>
-          <td class="input-cell"><input id="b-x" class="input-field" type="text" value="0.1500"></td>
-          <td class="input-cell"><input id="b-y" class="input-field" type="text" value="0.0600"></td>
-          <td class="input-cell"><input id="b-ratio" class="input-field" type="text" value="0.333"></td>
+          <td class="input-cell"><input id="b-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.1500"></td>
+          <td class="input-cell"><input id="b-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.0600"></td>
+          <td class="input-cell"><input id="b-ratio" class="input-field" type="text" oninput="scheduleCalculate()" value="0.333"></td>
         </tr>
         <tr class="row-highlight">
           <td class="channel-cell channel-w">W</td>
-          <td class="input-cell"><input id="w-x" class="input-field" type="text" value="0.3127" readonly></td>
-          <td class="input-cell"><input id="w-y" class="input-field" type="text" value="0.3290" readonly></td>
+          <td class="input-cell"><input id="w-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3127" readonly></td>
+          <td class="input-cell"><input id="w-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3290" readonly></td>
           <td class="output-cell"><span class="output-value" style="color:#666;">-</span></td>
         </tr>
       </tbody>
@@ -207,16 +209,14 @@
     <div class="cie-panel">
       <div class="cie-header">
         <div class="cie-title">CIE 1931 xy Chromaticity Diagram</div>
-        <div style="color: #666; font-size: 10px;">● R ● G ● B ● W</div>
       </div>
-      <div id="cie-1931-chart" style="width:100%;height:100%;"></div>
+      <div id="cie-1931-chart" style="width:100%;height:280px;"></div>
     </div>
     <div class="cie-panel">
       <div class="cie-header">
         <div class="cie-title">CIE 1976 u'v' Chromaticity Diagram</div>
-        <div style="color: #666; font-size: 10px;">● R ● G ● B ● W</div>
       </div>
-      <div id="cie-1976-chart" style="width:100%;height:100%;"></div>
+      <div id="cie-1976-chart" style="width:100%;height:280px;"></div>
     </div>
   </div>
 </div>
@@ -233,6 +233,13 @@
 
 <script>
 var currentMode = 'forward';
+var calcTimer = null;
+function scheduleCalculate() {
+    if (calcTimer) clearTimeout(calcTimer);
+    calcTimer = setTimeout(function() {
+        if (inputsValid()) calculate();
+    }, 400);
+}
 
 function logStatus(msg) {
     var el = document.querySelector('.status-left');
@@ -373,9 +380,9 @@ function renderWhitePoint(data) {
     document.getElementById('b-y').value = data.blue_xy[1];
     document.getElementById('w-x').value = data.white_xy[0];
     document.getElementById('w-y').value = data.white_xy[1];
-    document.getElementById('r-ratio').value = data.ratios.R;
-    document.getElementById('g-ratio').value = data.ratios.G;
-    document.getElementById('b-ratio').value = data.ratios.B;
+    document.getElementById('r-ratio').value = data.ratios[0];
+    document.getElementById('g-ratio').value = data.ratios[1];
+    document.getElementById('b-ratio').value = data.ratios[2];
     renderGamutResults(data.results);
     renderCIECharts(data);
     logStatus('White point calculated');
@@ -388,62 +395,176 @@ function setRGBCoordinates(data) {
 }
 </script>
 
-
-<script src="echarts.min.js"></script>
 <script>
-var chart1931 = null, chart1976 = null;
-function renderCIECharts(data) {
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        if (inputsValid()) calculate();
+    }, 300);
+});
+</script>
+
+<script>
+var chart1931 = null;
+var chart1976 = null;
+
+function xyToUV(x, y) {
+    var denom = -2 * x + 12 * y + 3;
+    if (denom === 0) return { u: 0, v: 0 };
+    return { u: 4 * x / denom, v: 9 * y / denom };
+}
+
+function getRefGamuts() {
+    return ['sRGB', 'NTSC', 'DCI-P3', 'BT2020'];
+}
+
+function renderFillItem(params, api) {
+    var x = api.value(0);
+    var y = api.value(1);
+    var w = api.value(2);
+    var h = api.value(3);
+    var start = api.coord([x, y]);
+    var end = api.coord([x + w, y + h]);
+    return {
+        type: 'rect',
+        shape: { x: start[0], y: end[1], width: end[0] - start[0], height: start[1] - end[1] },
+        style: { fill: api.visual('color') || '#888888', stroke: null },
+        silent: true
+    };
+}
+
+function buildBaseSeriesXY() {
+    var series = [];
+    series.push({
+        name: 'Fill',
+        type: 'custom',
+        renderItem: renderFillItem,
+        data: CIE_DATA.xy_fill.map(function(c){ return { value: [c.x, c.y, c.w, c.h], itemStyle: { color: c.color } }; }),
+        z: 0,
+        silent: true
+    });
+    series.push({
+        name: 'Visible Spectrum',
+        type: 'line',
+        smooth: false,
+        showSymbol: false,
+        data: CIE_DATA.xy_outline,
+        lineStyle: { width: 1.5, color: '#888888' },
+        silent: true,
+        z: 1
+    });
+    getRefGamuts().forEach(function(std) {
+        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'BT2020': '#6666ff' }[std] || '#888888';
+        series.push({
+            name: std,
+            type: 'line',
+            smooth: false,
+            showSymbol: false,
+            data: CIE_DATA.standard_gamuts_xy[std] || [],
+            lineStyle: { width: 1.5, type: 'dashed', color: color },
+            z: 3
+        });
+    });
+    return series;
+}
+
+function buildBaseSeriesUV() {
+    var series = [];
+    series.push({
+        name: 'Fill',
+        type: 'custom',
+        renderItem: renderFillItem,
+        data: CIE_DATA.uv_fill.map(function(c){ return { value: [c.u, c.v, c.w, c.h], itemStyle: { color: c.color } }; }),
+        z: 0,
+        silent: true
+    });
+    series.push({
+        name: 'Visible Spectrum',
+        type: 'line',
+        smooth: false,
+        showSymbol: false,
+        data: CIE_DATA.uv_outline,
+        lineStyle: { width: 1.5, color: '#888888' },
+        silent: true,
+        z: 1
+    });
+    getRefGamuts().forEach(function(std) {
+        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'BT2020': '#6666ff' }[std] || '#888888';
+        series.push({
+            name: std,
+            type: 'line',
+            smooth: false,
+            showSymbol: false,
+            data: (CIE_DATA.standard_gamuts_uv[std] || []),
+            lineStyle: { width: 1.5, type: 'dashed', color: color },
+            z: 3
+        });
+    });
+    return series;
+}
+
+function renderCIEBackground() {
     var c1931 = document.getElementById('cie-1931-chart');
     var c1976 = document.getElementById('cie-1976-chart');
     if (!c1931 || !c1976) return;
     if (!chart1931) chart1931 = echarts.init(c1931, 'dark');
     if (!chart1976) chart1976 = echarts.init(c1976, 'dark');
+
+    chart1931.setOption({
+        backgroundColor: 'transparent',
+        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 30, right: 20, bottom: 40, left: 45 },
+        tooltip: { trigger: 'item' },
+        xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: buildBaseSeriesXY()
+    }, true);
+
+    chart1976.setOption({
+        backgroundColor: 'transparent',
+        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 30, right: 20, bottom: 40, left: 45 },
+        tooltip: { trigger: 'item' },
+        xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: buildBaseSeriesUV()
+    }, true);
+}
+
+function renderCIECharts(data) {
+    if (!data) return;
+    if (!chart1931 || !chart1976) renderCIEBackground();
+
     var r = data.red_xy || [0.64, 0.33];
-    var g = data.green_xy || [0.3, 0.6];
+    var g = data.green_xy || [0.30, 0.60];
     var b = data.blue_xy || [0.15, 0.06];
     var w = data.white_xy || [0.3127, 0.3290];
-    var stdPolygons = {
-        'sRGB':   [[0.6400,0.3300],[0.3000,0.6000],[0.1500,0.0600],[0.6400,0.3300]],
-        'NTSC':   [[0.6700,0.3300],[0.2100,0.7100],[0.1400,0.0800],[0.6700,0.3300]],
-        'DCI-P3': [[0.6800,0.3200],[0.2650,0.6900],[0.1500,0.0600],[0.6800,0.3200]],
-        'BT2020': [[0.7080,0.2920],[0.1700,0.7970],[0.1310,0.0460],[0.7080,0.2920]]
-    };
-    function axisRange(points) {
-        var xs = points.map(function(p){return p[0];}), ys = points.map(function(p){return p[1];});
-        var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
-        var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-        return { minX: Math.min(0, minX - 0.05), maxX: maxX + 0.05, minY: Math.min(0, minY - 0.05), maxY: maxY + 0.05 };
-    }
-    function buildOption(title, xName, yName, r, g, b, w, stds) {
-        var allPoints = [r,g,b,w].concat(stds.sRGB).concat(stds.NTSC).concat(stds['DCI-P3']).concat(stds.BT2020);
-        var range = axisRange(allPoints);
-        return {
-            backgroundColor: 'transparent', title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-            grid: { top: 40, right: 20, bottom: 40, left: 50 },
-            tooltip: { trigger: 'item' },
-            xAxis: { type: 'value', name: xName, min: range.minX, max: range.maxX, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            yAxis: { type: 'value', name: yName, min: range.minY, max: range.maxY, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            series: [
-                { name: 'Device', type: 'line', data: [r,g,b,r], lineStyle: { color: '#4fc3f7' }, itemStyle: { color: '#4fc3f7' }, symbolSize: 6, areaStyle: { color: 'rgba(79,195,247,0.1)' } },
-                { name: 'White', type: 'scatter', data: [w], symbolSize: 10, itemStyle: { color: '#fff' } },
-                { name: 'sRGB', type: 'line', data: stds.sRGB, lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
-                { name: 'NTSC', type: 'line', data: stds.NTSC, lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
-                { name: 'DCI-P3', type: 'line', data: stds['DCI-P3'], lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
-                { name: 'BT2020', type: 'line', data: stds.BT2020, lineStyle: { color: '#aaa', type: 'dotted' }, symbol: 'none' }
-            ],
-            legend: { data: ['Device', 'White', 'sRGB', 'NTSC', 'DCI-P3', 'BT2020'], textStyle: { color: '#ccc' }, bottom: 0 }
-        };
-    }
-    function xyToUV(xy) { var d = -2*xy[0] + 12*xy[1] + 3; if (d === 0) return [0,0]; return [4*xy[0]/d, 9*xy[1]/d]; }
-    chart1931.setOption(buildOption('CIE 1931 xy', 'x', 'y', r, g, b, w, stdPolygons), true);
-    var ruv = xyToUV(r), guv = xyToUV(g), buv = xyToUV(b), wuv = data.white_uv || xyToUV(w);
-    chart1976.setOption(buildOption("CIE 1976 u'v'", "u'", "v'", ruv, guv, buv, wuv, {
-        sRGB: stdPolygons.sRGB.map(xyToUV),
-        NTSC: stdPolygons.NTSC.map(xyToUV),
-        'DCI-P3': stdPolygons['DCI-P3'].map(xyToUV),
-        BT2020: stdPolygons.BT2020.map(xyToUV)
-    }), true);
+    var ruv = data.red_uv || xyToUV(r[0], r[1]);
+    var guv = data.green_uv || xyToUV(g[0], g[1]);
+    var buv = data.blue_uv || xyToUV(b[0], b[1]);
+    var wuv = data.white_uv || xyToUV(w[0], w[1]);
+
+    var dynamicXY = [
+        { name: 'Device', type: 'line', data: [r, g, b, r], lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 },
+        { name: 'Device R', type: 'scatter', data: [r], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 },
+        { name: 'Device G', type: 'scatter', data: [g], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 },
+        { name: 'Device B', type: 'scatter', data: [b], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 },
+        { name: 'White', type: 'scatter', data: [w], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 }
+    ];
+    var dynamicUV = [
+        { name: 'Device', type: 'line', data: [[ruv.u, ruv.v], [guv.u, guv.v], [buv.u, buv.v], [ruv.u, ruv.v]], lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 },
+        { name: 'Device R', type: 'scatter', data: [[ruv.u, ruv.v]], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 },
+        { name: 'Device G', type: 'scatter', data: [[guv.u, guv.v]], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 },
+        { name: 'Device B', type: 'scatter', data: [[buv.u, buv.v]], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 },
+        { name: 'White', type: 'scatter', data: [[wuv.u, wuv.v]], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 }
+    ];
+
+    chart1931.setOption({ series: buildBaseSeriesXY().concat(dynamicXY) }, false);
+    chart1976.setOption({ series: buildBaseSeriesUV().concat(dynamicUV) }, false);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(renderCIEBackground, 200);
+});
 </script>
 
 <div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>

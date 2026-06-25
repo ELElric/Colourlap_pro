@@ -10,7 +10,6 @@ from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QFileDialog, QWidget
 
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
-from colorlab_pro.engines.spectrum_analyzer import dominant_wavelength, uprime_vprime, xy
 from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
 from colorlab_pro.ui.webview_page import WebViewPage
 
@@ -34,26 +33,12 @@ class SpectrumPageBackend(QObject):
 
     @Slot(result=str)
     def get_spectra(self) -> str:
-        """Return the spectrum list as JSON."""
+        """Return the spectrum list as JSON with pre-computed summary fields."""
         try:
             summaries = self._controller.list_spectra()
             spectra = []
             for s in summaries:
                 full_spec = self._controller.get_spectrum(s.id)
-                if full_spec is not None:
-                    try:
-                        xy_val = xy(full_spec)
-                        uv_val = uprime_vprime(full_spec)
-                        dom = dominant_wavelength(full_spec)
-                        xy_str = f"{xy_val.x:.4f}, {xy_val.y:.4f}"
-                        uv_str = f"{uv_val[0]:.4f}, {uv_val[1]:.4f}"
-                        dom_str = str(round(dom)) if dom is not None else "-"
-                        purity_str = "-"
-                    except Exception:
-                        xy_str = uv_str = dom_str = purity_str = "-"
-                else:
-                    xy_str = uv_str = dom_str = purity_str = "-"
-
                 spectra.append(
                     {
                         "id": s.id,
@@ -65,10 +50,10 @@ class SpectrumPageBackend(QObject):
                         "thickness_um": (
                             f"{s.thickness_um:.2f}" if s.thickness_um is not None else "-"
                         ),
-                        "xy": xy_str,
-                        "uv": uv_str,
-                        "dominant_nm": dom_str,
-                        "purity": purity_str,
+                        "xy": s.xy_str or "-",
+                        "uv": s.uv_str or "-",
+                        "dominant_nm": s.dominant_wavelength_str or "-",
+                        "purity": s.purity_str or "-",
                         "data": _sample_points(full_spec),
                     }
                 )

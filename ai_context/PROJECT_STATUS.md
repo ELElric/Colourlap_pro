@@ -1,10 +1,14 @@
 # ColorLab Pro — 项目状态
 
 > Project: ColorLab Pro V1.1
-> Last Updated: 2026-06-25
+> Last Updated: 2026-06-26
 
 ## 总览 — V1.1 持续迭代中 ✅
 
+> 2026-06-26 CIE 色度图彩色填充完成：由 colour-science 对 80×80 网格单元格预计算马蹄形内部真实彩色并作为静态缓存，复刻 `plot_chromaticity_diagram_colours` 的 `normalise_maximum` 归一化方式，渲染平滑渐变；同时精简图表标签/图例，避免与页面复选框重复。
+>
+> 2026-06-26 CIE 色度图固定背景渲染完成：页面加载后即显示马蹄形色度图轮廓与标准色域参考线，数据输入仅叠加 Device 三角形与 White 点。
+>
 > 2026-06-25 White Point 页面重构完成：删除 Quick Info Cards，新增 Forward/Reverse 模式切换，W 行作为输入/输出。
 >
 > 2026-06-25 Gamut Calculator 删除 Project Comparison 标签页及全部相关 JS/HTML，减少代码复杂度。
@@ -44,6 +48,8 @@
 | Phase 8 | T-29 Build/Package | ✅ done |
 | Phase 8 | T-30 Final Regression | ✅ done |
 | UI Maintenance | White Point 页面重构 | ✅ done |
+| UI Maintenance | CIE 色度图彩色填充 + 标签精简 | ✅ done |
+| UI Maintenance | CIE 色度图固定背景渲染 | ✅ done |
 | UI Maintenance | 删除 Project Comparison | ✅ done |
 
 ## 详细
@@ -98,8 +104,19 @@
 - ✅ T-29 构建/打包 — `pip install -e .` 可安装
 - ✅ T-30 最终回归 — **180 passed, 0 failed**
 
-### UI 维护（2026-06-25）
+### UI 维护（2026-06-26）
 
+- ✅ **CIE 色度图彩色填充 + 标签精简**
+  - `cie_chromaticity_data.js` 新增 `xy_fill` / `uv_fill`：由 `colour-science` 对 80×80 网格单元格预计算 sRGB 彩色填充，复刻 `colour.plotting.diagrams.plot_chromaticity_diagram_colours` 的 `normalise_maximum` 归一化方式；u'v' 空间通过逆变换回 xy 后算色
+  - 使用 ECharts `custom` 系列在 `gamut_calculator_page.html` / `white_point_page.html` 渲染静态彩色马蹄形（网格矩形）
+  - 移除图表内波长标签、E 点标签和图例，White Point 页面额外移除面板头部 R/G/B/W 小标签
+  - 为静态数据文件引用添加缓存刷新参数 `?v=3`
+  - 验证：ruff 0 errors / pytest 494 passed, 7 skipped
+- ✅ **CIE 色度图固定背景渲染**
+  - 新增 `src/colorlab_pro/ui/web/cie_chromaticity_data.js` 固定背景数据
+  - `gamut_calculator_page.html` / `white_point_page.html` 页面加载即渲染固定色度图
+  - 数据返回后仅叠加 Device 三角形、RGB 顶点、White 点
+  - 验证：ruff 0 errors / pytest 494 passed, 7 skipped
 - ✅ **White Point 页面重构**
   - 删除 Quick Info Cards（xy, u'v', CCT, Ratios）
   - 新增 Forward/Reverse 模式切换
@@ -118,6 +135,6 @@
 ## 累计统计
 
 - 已完成：32 / 32 tasks + 9 项需求对齐修复
-- 测试：477 passed, 0 failed
+- 测试：494 passed, 7 skipped
 - 代码：~1,500+ stmts
 - 覆盖率：业务逻辑层 97.71%（已配置 fail_under=90），UI 层通过集成/手动测试验收

@@ -1,30 +1,39 @@
 # ColorLab Pro — Current Task
 
 > Project: ColorLab Pro V1.1
-> Last Updated: 2026-06-25
+> Last Updated: 2026-06-26
 
 ## Active Task
 
-**White Point 页面重构 + Gamut Calculator 删除 Project Comparison 已完成。**
+**CIE 色度图彩色填充 + 标签精简**
 
 - 状态: done
-- 完成时间: 2026-06-25
-- 修改文件: `src/colorlab_pro/ui/web/white_point_page.html`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`
+- 完成时间: 2026-06-26
+- 修改文件: `src/colorlab_pro/ui/web/cie_chromaticity_data.js`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`, `src/colorlab_pro/ui/web/white_point_page.html`
 
-### White Point 页面重构
-- 删除 Quick Info Cards（xy, u'v', CCT, Ratios）
-- 改用 Forward/Reverse 模式切换：Forward 模式 W 行为只读输出，Reverse 模式 RGB Ratio 为只读、W xy 可编辑
-- 统一使用 `<input readonly>` + CSS 显示输出值，移除 `<span>`/`<input>` 双元素方案
-- 精简 CSS，删除 unused 的 info-card 样式
+### 目标
+色度图内部使用 `colour-science` 预计算真实彩色填充并作为静态缓存数据；同时取消图表内的波长标签、E 点标签和图例，避免与页面已有复选框/标题重复。
 
-### Gamut Calculator — 删除 Project Comparison
-- 移除 Spectrum Preview 中的 "Compare" 标签页
-- 移除 Comparison Panel HTML（添加 Config 行、Compare 按钮、对比图表容器）
-- 移除所有对比 JS（compareChart、addCompareRow、populateSelectorsForRow、runComparison、renderCompareChart、toggleCompare）
+### 改动
+- 更新 `generate_cie_data.py`：在 CIE 1931 xy / CIE 1976 u'v' 坐标范围内建立 80×80 网格，对每个落在马蹄形内部的网格单元格中心，复刻 `colour.plotting.diagrams.plot_chromaticity_diagram_colours` 的方法生成 sRGB 色值：xyY → XYZ（Y=1）→ sRGB → `colour.algebra.normalise_maximum` → clip；u'v' 单元格通过逆变换转回 xy 后再算色。结果写入 `cie_chromaticity_data.js` 的 `xy_fill` / `uv_fill`。
+- `gamut_calculator_page.html` / `white_point_page.html`：`renderFillItem()` 由绘制三角形改为绘制网格矩形（`rect`），以呈现平滑自然的连续渐变；移除 `Wavelength`、`E` 标签系列和 `legend`；White Point 页面同时移除面板头部 "R G B W" 小标签。
+- 修复 `gamut_calculator_page.html` 的 `renderCIECharts` 缺少 `xyToUV` 的问题。
+- 为 `cie_chromaticity_data.js` 引用添加 `?v=3` 缓存刷新参数，避免旧版数据被浏览器缓存。
 
 ### 验证
-- 测试: 前次全量 477 passed, 0 failed（本次仅 HTML/JS 改动，无 Python 代码变动，pre-existing PermissionError 不变）
-- 无 Python 后端改动，`compare_configurations` slot 保留但不再被 UI 调用
+- 本地 HTTP 服务截图：无数据时色度图显示彩色填充；注入 mock 数据后 Device 三角形正确叠加。
+- ruff check: 0 errors
+- pytest: 494 passed, 7 skipped
+
+### CIE 色度图固定背景渲染（2026-06-26）
+
+- 来源: UI 需求对齐
+- 修改文件: `src/colorlab_pro/ui/web/cie_chromaticity_data.js`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`, `src/colorlab_pro/ui/web/white_point_page.html`
+- 完成内容:
+  - CIE 1931 xy / CIE 1976 u'v' 色度图不再依赖后端数据才渲染
+  - 页面加载后显示固定马蹄形色度轮廓、波长标签、等能白点 E 和标准色域参考线
+  - 数据输入仅叠加 Device 三角形、RGB 顶点标记和 White 点
+- 验证: ruff 0 errors / pytest 494 passed, 7 skipped
 
 ## How to Mark a Task Complete
 
@@ -202,3 +211,14 @@
   - 101 个文件、13 个 src 子包、完整配置
   - Python 3.11.7 venv, 35 个依赖
   - 通过 PowerShell 脚本生成（规避 Trae Write 工具持久化问题）
+
+### White Point 页面重构 + 删除 Gamut Calculator Project Comparison（2026-06-25）
+
+- 来源: UI 需求对齐
+- 修改文件: `src/colorlab_pro/ui/web/white_point_page.html`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`
+- 完成内容:
+  - 删除 Quick Info Cards（xy, u'v', CCT, Ratios）
+  - 改用 Forward/Reverse 模式切换：Forward 模式 W 行为只读输出，Reverse 模式 RGB Ratio 为只读、W xy 可编辑
+  - 统一使用 `<input readonly>` + CSS 显示输出值
+  - 移除 Gamut Calculator Spectrum Preview 中的 "Compare" 标签页及全部相关 JS/HTML
+- 验证: 477 passed, 0 failed

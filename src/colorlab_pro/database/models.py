@@ -66,6 +66,12 @@ class Spectrum(Base):
     point_count: Mapped[int | None] = mapped_column(nullable=True)
     fwhm: Mapped[float | None] = mapped_column(nullable=True)
     peak_wavelength: Mapped[float | None] = mapped_column(nullable=True)
+    xy_x: Mapped[float | None] = mapped_column(nullable=True)
+    xy_y: Mapped[float | None] = mapped_column(nullable=True)
+    uv_u: Mapped[float | None] = mapped_column(nullable=True)
+    uv_v: Mapped[float | None] = mapped_column(nullable=True)
+    dominant_wavelength: Mapped[float | None] = mapped_column(nullable=True)
+    purity: Mapped[float | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=_utc_now)
     meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 

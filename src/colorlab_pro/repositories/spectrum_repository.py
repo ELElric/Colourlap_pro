@@ -11,6 +11,11 @@ from sqlalchemy.orm import Session
 from colorlab_pro.database.models import Spectrum as SpectrumORM
 from colorlab_pro.database.models import SpectrumPoint
 from colorlab_pro.dto.spectrum import Spectrum
+from colorlab_pro.engines.spectrum_analyzer import (
+    _get_illuminant_xy,
+    uprime_vprime,
+    xy,
+)
 
 
 def _meta_from_dto(spectrum: Spectrum) -> str | None:
@@ -48,6 +53,31 @@ def _name_from_dto(spectrum: Spectrum, fallback: str | None) -> str:
     return "Untitled"
 
 
+
+def _compute_purity(spectrum: Spectrum, dom_wl: float | None, illuminant: str = "E") -> float | None:
+    """Compute excitation purity from xy and dominant wavelength."""
+    if dom_wl is None:
+        return None
+    try:
+        xy_val = xy(spectrum, illuminant=illuminant)
+        white = _get_illuminant_xy(illuminant)
+        wavelengths = np.arange(380.0, 781.0, 1.0, dtype=np.float64)
+        v = np.zeros_like(wavelengths)
+        idx = int(dom_wl - 380.0)
+        if 0 <= idx < v.size:
+            v[idx] = 1.0
+        s = Spectrum(wavelengths=wavelengths, values=v, unit="a.u.")
+        locus_pt = xy(s, illuminant=illuminant)
+        sample_vec = np.array([xy_val.x - white.x, xy_val.y - white.y])
+        locus_vec = np.array([locus_pt.x - white.x, locus_pt.y - white.y])
+        locus_norm = np.linalg.norm(locus_vec)
+        if locus_norm < 1e-12:
+            return None
+        purity = float(np.linalg.norm(sample_vec) / locus_norm)
+        return max(0.0, min(1.0, purity))
+    except Exception:
+        return None
+
 def save(
     session: Session,
     spectrum: Spectrum,
@@ -79,6 +109,7 @@ def save(
         wavelength_min = wavelength_max = wavelength_step = None
         fwhm = None
         peak_wavelength = None
+        xy_x = xy_y = uv_u = uv_v = dominant_wavelength = purity = None
     else:
         wavelength_min = float(wavelengths.min())
         wavelength_max = float(wavelengths.max())
@@ -87,6 +118,16 @@ def save(
         # Pre-compute FWHM and peak wavelength at import time so list queries
         # can read them directly without re-computing per spectrum.
         fwhm, peak_wavelength = _compute_fwhm_and_peak(wavelengths, values)
+        try:
+            xy_val = xy(spectrum, illuminant="E")
+            uv_val = uprime_vprime(spectrum, illuminant="E")
+            dom_wl = dominant_wavelength(spectrum, illuminant="E")
+            xy_x, xy_y = xy_val.x, xy_val.y
+            uv_u, uv_v = uv_val
+            dominant_wavelength = float(dom_wl) if dom_wl is not None else None
+            purity = _compute_purity(spectrum, dom_wl, illuminant="E")
+        except Exception:
+            xy_x = xy_y = uv_u = uv_v = dominant_wavelength = purity = None
 
     orm = SpectrumORM(
         project_id=project_id,
@@ -101,6 +142,12 @@ def save(
         point_count=len(wavelengths),
         fwhm=fwhm,
         peak_wavelength=peak_wavelength,
+        xy_x=xy_x,
+        xy_y=xy_y,
+        uv_u=uv_u,
+        uv_v=uv_v,
+        dominant_wavelength=dominant_wavelength,
+        purity=purity,
         meta_json=_meta_from_dto(spectrum),
     )
     session.add(orm)

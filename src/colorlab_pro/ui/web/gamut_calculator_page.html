@@ -105,6 +105,8 @@
   .status-right { display: flex; gap: 12px; }
   .status-item { color: #666; font-size: 11px; }
 </style>
+<script src="cie_chromaticity_data.js?v=3"></script>
+<script src="echarts.min.js"></script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
@@ -121,7 +123,7 @@
   <div class="controls-row" style="margin-bottom: 10px;">
     <div class="controls-section">
       <span class="section-label">Mode:</span>
-      <select id="mode-select" class="mode-select">
+      <select id="mode-select" class="mode-select" onchange="onModeChange()">
         <option value="rgbcf">RGB + Color Filter</option>
         <option value="whitecf">White + Color Filter</option>
       </select>
@@ -176,6 +178,11 @@
         <span class="channel-tag channel-b">B</span>
         <select id="blue-select" class="spectrum-select"><option value="">-- Select --</option></select>
         <button class="paste-btn" onclick="pasteSpectrum('blue-select')">Paste</button>
+      </div>
+      <div class="selector-row" id="white-select-row" style="display:none;">
+        <span class="channel-tag channel-w" style="background:#3a3a3a;color:#ffffff;">W</span>
+        <select id="white-select" class="spectrum-select"><option value="">-- Select White --</option></select>
+        <button class="paste-btn" onclick="pasteSpectrum('white-select')">Paste</button>
       </div>
     </div>
 
@@ -328,7 +335,7 @@ function logStatus(msg) {
 
 function populateSelectors(spectra) {
     currentSpectra = spectra || [];
-    var ids = ['red-select', 'green-select', 'blue-select', 'rcf-select', 'gcf-select', 'bcf-select'];
+    var ids = ['red-select', 'green-select', 'blue-select', 'white-select', 'rcf-select', 'gcf-select', 'bcf-select'];
     ids.forEach(function(id) {
         var sel = document.getElementById(id);
         if (!sel) return;
@@ -394,8 +401,19 @@ function setLoading(show) {
     var overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.classList.toggle('active', show);
 }
+function onModeChange() {
+    var mode = document.getElementById('mode-select').value;
+    var rgbIds = ['red-select','green-select','blue-select'];
+    var whiteRow = document.getElementById('white-select-row');
+    rgbIds.forEach(function(id) {
+        var row = document.getElementById(id);
+        if (row) row.parentElement.style.display = (mode === 'whitecf') ? 'none' : 'flex';
+    });
+    if (whiteRow) whiteRow.style.display = (mode === 'whitecf') ? 'flex' : 'none';
+}
 function validateSelectors() {
-    var ids = ['red-select','green-select','blue-select'];
+    var mode = document.getElementById('mode-select').value;
+    var ids = (mode === 'whitecf') ? ['white-select'] : ['red-select','green-select','blue-select'];
     var valid = true;
     ids.forEach(function(id){
         var sel = document.getElementById(id);
@@ -407,13 +425,16 @@ function validateSelectors() {
 }
 function calculateGamut() {
     if (!validateSelectors()) {
-        logStatus('Please select R/G/B spectra');
+        logStatus(mode === 'whitecf' ? 'Please select a white spectrum' : 'Please select R/G/B spectra');
         return;
     }
+    var mode = document.getElementById('mode-select').value;
     var payload = JSON.stringify({
+        mode: mode,
         red_id: document.getElementById('red-select').value,
         green_id: document.getElementById('green-select').value,
         blue_id: document.getElementById('blue-select').value,
+        white_id: document.getElementById('white-select').value,
         cf_red_id: document.getElementById('rcf-select').value,
         cf_green_id: document.getElementById('gcf-select').value,
         cf_blue_id: document.getElementById('bcf-select').value,
@@ -574,10 +595,10 @@ function pasteSpectrum(selectId) {
 })();
 
 
-<script src="echarts.min.js"></script>
 <script>
 
 function exportReport() {
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     new QWebChannel(qt.webChannelTransport, function(channel){
         var payload = JSON.stringify({
             title: 'Gamut Analysis Report',
@@ -601,6 +622,12 @@ var cieXYChart = null;
 var cieUVChart = null;
 var currentCIETab = 'xy';
 
+function xyToUV(x, y) {
+    var denom = -2 * x + 12 * y + 3;
+    if (denom === 0) return { u: 0, v: 0 };
+    return { u: 4 * x / denom, v: 9 * y / denom };
+}
+
 function switchCIETab(tab) {
     currentCIETab = tab;
     document.getElementById('cie-xy-chart').style.display = tab === 'xy' ? 'block' : 'none';
@@ -614,87 +641,6 @@ function switchCIETab(tab) {
     }
 }
 
-function standardGamutPolygon(name) {
-    var gamuts = {
-        'sRGB':   [[0.6400,0.3300],[0.3000,0.6000],[0.1500,0.0600],[0.6400,0.3300]],
-        'NTSC':   [[0.6700,0.3300],[0.2100,0.7100],[0.1400,0.0800],[0.6700,0.3300]],
-        'DCI-P3': [[0.6800,0.3200],[0.2650,0.6900],[0.1500,0.0600],[0.6800,0.3200]],
-        'BT2020': [[0.7080,0.2920],[0.1700,0.7970],[0.1310,0.0460],[0.7080,0.2920]]
-    };
-    return gamuts[name] || [];
-}
-
-function renderCIECharts(primaries) {
-    if (!primaries || primaries.length < 3) return;
-    var xyDom = document.getElementById('cie-xy-chart');
-    var uvDom = document.getElementById('cie-uv-chart');
-    if (!xyDom || !uvDom) return;
-    if (!cieXYChart) cieXYChart = echarts.init(xyDom, 'dark');
-    if (!cieUVChart) cieUVChart = echarts.init(uvDom, 'dark');
-    function axisRange(points) {
-        var xs = points.map(function(p){return p[0];}), ys = points.map(function(p){return p[1];});
-        var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
-        var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-        return { minX: Math.min(0, minX - 0.05), maxX: Math.max(0.8, maxX + 0.05), minY: Math.min(0, minY - 0.05), maxY: Math.max(0.9, maxY + 0.05) };
-    }
-
-    var refs = [];
-    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
-        var cb = document.getElementById(id);
-        if (cb && cb.checked) refs.push(cb.value);
-    });
-
-    var devicePoly = [[primaries[0].x, primaries[0].y], [primaries[1].x, primaries[1].y], [primaries[2].x, primaries[2].y], [primaries[0].x, primaries[0].y]];
-    var deviceUVPoly = [xyToUV(primaries[0].x, primaries[0].y), xyToUV(primaries[1].x, primaries[1].y), xyToUV(primaries[2].x, primaries[2].y), xyToUV(primaries[0].x, primaries[0].y)];
-
-    var showTriangle = document.getElementById('disp-triangle') ? document.getElementById('disp-triangle').checked : true;
-    var showWhite = document.getElementById('disp-white') ? document.getElementById('disp-white').checked : true;
-
-    var xySeries = [];
-    refs.forEach(function(std) {
-        xySeries.push({ name: std, type: 'line', smooth: false, showSymbol: false, data: standardGamutPolygon(std), lineStyle: { width: 1, type: 'dashed' } });
-    });
-    if (showTriangle) {
-        xySeries.push({ name: 'Device', type: 'line', data: devicePoly, lineStyle: { width: 2, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.1)' } });
-    }
-    if (showWhite) {
-        var white = computeWhitePoint(primaries);
-        xySeries.push({ name: 'White', type: 'scatter', data: [[white.x, white.y]], symbolSize: 10, itemStyle: { color: '#ffd700' } });
-    }
-
-    cieXYChart.setOption({
-        backgroundColor: 'transparent',
-        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 30, right: 20, bottom: 30, left: 40 },
-        legend: { data: refs.concat(['Device', 'White']), textStyle: { color: '#ccc' }, bottom: 0 },
-        xAxis: { type: 'value', min: axisRange(xySeries.flatMap(function(s){return s.data;})).minX, max: axisRange(xySeries.flatMap(function(s){return s.data;})).maxX, name: 'x', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', min: axisRange(xySeries.flatMap(function(s){return s.data;})).minY, max: axisRange(xySeries.flatMap(function(s){return s.data;})).maxY, name: 'y', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        series: xySeries
-    }, true);
-
-    var uvSeries = [];
-    refs.forEach(function(std) {
-        uvSeries.push({ name: std, type: 'line', smooth: false, showSymbol: false, data: standardGamutPolygon(std).map(function(p){ var uv = xyToUV(p[0], p[1]); return [uv.u, uv.v]; }), lineStyle: { width: 1, type: 'dashed' } });
-    });
-    if (showTriangle) {
-        uvSeries.push({ name: 'Device', type: 'line', data: deviceUVPoly.map(function(p){ return [p.u, p.v]; }), lineStyle: { width: 2, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.1)' } });
-    }
-    if (showWhite) {
-        var whiteUV = xyToUV(computeWhitePoint(primaries).x, computeWhitePoint(primaries).y);
-        uvSeries.push({ name: 'White', type: 'scatter', data: [[whiteUV.u, whiteUV.v]], symbolSize: 10, itemStyle: { color: '#ffd700' } });
-    }
-
-    cieUVChart.setOption({
-        backgroundColor: 'transparent',
-        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 30, right: 20, bottom: 30, left: 40 },
-        legend: { data: refs.concat(['Device', 'White']), textStyle: { color: '#ccc' }, bottom: 0 },
-        xAxis: { type: 'value', min: axisRange(uvSeries.flatMap(function(s){return s.data;})).minX, max: axisRange(uvSeries.flatMap(function(s){return s.data;})).maxX, name: "u'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', min: axisRange(uvSeries.flatMap(function(s){return s.data;})).minY, max: axisRange(uvSeries.flatMap(function(s){return s.data;})).maxY, name: "v'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        series: uvSeries
-    }, true);
-}
-
 function computeWhitePoint(primaries) {
     if (!primaries || primaries.length < 3) return { x: 0, y: 0 };
     var x = (primaries[0].x + primaries[1].x + primaries[2].x) / 3;
@@ -702,9 +648,174 @@ function computeWhitePoint(primaries) {
     return { x: x, y: y };
 }
 
+function getRefGamuts() {
+    var refs = [];
+    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
+        var cb = document.getElementById(id);
+        if (cb && cb.checked) refs.push(cb.value);
+    });
+    return refs;
+}
+
+function renderFillItem(params, api) {
+    var x = api.value(0);
+    var y = api.value(1);
+    var w = api.value(2);
+    var h = api.value(3);
+    var start = api.coord([x, y]);
+    var end = api.coord([x + w, y + h]);
+    return {
+        type: 'rect',
+        shape: { x: start[0], y: end[1], width: end[0] - start[0], height: start[1] - end[1] },
+        style: { fill: api.visual('color') || '#888888', stroke: null },
+        silent: true
+    };
+}
+
+function buildBaseSeriesXY() {
+    var series = [];
+    series.push({
+        name: 'Fill',
+        type: 'custom',
+        renderItem: renderFillItem,
+        data: CIE_DATA.xy_fill.map(function(c){ return { value: [c.x, c.y, c.w, c.h], itemStyle: { color: c.color } }; }),
+        z: 0,
+        silent: true
+    });
+    series.push({
+        name: 'Visible Spectrum',
+        type: 'line',
+        smooth: false,
+        showSymbol: false,
+        data: CIE_DATA.xy_outline,
+        lineStyle: { width: 1.5, color: '#888888' },
+        silent: true,
+        z: 1
+    });
+    getRefGamuts().forEach(function(std) {
+        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'BT2020': '#6666ff' }[std] || '#888888';
+        series.push({
+            name: std,
+            type: 'line',
+            smooth: false,
+            showSymbol: false,
+            data: CIE_DATA.standard_gamuts_xy[std] || [],
+            lineStyle: { width: 1.5, type: 'dashed', color: color },
+            z: 3
+        });
+    });
+    return series;
+}
+
+function buildBaseSeriesUV() {
+    var series = [];
+    series.push({
+        name: 'Fill',
+        type: 'custom',
+        renderItem: renderFillItem,
+        data: CIE_DATA.uv_fill.map(function(c){ return { value: [c.u, c.v, c.w, c.h], itemStyle: { color: c.color } }; }),
+        z: 0,
+        silent: true
+    });
+    series.push({
+        name: 'Visible Spectrum',
+        type: 'line',
+        smooth: false,
+        showSymbol: false,
+        data: CIE_DATA.uv_outline,
+        lineStyle: { width: 1.5, color: '#888888' },
+        silent: true,
+        z: 1
+    });
+    getRefGamuts().forEach(function(std) {
+        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'BT2020': '#6666ff' }[std] || '#888888';
+        series.push({
+            name: std,
+            type: 'line',
+            smooth: false,
+            showSymbol: false,
+            data: (CIE_DATA.standard_gamuts_uv[std] || []),
+            lineStyle: { width: 1.5, type: 'dashed', color: color },
+            z: 3
+        });
+    });
+    return series;
+}
+
+function renderCIEBackground() {
+    var xyDom = document.getElementById('cie-xy-chart');
+    var uvDom = document.getElementById('cie-uv-chart');
+    if (!xyDom || !uvDom) return;
+    if (!cieXYChart) cieXYChart = echarts.init(xyDom, 'dark');
+    if (!cieUVChart) cieUVChart = echarts.init(uvDom, 'dark');
+
+    cieXYChart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 30, right: 20, bottom: 40, left: 45 },
+        xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: buildBaseSeriesXY()
+    }, true);
+
+    cieUVChart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: { top: 30, right: 20, bottom: 40, left: 45 },
+        xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: buildBaseSeriesUV()
+    }, true);
+}
+
+function renderCIECharts(primaries) {
+    if (!primaries || primaries.length < 3) return;
+    if (!cieXYChart || !cieUVChart) renderCIEBackground();
+
+    var showTriangle = document.getElementById('disp-triangle') ? document.getElementById('disp-triangle').checked : true;
+    var showWhite = document.getElementById('disp-white') ? document.getElementById('disp-white').checked : true;
+
+    var devicePoly = [[primaries[0].x, primaries[0].y], [primaries[1].x, primaries[1].y], [primaries[2].x, primaries[2].y], [primaries[0].x, primaries[0].y]];
+    var deviceUVPoly = [xyToUV(primaries[0].x, primaries[0].y), xyToUV(primaries[1].x, primaries[1].y), xyToUV(primaries[2].x, primaries[2].y), xyToUV(primaries[0].x, primaries[0].y)];
+    var white = computeWhitePoint(primaries);
+    var whiteUV = xyToUV(white.x, white.y);
+
+    var dynamicXY = [];
+    if (showTriangle) {
+        dynamicXY.push({ name: 'Device', type: 'line', data: devicePoly, lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 });
+        dynamicXY.push({ name: 'Device R', type: 'scatter', data: [[primaries[0].x, primaries[0].y]], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 });
+        dynamicXY.push({ name: 'Device G', type: 'scatter', data: [[primaries[1].x, primaries[1].y]], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 });
+        dynamicXY.push({ name: 'Device B', type: 'scatter', data: [[primaries[2].x, primaries[2].y]], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 });
+    }
+    if (showWhite) {
+        dynamicXY.push({ name: 'White', type: 'scatter', data: [[white.x, white.y]], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 });
+    }
+
+    var dynamicUV = [];
+    if (showTriangle) {
+        dynamicUV.push({ name: 'Device', type: 'line', data: deviceUVPoly.map(function(p){ return [p.u, p.v]; }), lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 });
+        dynamicUV.push({ name: 'Device R', type: 'scatter', data: [[xyToUV(primaries[0].x, primaries[0].y).u, xyToUV(primaries[0].x, primaries[0].y).v]], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 });
+        dynamicUV.push({ name: 'Device G', type: 'scatter', data: [[xyToUV(primaries[1].x, primaries[1].y).u, xyToUV(primaries[1].x, primaries[1].y).v]], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 });
+        dynamicUV.push({ name: 'Device B', type: 'scatter', data: [[xyToUV(primaries[2].x, primaries[2].y).u, xyToUV(primaries[2].x, primaries[2].y).v]], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 });
+    }
+    if (showWhite) {
+        dynamicUV.push({ name: 'White', type: 'scatter', data: [[whiteUV.u, whiteUV.v]], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 });
+    }
+
+    // Merge dynamic series with base series; ECharts replaces by name
+    cieXYChart.setOption({ series: buildBaseSeriesXY().concat(dynamicXY) }, false);
+    cieUVChart.setOption({ series: buildBaseSeriesUV().concat(dynamicUV) }, false);
+}
+
 function updateDisplay() {
+    renderCIEBackground();
     if (lastPrimaries) renderCIECharts(lastPrimaries);
 }
+
+// Render fixed background on page load
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(renderCIEBackground, 200);
+});
 </script>
 
 <div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>

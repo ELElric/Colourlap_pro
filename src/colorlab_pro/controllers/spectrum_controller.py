@@ -33,6 +33,36 @@ class SpectrumSummary:
     thickness_um: float | None = None
     thickness_missing: bool = False
     fwhm: float | None = None
+    xy_x: float | None = None
+    xy_y: float | None = None
+    uv_u: float | None = None
+    uv_v: float | None = None
+    dominant_wavelength: float | None = None
+    purity: float | None = None
+
+    @property
+    def xy_str(self) -> str | None:
+        if self.xy_x is None or self.xy_y is None:
+            return None
+        return f"{self.xy_x:.4f}, {self.xy_y:.4f}"
+
+    @property
+    def uv_str(self) -> str | None:
+        if self.uv_u is None or self.uv_v is None:
+            return None
+        return f"{self.uv_u:.4f}, {self.uv_v:.4f}"
+
+    @property
+    def dominant_wavelength_str(self) -> str | None:
+        if self.dominant_wavelength is None:
+            return None
+        return str(round(self.dominant_wavelength))
+
+    @property
+    def purity_str(self) -> str | None:
+        if self.purity is None:
+            return None
+        return f"{self.purity * 100:.1f}"
 
 
 class SpectrumController(QObject):
@@ -343,6 +373,12 @@ class SpectrumController(QObject):
                             thickness_um=thickness,
                             thickness_missing=thickness_missing,
                             fwhm=fwhm,
+                            xy_x=orm.xy_x,
+                            xy_y=orm.xy_y,
+                            uv_u=orm.uv_u,
+                            uv_v=orm.uv_v,
+                            dominant_wavelength=orm.dominant_wavelength,
+                            purity=orm.purity,
                         )
                     )
                 return result
