@@ -10,7 +10,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QFileDialog, QMessageBox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -20,7 +19,6 @@ from colorlab_pro.services.gamut_service import GamutService
 from colorlab_pro.services.optimization_service import OptimizationService
 from colorlab_pro.services.spectrum_service import SpectrumService
 from colorlab_pro.ui.dialogs.about_dialog import AboutDialog
-from colorlab_pro.ui.dialogs.new_project_dialog import NewProjectDialog
 from colorlab_pro.ui.main_window import MainWindow
 from colorlab_pro.utils.paths import ensure_data_directory, get_default_db_path
 
@@ -52,6 +50,11 @@ class MainController(QObject):
 
         # Runtime state
         self._current_project_id: int | None = None
+
+    @property
+    def session_factory(self) -> Callable[[], Session] | None:
+        """Return the session factory, or None if database is not initialized."""
+        return self._session_factory
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -95,9 +98,8 @@ class MainController(QObject):
     # ------------------------------------------------------------------ #
 
     def create_window(self) -> MainWindow:
-        """Build and return the MainWindow, wiring menu actions."""
+        """Factory: create the main window."""
         self._window = MainWindow()
-        self._wire_menu_actions()
         return self._window
 
     def show_window(self) -> None:
@@ -171,95 +173,4 @@ class MainController(QObject):
         settings = QSettings(get_config().org_name, get_config().app_name)
         settings.setValue("last_project_id", project_id)
 
-    # ------------------------------------------------------------------ #
-    # Menu actions
-    # ------------------------------------------------------------------ #
 
-    def _wire_menu_actions(self) -> None:
-        """Connect MainWindow menu actions to handler methods."""
-        if self._window is None:
-            return
-
-        # File → New Project
-        new_action = self._find_action("&New Project")
-        if new_action is not None:
-            new_action.triggered.connect(self._on_new_project)
-
-        # File → Open Project
-        open_action = self._find_action("&Open Project")
-        if open_action is not None:
-            open_action.triggered.connect(self._on_open_project)
-
-        # Help → About
-        about_action = self._find_action("&About")
-        if about_action is not None:
-            about_action.triggered.connect(self._on_about)
-
-    def _find_action(self, text: str):
-        """Find a QAction in the main window by its text."""
-        from PySide6.QtGui import QAction
-
-        if self._window is None:
-            return None
-        for action in self._window.findChildren(QAction):
-            if action.text() == text:
-                return action
-        # Fallback: iterate menu bar directly
-        menu_bar = self._window.menuBar()
-        for menu in menu_bar.findChildren(type(menu_bar).__mro__[0]):
-            if hasattr(menu, "actions"):
-                for act in menu.actions():
-                    if act.text() == text:
-                        return act
-        return None
-
-    def _on_new_project(self) -> None:
-        """Handle File → New Project."""
-        if self._window is None:
-            return
-        dlg = NewProjectDialog(self._window)
-        dlg.project_accepted.connect(self._create_project_from_dialog)
-        dlg.open()
-
-    def _create_project_from_dialog(self, name: str, description: str | None) -> None:
-        """Create a project from the dialog input."""
-        from colorlab_pro.controllers.project_controller import ProjectController
-
-        ctrl = ProjectController(self)
-        pid = ctrl.create_project(name, description=description)
-        if pid is not None:
-            self.status_message.emit(f"Project '{name}' created (id={pid}).")
-
-    def _on_open_project(self) -> None:
-        """Handle File → Open Project — switch to Project page."""
-        if self._window is not None:
-            self.switch_to_page(0)  # Project page is index 0
-            self.status_message.emit("Switched to Project page. Select a project to open.")
-            QMessageBox.information(
-                self._window,
-                "Open Project",
-                "Please select a project from the Project page.",
-            )
-
-    def _on_about(self) -> None:
-        """Handle Help → About."""
-        if self._window is None:
-            return
-        dlg = AboutDialog(self._window)
-        dlg.open()
-
-    # ------------------------------------------------------------------ #
-    # Export helpers (used by page controllers)
-    # ------------------------------------------------------------------ #
-
-    def prompt_export_path(self, caption: str, filter_str: str) -> Path | None:
-        """Open a save-file dialog and return the selected path."""
-        if self._window is None:
-            return None
-        path_str, _ = QFileDialog.getSaveFileName(
-            self._window,
-            caption,
-            "",
-            filter_str,
-        )
-        return Path(path_str) if path_str else None

@@ -112,7 +112,7 @@ class Optimization(Base):
     target_xy_x: Mapped[float | None] = mapped_column(nullable=True)
     target_xy_y: Mapped[float | None] = mapped_column(nullable=True)
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=_utc_now, nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="optimizations")
 

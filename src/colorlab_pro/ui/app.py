@@ -12,6 +12,7 @@ from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.controllers.optimization_controller import OptimizationController
 from colorlab_pro.controllers.project_controller import ProjectController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
+from colorlab_pro.utils.default_data_loader import load_default_spectra
 from colorlab_pro.ui.main_window import create_application
 from colorlab_pro.ui.pages.gamut_calculator_page import GamutCalculatorPage
 from colorlab_pro.ui.pages.spectrum_page import SpectrumPage
@@ -122,11 +123,14 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
     main_ctrl.initialize()
 
     # Ensure a default project exists (empty, for immediate use)
+    project_ctrl = ProjectController(main_ctrl)
     if main_ctrl.current_project_id is None:
-        project_ctrl = ProjectController(main_ctrl)
         pid = project_ctrl.create_project("Default Project")
         if pid is not None:
             main_ctrl.set_current_project(pid)
+
+    # Load bundled test spectra into the default demo project
+    load_default_spectra(main_ctrl)
 
     # Create the main window
     window = main_ctrl.create_window()
@@ -137,13 +141,9 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
     opt_ctrl = OptimizationController(main_ctrl)
 
     # Create and register workspace pages
-    # 0: Spectrum Library
     spectrum_page = SpectrumPage(spec_ctrl, page_index=0)
-    # 1: Gamut Calculator
     gamut_page = GamutCalculatorPage(spec_ctrl, color_ctrl, page_index=1)
-    # 2: White Point
     white_point_page = WhitePointPage(color_ctrl, page_index=2)
-    # 3: Thickness Optimizer
     optimizer_page = ThicknessOptimizerPage(spec_ctrl, color_ctrl, opt_ctrl, page_index=3)
 
     pages = [
@@ -154,9 +154,6 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
     ]
     for name, page in pages:
         window.add_page(page, name)
-
-    # Wire sidebar navigation — MainWindow._on_nav_changed handles the mapping
-    # Do NOT connect to main_ctrl.switch_to_page as it bypasses the nav_map logic.
 
     # Auto-refresh: pages reload data when switched to
     for _name, page in pages:

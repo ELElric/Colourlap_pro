@@ -16,12 +16,10 @@ from colorlab_pro.controllers.optimization_controller import OptimizationControl
 from colorlab_pro.controllers.project_controller import ProjectController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
 from colorlab_pro.ui.main_window import MainWindow
-from colorlab_pro.ui.pages.analyze_page import AnalyzePage
-from colorlab_pro.ui.pages.mix_page import MixPage
-from colorlab_pro.ui.pages.optimize_page import OptimizePage
-from colorlab_pro.ui.pages.project_page import ProjectPage
-from colorlab_pro.ui.pages.report_page import ReportPage
+from colorlab_pro.ui.pages.gamut_calculator_page import GamutCalculatorPage
 from colorlab_pro.ui.pages.spectrum_page import SpectrumPage
+from colorlab_pro.ui.pages.thickness_optimizer_page import ThicknessOptimizerPage
+from colorlab_pro.ui.pages.white_point_page import WhitePointPage
 
 
 @pytest.fixture
@@ -40,12 +38,10 @@ def app_setup(tmp_path: Path, qtbot):
 
     # Create and register pages
     pages = [
-        ProjectPage(proj_ctrl),
-        SpectrumPage(spec_ctrl),
-        MixPage(color_ctrl),
-        AnalyzePage(spec_ctrl, color_ctrl),
-        OptimizePage(opt_ctrl),
-        ReportPage(main),
+        SpectrumPage(spec_ctrl, page_index=0),
+        GamutCalculatorPage(spec_ctrl, color_ctrl, page_index=1),
+        WhitePointPage(color_ctrl, page_index=2),
+        ThicknessOptimizerPage(spec_ctrl, color_ctrl, opt_ctrl, page_index=3),
     ]
     for page in pages:
         window.add_page(page, page.objectName())
@@ -70,7 +66,7 @@ class TestAppLaunch:
 
     def test_all_pages_registered(self, app_setup) -> None:
         window = app_setup["window"]
-        assert window._stack.count() == 6
+        assert window._stack.count() == 4
 
     def test_services_initialized(self, app_setup) -> None:
         main = app_setup["main"]

@@ -1,13 +1,13 @@
 # ColorLab Pro — 项目状态
 
 > Project: ColorLab Pro V1.1
-> Last Updated: 2026-06-19
+> Last Updated: 2026-06-25
 
-## 总览 — V1.1 已具备发布条件 ✅
+## 总览 — V1.1 持续迭代中 ✅
 
-> 2026-06-19 发布前最终检查已完成：ruff 0 errors / pytest 477 passed / 业务逻辑覆盖率 97.71% / CLI+GUI 入口正常。
+> 2026-06-25 White Point 页面重构完成：删除 Quick Info Cards，新增 Forward/Reverse 模式切换，W 行作为输入/输出。
 >
-> 2026-06-19 Gamut Calculator UI 布局已按用户线框图重构，并生成 UI 设计规范。
+> 2026-06-25 Gamut Calculator 删除 Project Comparison 标签页及全部相关 JS/HTML，减少代码复杂度。
 >
 > 详细报告：`ai_context/RELEASE_CHECK.md`、`ai_context/UI_LAYOUT_CHANGE.md`、`ai_context/GAMUT_UI_SPEC.md`
 
@@ -43,6 +43,8 @@
 | Phase 8 | T-28 CLI Entry | ✅ done |
 | Phase 8 | T-29 Build/Package | ✅ done |
 | Phase 8 | T-30 Final Regression | ✅ done |
+| UI Maintenance | White Point 页面重构 | ✅ done |
+| UI Maintenance | 删除 Project Comparison | ✅ done |
 
 ## 详细
 
@@ -96,6 +98,17 @@
 - ✅ T-29 构建/打包 — `pip install -e .` 可安装
 - ✅ T-30 最终回归 — **180 passed, 0 failed**
 
+### UI 维护（2026-06-25）
+
+- ✅ **White Point 页面重构**
+  - 删除 Quick Info Cards（xy, u'v', CCT, Ratios）
+  - 新增 Forward/Reverse 模式切换
+  - W 行在 Forward 模式为只读输出，Reverse 模式为可编辑输入
+  - 文件: `src/colorlab_pro/ui/web/white_point_page.html`
+- ✅ **Gamut Calculator — 删除 Project Comparison**
+  - 移除 Compare 标签页、Comparison Panel HTML、全部相关 JS
+  - 文件: `src/colorlab_pro/ui/web/gamut_calculator_page.html`
+
 ## 环境
 
 - Python 3.11.7
@@ -104,7 +117,7 @@
 
 ## 累计统计
 
-- 已完成：30 / 30 tasks + 9 项需求对齐修复
+- 已完成：32 / 32 tasks + 9 项需求对齐修复
 - 测试：477 passed, 0 failed
 - 代码：~1,500+ stmts
 - 覆盖率：业务逻辑层 97.71%（已配置 fail_under=90），UI 层通过集成/手动测试验收

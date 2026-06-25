@@ -106,6 +106,7 @@
   .status-item { color: #666; font-size: 11px; }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
 <body>
 
@@ -118,10 +119,11 @@
 <div class="controls-bar">
   <!-- Row 1: Mode & Display Options -->
   <div class="controls-row" style="margin-bottom: 10px;">
-    <div class="controls-section" style="opacity:0.5;" title="Mode selection is not available in this version">
+    <div class="controls-section">
       <span class="section-label">Mode:</span>
-      <select class="mode-select" disabled>
-        <option>RGB + Color Filter</option>
+      <select id="mode-select" class="mode-select">
+        <option value="rgbcf">RGB + Color Filter</option>
+        <option value="whitecf">White + Color Filter</option>
       </select>
     </div>
 
@@ -131,8 +133,10 @@
       <span class="section-label">Display:</span>
       <div class="checkbox-group">
         <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateDisplay()"> Original</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-triangle" checked onchange="updateDisplay()"> Triangle</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-filtered" checked onchange="updateDisplay()"> Filtered</label>
         <label class="checkbox-label"><input type="checkbox" id="disp-white" checked onchange="updateDisplay()"> White Point</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-trajectory" onchange="updateDisplay()"> Trajectory</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-triangle" checked onchange="updateDisplay()"> Triangle</label>
       </div>
     </div>
   </div>
@@ -175,14 +179,53 @@
       </div>
     </div>
 
-    <!-- Filter Panel (hidden until backend supports CF) -->
-    <div class="input-panel" style="display:none;">
+    <!-- Filter Panel -->
+    <div class="input-panel">
       <div class="panel-label panel-label-filter">Color Filter</div>
+      <div class="selector-row">
+        <span class="channel-tag channel-rcf">RCF</span>
+        <select id="rcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
+        <button class="paste-btn" onclick="pasteSpectrum('rcf-select')">Paste</button>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-gcf">GCF</span>
+        <select id="gcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
+        <button class="paste-btn" onclick="pasteSpectrum('gcf-select')">Paste</button>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-bcf">BCF</span>
+        <select id="bcf-select" class="spectrum-select"><option value="">-- Select --</option></select>
+        <button class="paste-btn" onclick="pasteSpectrum('bcf-select')">Paste</button>
+      </div>
     </div>
 
-    <!-- Thickness Panel (hidden until backend supports CF) -->
-    <div class="input-panel" style="display:none;">
+    <!-- Thickness Panel -->
+    <div class="input-panel">
       <div class="panel-label panel-label-thickness">Thickness (μm)</div>
+      <div class="selector-row">
+        <span class="channel-tag channel-rcf">RCF</span>
+        <div class="thickness-control">
+          <button class="spin-btn" onclick="adjustThickness('rcf', -1)">−</button>
+          <input id="thickness-rcf" class="spin-value" type="number" value="2.0" step="0.1" min="0.1" max="20" onchange="onThicknessChange()">
+          <button class="spin-btn" onclick="adjustThickness('rcf', 1)">+</button>
+        </div>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-gcf">GCF</span>
+        <div class="thickness-control">
+          <button class="spin-btn" onclick="adjustThickness('gcf', -1)">−</button>
+          <input id="thickness-gcf" class="spin-value" type="number" value="2.0" step="0.1" min="0.1" max="20" onchange="onThicknessChange()">
+          <button class="spin-btn" onclick="adjustThickness('gcf', 1)">+</button>
+        </div>
+      </div>
+      <div class="selector-row">
+        <span class="channel-tag channel-bcf">BCF</span>
+        <div class="thickness-control">
+          <button class="spin-btn" onclick="adjustThickness('bcf', -1)">−</button>
+          <input id="thickness-bcf" class="spin-value" type="number" value="2.0" step="0.1" min="0.1" max="20" onchange="onThicknessChange()">
+          <button class="spin-btn" onclick="adjustThickness('bcf', 1)">+</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -209,8 +252,7 @@
     </div>
     <div class="tabs">
       <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
-      <div class="tab" onclick="switchPreviewTab('filtered', this)" title="Requires Color Filter support">Filtered</div>
-      <div class="tab" onclick="switchPreviewTab('compare', this)">Compare</div>
+      <div class="tab" onclick="switchPreviewTab('filtered', this)">Filtered</div>
     </div>
     <div id="spectrum-preview-chart" style="width:100%;height:100%;"></div><div id="spectrum-empty" class="chart-area" style="display:none;">Select spectra to preview</div>
   </div>
@@ -259,17 +301,6 @@
 
 
 
-<!-- Comparison Panel -->
-<div id="compare-panel" style="margin:12px 24px;padding:12px;background:#1a1a1a;border:1px solid #333;border-radius:4px;display:none;">
-  <div style="color:#ccc;font-weight:600;margin-bottom:8px;">Project Comparison</div>
-  <div id="compare-rows"></div>
-  <div style="margin-top:8px;">
-    <button class="preset-btn" onclick="addCompareRow()">+ Add Config</button>
-    <button class="preset-btn" onclick="runComparison()" style="margin-left:8px;">Compare</button>
-  </div>
-  <div id="compare-chart" style="width:100%;height:280px;margin-top:12px;"></div>
-</div>
-
 <!-- Calculate Button -->
 <div style="margin: 12px 0; text-align: center;">
   <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button> <button id="export-btn" style="background: #3c3c3c; color: #e0e0e0; border: 1px solid #555; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer; margin-left: 8px;">Export Report</button>
@@ -297,7 +328,7 @@ function logStatus(msg) {
 
 function populateSelectors(spectra) {
     currentSpectra = spectra || [];
-    var ids = ['red-select', 'green-select', 'blue-select'];
+    var ids = ['red-select', 'green-select', 'blue-select', 'rcf-select', 'gcf-select', 'bcf-select'];
     ids.forEach(function(id) {
         var sel = document.getElementById(id);
         if (!sel) return;
@@ -311,6 +342,24 @@ function populateSelectors(spectra) {
         });
         if (current) sel.value = current;
     });
+}
+
+function adjustThickness(ch, delta) {
+    var input = document.getElementById('thickness-' + ch);
+    if (!input) return;
+    var step = parseFloat(input.step) || 0.1;
+    var val = parseFloat(input.value) || 0;
+    val = Math.round((val + delta * step) * 10) / 10;
+    var min = parseFloat(input.min) || 0;
+    var max = parseFloat(input.max) || 100;
+    if (val < min) val = min;
+    if (val > max) val = max;
+    input.value = val.toFixed(1);
+    onThicknessChange();
+}
+
+function onThicknessChange() {
+    if (lastPrimaries) renderCIECharts(lastPrimaries);
 }
 
 function renderResults(results) {
@@ -357,17 +406,25 @@ function validateSelectors() {
     return valid;
 }
 function calculateGamut() {
-    var red = document.getElementById('red-select').value;
-    var green = document.getElementById('green-select').value;
-    var blue = document.getElementById('blue-select').value;
     if (!validateSelectors()) {
         logStatus('Please select R/G/B spectra');
         return;
     }
+    var payload = JSON.stringify({
+        red_id: document.getElementById('red-select').value,
+        green_id: document.getElementById('green-select').value,
+        blue_id: document.getElementById('blue-select').value,
+        cf_red_id: document.getElementById('rcf-select').value,
+        cf_green_id: document.getElementById('gcf-select').value,
+        cf_blue_id: document.getElementById('bcf-select').value,
+        thickness_r: parseFloat(document.getElementById('thickness-rcf').value) || 0,
+        thickness_g: parseFloat(document.getElementById('thickness-gcf').value) || 0,
+        thickness_b: parseFloat(document.getElementById('thickness-bcf').value) || 0,
+    });
     setLoading(true);
     logStatus('Calculating...');
     new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.calculate_gamut(red, green, blue, function(json) {
+        channel.objects.backend.calculate_gamut(payload, function(json) {
             setLoading(false);
             var data = JSON.parse(json);
             if (data.error) {
@@ -395,7 +452,9 @@ function renderChromaticityData(primaries) {
             '<td class="data-value">' + p.y.toFixed(4) + '</td>' +
             '<td class="data-value">' + uv.u.toFixed(4) + '</td>' +
             '<td class="data-value">' + uv.v.toFixed(4) + '</td>' +
-            '<td class="data-value">-</td><td class="data-value">-</td><td class="data-value">-</td>';
+            '<td class="data-value">' + (p.X != null ? p.X.toFixed(4) : '-') + '</td>' +
+            '<td class="data-value">' + (p.Y != null ? p.Y.toFixed(4) : '-') + '</td>' +
+            '<td class="data-value">' + (p.cct != null ? p.cct : '-') + '</td>';
         tbody.appendChild(row);
     });
 }
@@ -416,6 +475,24 @@ function switchPreviewTab(tab, el) {
     if (el) el.classList.add('active');
     renderSpectrumPreview();
 }
+function applyFilter(data, filterData, thickness) {
+    if (!data || !filterData || !thickness) return data;
+    var filtered = [];
+    var fMap = {};
+    filterData.forEach(function(p) { fMap[p[0]] = p[1]; });
+    data.forEach(function(p) {
+        var wl = p[0];
+        var ft = fMap[wl] !== undefined ? fMap[wl] : 1;
+        var t = ft;
+        if (t > 1.5) t = t / 100;
+        t = Math.max(1e-6, Math.min(1, t));
+        var alpha = -Math.log10(t);
+        var attenuation = Math.exp(-alpha * thickness);
+        filtered.push([wl, p[1] * attenuation]);
+    });
+    return filtered;
+}
+
 function renderSpectrumPreview() {
     var ids = ['red-select','green-select','blue-select'];
     var selected = [];
@@ -424,6 +501,16 @@ function renderSpectrumPreview() {
         if (val) selected.push(currentSpectra.find(function(s) { return String(s.id) === val; }));
     });
     selected = selected.filter(Boolean);
+    var cfIds = ['rcf-select', 'gcf-select', 'bcf-select'];
+    var cfSelected = cfIds.map(function(id) {
+        var val = document.getElementById(id).value;
+        if (val) return currentSpectra.find(function(s) { return String(s.id) === val; });
+        return null;
+    });
+    var thicknesses = ['thickness-rcf', 'thickness-gcf', 'thickness-bcf'].map(function(id) {
+        var el = document.getElementById(id);
+        return el ? parseFloat(el.value) || 0 : 0;
+    });
     var dom = document.getElementById('spectrum-preview-chart');
     var empty = document.getElementById('spectrum-empty');
     if (selected.length === 0) {
@@ -435,8 +522,19 @@ function renderSpectrumPreview() {
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
     var series = selected.map(function(s, idx) {
         var colors = ['#FF4444', '#44FF44', '#4488FF'];
-        var data = (s.data || []).map(function(p) { return [p[0], currentPreviewTab === 'normalized' ? (p[1] / Math.max(1e-9, Math.max.apply(null, s.data.map(function(q){return q[1];}))) : p[1]]; });
-        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: data, lineStyle: { color: colors[idx] || '#ccc', width: 2 } };
+        var rawData = (s.data || []).map(function(p) { return [p[0], p[1]]; });
+        var plotData = rawData;
+        if (currentPreviewTab === 'filtered' && cfSelected[idx] && thicknesses[idx] > 0) {
+            var cf = cfSelected[idx];
+            var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
+            plotData = applyFilter(rawData, cfData, thicknesses[idx]);
+        }
+        if (currentPreviewTab === 'normalized') {
+            var maxVal = Math.max.apply(null, plotData.map(function(p){ return p[1]; }));
+            var norm = Math.max(1e-9, maxVal);
+            plotData = plotData.map(function(p){ return [p[0], p[1] / norm]; });
+        }
+        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: colors[idx] || '#ccc', width: 2 } };
     });
     previewChart.setOption({
         backgroundColor: 'transparent',
@@ -477,62 +575,6 @@ function pasteSpectrum(selectId) {
 
 
 <script src="echarts.min.js"></script>
-<script>
-var compareChart = null;
-var compareCount = 0;
-function addCompareRow() {
-    var container = document.getElementById('compare-rows');
-    compareCount++;
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
-    row.innerHTML = '<input class="input-field" placeholder="Config name" style="width:120px;" id="cmp-name-' + compareCount + '">' +
-        '<select class="spectrum-select" id="cmp-r-' + compareCount + '"></select>' +
-        '<select class="spectrum-select" id="cmp-g-' + compareCount + '"></select>' +
-        '<select class="spectrum-select" id="cmp-b-' + compareCount + '"></select>';
-    container.appendChild(row);
-    populateSelectorsForRow(compareCount);
-}
-function populateSelectorsForRow(idx) {
-    var spectra = [];
-    var sels = ['red-select','green-select','blue-select'];
-    sels.forEach(function(id){ var sel = document.getElementById(id); if(sel) for(var i=0;i<sel.options.length;i++) spectra.push({id:sel.options[i].value,name:sel.options[i].text}); });
-    ['r','g','b'].forEach(function(ch){ var sel = document.getElementById('cmp-' + ch + '-' + idx); if(!sel) return; sel.innerHTML = '<option value="">--</option>'; spectra.forEach(function(s){ var opt=document.createElement('option'); opt.value=s.id; opt.textContent=s.name; sel.appendChild(opt); }); });
-}
-function runComparison() {
-    var configs = [];
-    for(var i=1;i<=compareCount;i++){
-        var name = document.getElementById('cmp-name-' + i).value || ('Config ' + i);
-        configs.push({name: name, red_id: document.getElementById('cmp-r-' + i).value, green_id: document.getElementById('cmp-g-' + i).value, blue_id: document.getElementById('cmp-b-' + i).value});
-    }
-    new QWebChannel(qt.webChannelTransport, function(channel){
-        channel.objects.backend.compare_configurations(JSON.stringify({configs: configs}), function(json){
-            var data = JSON.parse(json);
-            if(data.error){ logStatus('Error: ' + data.error); return; }
-            renderCompareChart(data.results);
-            logStatus('Comparison complete');
-        });
-    });
-}
-function renderCompareChart(results) {
-    var dom = document.getElementById('compare-chart');
-    if(!dom) return;
-    if(!compareChart) compareChart = echarts.init(dom, 'dark');
-    var names = results.map(function(r){return r.name;});
-    var covs = results.map(function(r){return r.coverage;});
-    var matches = results.map(function(r){return r.match;});
-    compareChart.setOption({
-        backgroundColor: 'transparent', tooltip: {trigger: 'axis'}, legend: {data:['Coverage','Match'],textStyle:{color:'#ccc'},bottom:0},
-        xAxis: {type:'category',data:names,axisLine:{lineStyle:{color:'#555'}},axisLabel:{color:'#aaa'}},
-        yAxis: {type:'value',name:'%',axisLine:{lineStyle:{color:'#555'}},splitLine:{lineStyle:{color:'#333'}}},
-        series: [
-            {name:'Coverage',type:'bar',data:covs,itemStyle:{color:'#4fc3f7'}},
-            {name:'Match',type:'bar',data:matches,itemStyle:{color:'#ff8a65'}}
-        ]
-    }, true);
-}
-function toggleCompare(){ var p=document.getElementById('compare-panel'); p.style.display=p.style.display==='none'?'block':'none'; }
-</script>
-
 <script>
 
 function exportReport() {

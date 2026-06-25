@@ -184,6 +184,29 @@ QLabel.subtitle {
     color: #aab2bf;
 }
 
+/* Top Bar */
+#brand {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.2px;
+}
+
+#status-dot {
+    background: #3ddc84;
+    border-radius: 4px;
+}
+
+#status-label {
+    font-size: 13px;
+}
+
+#status-pill {
+    border: 1px solid #353b47;
+    border-radius: 999px;
+    padding: 0 12px;
+    background: #20232a;
+}
+
 /* Line Edit */
 QLineEdit {
     background-color: #2d323d;

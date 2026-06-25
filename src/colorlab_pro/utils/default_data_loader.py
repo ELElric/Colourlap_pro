@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from loguru import logger
+from sqlalchemy import select
 
 from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.controllers.project_controller import ProjectController
@@ -57,13 +58,13 @@ def _get_or_create_default_project(
     project_controller: ProjectController,
 ) -> int | None:
     """Return the default project id, creating it if necessary."""
-    session_factory = main_controller._session_factory
+    session_factory = main_controller.session_factory
     if session_factory is None:
         logger.error("Database session factory not available.")
         return None
 
     with session_factory() as session:
-        project = session.query(Project).filter(Project.name == DEFAULT_PROJECT_NAME).first()
+        project = session.execute(select(Project).filter(Project.name == DEFAULT_PROJECT_NAME)).scalar_one_or_none()
         if project is not None:
             logger.info("Using existing default project (id={}).", project.id)
             return int(project.id)
@@ -83,20 +84,19 @@ def _get_or_create_default_project(
 def _existing_spectrum_names(session_factory, project_id: int) -> set[str]:
     """Return the lower-cased names of spectra already in the project."""
     with session_factory() as session:
-        spectra = session.query(Spectrum.name).filter(Spectrum.project_id == project_id).all()
-        return {str(name).lower() for (name,) in spectra if name}
+        spectra = session.execute(select(Spectrum.name).filter(Spectrum.project_id == project_id)).scalars().all()
+        return {str(name).lower() for name in spectra if name}
 
 
 def _all_spectrum_ids(session_factory, project_id: int) -> list[int]:
     """Return all spectrum ids in the default project."""
     with session_factory() as session:
-        ids = (
-            session.query(Spectrum.id)
+        ids = session.execute(
+            select(Spectrum.id)
             .filter(Spectrum.project_id == project_id)
             .order_by(Spectrum.id)
-            .all()
-        )
-        return [int(sid) for (sid,) in ids]
+        ).scalars().all()
+        return [int(sid) for sid in ids]
 
 
 def load_default_spectra(main_controller: MainController) -> list[int]:
@@ -122,7 +122,7 @@ def load_default_spectra(main_controller: MainController) -> list[int]:
 
     main_controller.set_current_project(project_id)
 
-    session_factory = main_controller._session_factory
+    session_factory = main_controller.session_factory
     if session_factory is None:
         return []
 

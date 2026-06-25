@@ -46,7 +46,7 @@ class TestFindTestDataDir:
 class TestGetOrCreateDefaultProject:
     def test_returns_none_when_no_session_factory(self) -> None:
         main_ctrl = MagicMock()
-        main_ctrl._session_factory = None
+        main_ctrl.session_factory = None
         project_ctrl = MagicMock()
         result = _get_or_create_default_project(main_ctrl, project_ctrl)
         assert result is None
@@ -57,9 +57,9 @@ class TestGetOrCreateDefaultProject:
         mock_session = MagicMock()
         mock_project = MagicMock()
         mock_project.id = 42
-        mock_session.query.return_value.filter.return_value.first.return_value = mock_project
-        main_ctrl._session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
-        main_ctrl._session_factory.return_value.__exit__ = MagicMock(return_value=False)
+        mock_session.execute.return_value.scalar_one_or_none.return_value = mock_project
+        main_ctrl.session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
+        main_ctrl.session_factory.return_value.__exit__ = MagicMock(return_value=False)
         result = _get_or_create_default_project(main_ctrl, project_ctrl)
         assert result == 42
 
@@ -67,9 +67,9 @@ class TestGetOrCreateDefaultProject:
         main_ctrl = MagicMock()
         project_ctrl = MagicMock()
         mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.first.return_value = None
-        main_ctrl._session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
-        main_ctrl._session_factory.return_value.__exit__ = MagicMock(return_value=False)
+        mock_session.execute.return_value.scalar_one_or_none.return_value = None
+        main_ctrl.session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
+        main_ctrl.session_factory.return_value.__exit__ = MagicMock(return_value=False)
         project_ctrl.create_project.return_value = 99
         result = _get_or_create_default_project(main_ctrl, project_ctrl)
         assert result == 99
@@ -81,9 +81,9 @@ class TestGetOrCreateDefaultProject:
         main_ctrl = MagicMock()
         project_ctrl = MagicMock()
         mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.first.return_value = None
-        main_ctrl._session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
-        main_ctrl._session_factory.return_value.__exit__ = MagicMock(return_value=False)
+        mock_session.execute.return_value.scalar_one_or_none.return_value = None
+        main_ctrl.session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
+        main_ctrl.session_factory.return_value.__exit__ = MagicMock(return_value=False)
         project_ctrl.create_project.return_value = None
         result = _get_or_create_default_project(main_ctrl, project_ctrl)
         assert result is None
@@ -92,9 +92,9 @@ class TestGetOrCreateDefaultProject:
 class TestExistingSpectrumNames:
     def test_returns_lower_cased_names(self) -> None:
         mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = [
-            ("LED_R",),
-            ("CF_Blue",),
+        mock_session.execute.return_value.scalars.return_value.all.return_value = [
+            "LED_R",
+            "CF_Blue",
         ]
         factory = MagicMock()
         factory.return_value.__enter__ = MagicMock(return_value=mock_session)
@@ -104,7 +104,7 @@ class TestExistingSpectrumNames:
 
     def test_handles_empty_names(self) -> None:
         mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.all.return_value = [(None,), ("",)]
+        mock_session.execute.return_value.scalars.return_value.all.return_value = [None, ""]
         factory = MagicMock()
         factory.return_value.__enter__ = MagicMock(return_value=mock_session)
         factory.return_value.__exit__ = MagicMock(return_value=False)
@@ -115,11 +115,7 @@ class TestExistingSpectrumNames:
 class TestAllSpectrumIds:
     def test_returns_sorted_ids(self) -> None:
         mock_session = MagicMock()
-        mock_session.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-            (3,),
-            (1,),
-            (2,),
-        ]
+        mock_session.execute.return_value.scalars.return_value.all.return_value = [3, 1, 2]
         factory = MagicMock()
         factory.return_value.__enter__ = MagicMock(return_value=mock_session)
         factory.return_value.__exit__ = MagicMock(return_value=False)
@@ -130,13 +126,13 @@ class TestAllSpectrumIds:
 class TestLoadDefaultSpectra:
     def test_returns_empty_when_no_project(self) -> None:
         main_ctrl = MagicMock()
-        main_ctrl._session_factory = None
+        main_ctrl.session_factory = None
         result = load_default_spectra(main_ctrl)
         assert result == []
 
     def test_returns_empty_when_no_session_factory(self) -> None:
         main_ctrl = MagicMock()
-        main_ctrl._session_factory = None
+        main_ctrl.session_factory = None
         result = load_default_spectra(main_ctrl)
         assert result == []
 
@@ -145,13 +141,10 @@ class TestLoadDefaultSpectra:
         mock_session = MagicMock()
         mock_project = MagicMock()
         mock_project.id = 1
-        mock_session.query.return_value.filter.return_value.first.return_value = mock_project
-        mock_session.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-            (10,),
-            (20,),
-        ]
-        main_ctrl._session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
-        main_ctrl._session_factory.return_value.__exit__ = MagicMock(return_value=False)
+        mock_session.execute.return_value.scalar_one_or_none.return_value = mock_project
+        mock_session.execute.return_value.scalars.return_value.all.return_value = [10, 20]
+        main_ctrl.session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
+        main_ctrl.session_factory.return_value.__exit__ = MagicMock(return_value=False)
         with patch("colorlab_pro.utils.default_data_loader._find_test_data_dir", return_value=None):
             result = load_default_spectra(main_ctrl)
         assert result == [10, 20]

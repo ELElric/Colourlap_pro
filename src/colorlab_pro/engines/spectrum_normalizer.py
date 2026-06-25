@@ -13,19 +13,20 @@ from numpy.typing import NDArray
 from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.signal import find_peaks
 
+from colorlab_pro.dto.channels import (
+    CATEGORY_CF,
+    CATEGORY_LED,
+    CATEGORY_WHITE,
+    CHANNEL_B,
+    CHANNEL_G,
+    CHANNEL_R,
+)
 from colorlab_pro.dto.spectrum import Spectrum
 
 # Channel type constants — only R, G, B
 CHANNEL_UNKNOWN = "unknown"
-CHANNEL_R = "R"
-CHANNEL_G = "G"
-CHANNEL_B = "B"
 
 # Spectrum category constants
-CATEGORY_CF = "CF"
-CATEGORY_QD = "QD"
-CATEGORY_LED = "LED"
-CATEGORY_WHITE = "白光"
 CATEGORY_UNKNOWN = "Unknown"
 
 # Channel to category mapping.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from colorlab_pro.database.models import Spectrum as SpectrumORM
@@ -128,12 +129,11 @@ def get_by_id(session: Session, spectrum_id: int) -> Spectrum | None:
 
 def list_by_project(session: Session, project_id: int) -> list[Spectrum]:
     """Return all spectra belonging to a project, ordered by creation time."""
-    orms = (
-        session.query(SpectrumORM)
+    orms = session.execute(
+        select(SpectrumORM)
         .filter_by(project_id=project_id)
         .order_by(SpectrumORM.created_at)
-        .all()
-    )
+    ).scalars().all()
     return [_dto_from_orm(orm) for orm in orms]
 
 
@@ -177,8 +177,8 @@ def find_duplicate(
     point_count = len(wavelengths)
 
     # SQL pre-filter: only load spectra with matching structural metadata.
-    query = (
-        session.query(SpectrumORM)
+    stmt = (
+        select(SpectrumORM)
         .filter(
             SpectrumORM.project_id == project_id,
             SpectrumORM.point_count == point_count,
@@ -187,9 +187,9 @@ def find_duplicate(
         )
     )
     if wl_step is not None:
-        query = query.filter(SpectrumORM.wavelength_step == wl_step)
+        stmt = stmt.filter(SpectrumORM.wavelength_step == wl_step)
 
-    orms = query.all()
+    orms = session.execute(stmt).scalars().all()
 
     best_match: int | None = None
 

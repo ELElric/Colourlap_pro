@@ -1,31 +1,30 @@
 # ColorLab Pro — Current Task
 
 > Project: ColorLab Pro V1.1
-> Last Updated: 2026-06-18
+> Last Updated: 2026-06-25
 
 ## Active Task
 
-**Gamut Calculator UI 布局修改已完成。**
-
-按用户确认的线框图完成布局重构，并升级为可拖动布局：
-- Spectrum Selection / Color Filter Selection / Thickness Controls 三栏并排，比例 2:2:3
-- Spectrum Preview 改为三栏并排（Filtered / Original / Compare），并上移至 CIE 图之上
-- CIE 区域改为三栏：RGB XYZ/色坐标数据面板、CIE 1931 xy 色度图、CIE 1976 u'v' 色度图
-- 膜厚控制改为 [-] [数值] [+] 步进按钮 + Step 设置
-- Gamut Result 与 White Point Result 左右分栏，白点面板加宽
-- Gamut Result 表格 5 列等分宽度
-- 水平方向使用 QSplitter，用户可拖动调整各栏宽度
-- 垂直方向采用固定比例布局，上下不可拖动
-- 布局状态通过 QSettings 自动保存/恢复（仅保存水平 splitter 状态）
+**White Point 页面重构 + Gamut Calculator 删除 Project Comparison 已完成。**
 
 - 状态: done
-- 完成时间: 2026-06-19
-- 修改文件: `src/colorlab_pro/ui/pages/gamut_calculator_page.py`, `src/colorlab_pro/ui/widgets/cie_diagram.py`
-- 全量测试: 477 passed, 0 failed
-- 测试覆盖率: 97.71%
-- ruff check: 0 errors
-- 布局修改报告: `ai_context/UI_LAYOUT_CHANGE.md`
-- 验收截图: `acceptance_screenshots/page_1_.png`, `acceptance_screenshots/page_1_gamut_white_mode.png`
+- 完成时间: 2026-06-25
+- 修改文件: `src/colorlab_pro/ui/web/white_point_page.html`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`
+
+### White Point 页面重构
+- 删除 Quick Info Cards（xy, u'v', CCT, Ratios）
+- 改用 Forward/Reverse 模式切换：Forward 模式 W 行为只读输出，Reverse 模式 RGB Ratio 为只读、W xy 可编辑
+- 统一使用 `<input readonly>` + CSS 显示输出值，移除 `<span>`/`<input>` 双元素方案
+- 精简 CSS，删除 unused 的 info-card 样式
+
+### Gamut Calculator — 删除 Project Comparison
+- 移除 Spectrum Preview 中的 "Compare" 标签页
+- 移除 Comparison Panel HTML（添加 Config 行、Compare 按钮、对比图表容器）
+- 移除所有对比 JS（compareChart、addCompareRow、populateSelectorsForRow、runComparison、renderCompareChart、toggleCompare）
+
+### 验证
+- 测试: 前次全量 477 passed, 0 failed（本次仅 HTML/JS 改动，无 Python 代码变动，pre-existing PermissionError 不变）
+- 无 Python 后端改动，`compare_configurations` slot 保留但不再被 UI 调用
 
 ## How to Mark a Task Complete
 

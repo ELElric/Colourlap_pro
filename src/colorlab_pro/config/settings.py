@@ -28,15 +28,13 @@ class AppConfig:
     # UI
     default_window_width: int = 1440
     default_window_height: int = 900
-    sidebar_width: int = 200
-    property_panel_width: int = 320
 
     # Spectrum
     default_wavelength_start: float = 380.0
     default_wavelength_end: float = 780.0
     default_wavelength_step: float = 1.0
 
-    # Theme
+    # Theme (always dark)
     default_theme: str = "dark"
 
     # Observer / Illuminant / Step
@@ -88,7 +86,6 @@ def get_config() -> AppConfig:
                 data = yaml.safe_load(f) or {}
             return replace(
                 defaults,
-                default_theme=data.get("theme", defaults.default_theme),
                 default_wavelength_start=float(
                     data.get("wavelength_start", defaults.default_wavelength_start)
                 ),
@@ -119,7 +116,6 @@ def get_config() -> AppConfig:
 
 def save_config(
     *,
-    theme: str | None = None,
     wavelength_start: float | None = None,
     wavelength_end: float | None = None,
     db_path: str | None = None,
@@ -143,8 +139,6 @@ def save_config(
             existing = {}
 
     # Update
-    if theme is not None:
-        existing["theme"] = theme
     if wavelength_start is not None:
         existing["wavelength_start"] = wavelength_start
     if wavelength_end is not None:

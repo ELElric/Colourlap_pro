@@ -113,6 +113,12 @@
   .tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #3c3c3c; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; opacity: 0; visibility: hidden; transition: all 0.2s; }
   .tooltip:hover::after { opacity: 1; visibility: visible; }
 
+  /* Loading overlay */
+  .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.7); display: none; align-items: center; justify-content: center; z-index: 9999; }
+  .loading-overlay.active { display: flex; }
+  .loading-spinner { width: 40px; height: 40px; border: 4px solid #444; border-top-color: #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+
   /* Empty State */
   .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #666; }
   .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
@@ -123,6 +129,8 @@
   .change-badge { display: inline-block; background: #264f78; color: #4fc3f7; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 8px; }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script src="echarts.min.js"></script>
+<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
 <body>
 
@@ -139,7 +147,7 @@
   <div class="toolbar-left">
     <!-- Search -->
     <div class="search-box">
-      <span class="search-icon">Q</span>
+      <span class="search-icon">🔍</span>
       <input type="text" id="search-input" placeholder="Search spectra by name..." oninput="filterSpectra()" />
     </div>
 
@@ -211,7 +219,7 @@
 
     <!-- Info Panel -->
     <div class="info-panel">
-      <div class="info-title">Spectrum Info <span class="change-badge">2 selected</span></div>
+      <div class="info-title">Spectrum Info <span class="change-badge">0 selected</span></div>
       <div class="info-grid">
         <div class="info-card">
           <div class="info-card-header">
@@ -260,6 +268,8 @@
   </div>
 </div>
 
+<div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>
+
 <!-- Status Bar -->
 <div class="status-bar">
   <div class="status-left">Ready</div>
@@ -271,7 +281,6 @@
 </div>
 
 
-<script src="echarts.min.js"></script>
 <script>
 var allSpectra = [];
 var selectedIds = new Set();
@@ -279,9 +288,11 @@ var spectrumChart = null;
 
 function renderSpectra(spectra) {
     allSpectra = spectra || [];
+    selectedIds = new Set(allSpectra.map(function(s) { return s.id; }));
     renderSpectraTable(allSpectra);
     renderSpectrumChart(allSpectra, selectedIds);
     updateStatus();
+    setLoading(false);
 }
 
 function renderSpectraTable(spectra) {
@@ -384,10 +395,10 @@ function updateInfoCards() {
     }
     var s = allSpectra.find(function(x) { return x.id === ids[0]; });
     if (!s) return;
-    elXY.textContent = '-';
-    elUV.textContent = '-';
-    elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
-    elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
+    elXY.textContent = s.xy || '-';
+    elUV.textContent = s.uv || '-';
+    elDom.innerHTML = (s.dominant_nm || '-') + '<span class="info-card-unit">nm</span>';
+    elPurity.innerHTML = (s.purity || '-') + '<span class="info-card-unit">%</span>';
     elPeak.innerHTML = s.peak_nm + '<span class="info-card-unit">nm</span>';
     elFwhm.innerHTML = s.fwhm_nm + '<span class="info-card-unit">nm</span>';
 }
@@ -443,6 +454,10 @@ function renderSpectrumChart(spectra, selectedIds) {
     spectrumChart.setOption(option, true);
 }
 
+function setLoading(show) {
+    var overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.toggle('active', show);
+}
 function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
@@ -453,36 +468,44 @@ function updateLastImport() {
 }
 
 function importSpectra() {
-    if (!window.backend) { logStatus('Backend not ready'); return; }
-    window.backend.import_spectra(function(json) {
-        var res = JSON.parse(json);
-        if (res.error) { logStatus('Import failed: ' + res.error); return; }
-        logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
-        updateLastImport();
-        refreshSpectra();
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    setLoading(true);
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.import_spectra(function(json) {
+            setLoading(false);
+            var res = JSON.parse(json);
+            if (res.error) { setLoading(false); logStatus('Import failed: ' + res.error); return; }
+            logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
+            updateLastImport();
+            refreshSpectra();
+        });
     });
 }
 
 function exportSelected() {
     if (selectedIds.size === 0) { logStatus('No spectra selected to export'); return; }
-    if (!window.backend) { logStatus('Backend not ready'); return; }
-    window.backend.export_selected(JSON.stringify(Array.from(selectedIds)), function(json) {
-        var res = JSON.parse(json);
-        if (res.error) { logStatus('Export failed: ' + res.error); return; }
-        logStatus('Exported to ' + res.path);
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.export_selected(JSON.stringify(Array.from(selectedIds)), function(json) {
+            var res = JSON.parse(json);
+            if (res.error) { logStatus('Export failed: ' + res.error); return; }
+            logStatus('Exported to ' + res.path);
+        });
     });
 }
 
 function deleteSelected() {
     if (selectedIds.size === 0) { logStatus('No spectra selected'); return; }
     if (!confirm('Delete ' + selectedIds.size + ' selected spectra?')) return;
-    if (!window.backend) { logStatus('Backend not ready'); return; }
-    window.backend.delete_spectra(JSON.stringify(Array.from(selectedIds)), function(json) {
-        var res = JSON.parse(json);
-        if (res.error) { logStatus('Delete failed: ' + res.error); return; }
-        selectedIds.clear();
-        logStatus('Deleted ' + res.deleted + ' spectra');
-        refreshSpectra();
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.delete_spectra(JSON.stringify(Array.from(selectedIds)), function(json) {
+            var res = JSON.parse(json);
+            if (res.error) { logStatus('Delete failed: ' + res.error); return; }
+            selectedIds.clear();
+            logStatus('Deleted ' + res.deleted + ' spectra');
+            refreshSpectra();
+        });
     });
 }
 
@@ -490,28 +513,34 @@ function pasteSpectrum() {
     var text = prompt('Paste wavelength/value pairs (nm a.u.):');
     if (!text) return;
     var name = prompt('Spectrum name:', 'Pasted Spectrum');
-    if (!window.backend) { logStatus('Backend not ready'); return; }
-    window.backend.paste_spectrum(JSON.stringify({ text: text, name: name || 'Pasted Spectrum' }), function(json) {
-        var res = JSON.parse(json);
-        if (res.error) { logStatus('Paste failed: ' + res.error); return; }
-        logStatus('Pasted spectrum ' + res.id);
-        updateLastImport();
-        refreshSpectra();
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: name || 'Pasted Spectrum' }), function(json) {
+            var res = JSON.parse(json);
+            if (res.error) { logStatus('Paste failed: ' + res.error); return; }
+            logStatus('Pasted spectrum ' + res.id);
+            updateLastImport();
+            refreshSpectra();
+        });
     });
 }
 
 function refreshSpectra() {
-    if (!window.backend) { logStatus('Backend not ready'); return; }
-    window.backend.get_spectra(function(json) {
-        var data = JSON.parse(json);
-        if (data.error) { logStatus('Refresh failed: ' + data.error); return; }
-        renderSpectra(data);
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+        channel.objects.backend.get_spectra(function(json) {
+            var data = JSON.parse(json);
+            if (data.error) { logStatus('Refresh failed: ' + data.error); return; }
+            renderSpectra(data);
+        });
     });
 }
 
 // Expose a global helper so individual Paste buttons in other pages can call it
 window.pasteSpectrum = pasteSpectrum;
 
+// Show loading overlay immediately (hidden once data is rendered)
+setLoading(true);
 
 </body>
 </html>

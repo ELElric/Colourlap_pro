@@ -25,13 +25,6 @@ if TYPE_CHECKING:
     pass
 
 
-# UI-friendly Delta E method names that colour-science accepts.
-DELTA_E_METHODS = [
-    "CIE 1976",
-    "CIE 1994",
-    "CIE 2000",
-]
-
 
 def _to_common_grid(
     spectra: list[Spectrum],

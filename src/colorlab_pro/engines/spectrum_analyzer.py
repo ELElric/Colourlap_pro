@@ -128,14 +128,8 @@ def xy(
     """
     import colour
 
-    xyz_arr = np.array(
-        [
-            xyz(spectrum, observer=observer, illuminant=illuminant).X,
-            xyz(spectrum, observer=observer, illuminant=illuminant).Y,
-            xyz(spectrum, observer=observer, illuminant=illuminant).Z,
-        ],
-        dtype=np.float64,
-    )
+    c = xyz(spectrum, observer=observer, illuminant=illuminant)
+    xyz_arr = np.array([c.X, c.Y, c.Z], dtype=np.float64)
     xy_arr = colour.XYZ_to_xy(xyz_arr)
     return XY(x=float(xy_arr[0]), y=float(xy_arr[1]))
 

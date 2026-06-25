@@ -65,3 +65,16 @@
 - 决策：使用 `src/colorlab_pro/` 布局，禁用 flat `app/` 布局
 - 理由：避免路径冲突、强制 import 走包内
 - 影响：`pyproject.toml` `tool.setuptools.packages.find.where = ["src"]`
+
+## D-021：UI 设计冻结
+
+- 日期：2026-06-25
+- 决策：所有页面 UI 布局、交互模式、组件排布冻结。后续版本不再修改 UI 元素的位置/样式/布局。
+- 理由：UI 经过多轮需求对齐和重构（Gamut Calculator 布局重构、White Point 页面重构），当前实现已满足全部设计要求。冻结 UI 可将后续开发精力集中在功能 Bug 修复和算法改进上。
+- 冻结范围：
+  - Spectrum Library 页面：光谱导入/列表/预览/ECharts 交互
+  - Gamut Calculator 页面：三栏布局（Spectrum Selection / CF Selection / Thickness）、Spectrum Preview 双标签（Original / Filtered）、CIE 1931 + CIE 1976 双图并排、RGB XYZ/色坐标数据面板、Gamut Result + White Point Result 分栏
+  - White Point 页面：Forward / Reverse 模式切换、RGBW xy + Ratio 输入表格
+  - Thickness Optimizer 页面：参数配置 + 优化结果面板
+- 例外：仅允许修复功能性 Bug 所必须的极简 UI 修复（如标签拼写、tooltip 内容、状态显示逻辑），且须在 D-NNN 中记录。
+- 影响：`docs/13_UI_Design_Freeze.md` 建立当前 frozen 基线。

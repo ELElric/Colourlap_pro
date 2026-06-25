@@ -210,7 +210,7 @@ class SpectrumController(QObject):
         try:
             from colorlab_pro.database.models import Spectrum as SpectrumORM
 
-            with self._main._session_factory() as session:
+            with self._main.session_factory() as session:
                 orm = session.get(SpectrumORM, spectrum_id)
                 if orm is None:
                     self.error_occurred.emit(f"Spectrum {spectrum_id} not found.")
@@ -237,6 +237,68 @@ class SpectrumController(QObject):
             skip_dedup=True,
         )
 
+    def _resolve_category(self, orm) -> str | None:
+        """Resolve the spectrum category from the ORM row."""
+        category = orm.category
+        if not category:
+            from colorlab_pro.engines.spectrum_normalizer import category_from_channel
+            category = category_from_channel(orm.channel)
+        return category
+
+    def _compute_fwhm_and_peak(self, orm) -> tuple[float | None, float | None]:
+        """Compute FWHM and peak wavelength from spectrum points if not pre-computed."""
+        peak_wl = orm.peak_wavelength
+        fwhm = orm.fwhm
+        if (peak_wl is not None and fwhm is not None) or not orm.points:
+            return peak_wl, fwhm
+
+        import numpy as np
+        wavelengths = np.array([p.wavelength for p in orm.points], dtype=np.float64)
+        values = np.array([p.value for p in orm.points], dtype=np.float64)
+        if values.size == 0:
+            return peak_wl, fwhm
+
+        if peak_wl is None:
+            peak_wl = float(wavelengths[int(np.argmax(values))])
+
+        if fwhm is None and values.size >= 3:
+            peak_val = float(np.max(values))
+            if peak_val > 0:
+                half_max = peak_val / 2.0
+                peak_idx = int(np.argmax(values))
+                left_wl: float | None = None
+                for i in range(peak_idx - 1, -1, -1):
+                    if values[i] < half_max:
+                        if i + 1 < values.size:
+                            frac = (half_max - values[i]) / (values[i + 1] - values[i])
+                            left_wl = wavelengths[i] + frac * (wavelengths[i + 1] - wavelengths[i])
+                        break
+                right_wl: float | None = None
+                for i in range(peak_idx + 1, values.size):
+                    if values[i] < half_max:
+                        if i - 1 >= 0:
+                            frac = (half_max - values[i - 1]) / (values[i] - values[i - 1])
+                            right_wl = wavelengths[i - 1] + frac * (wavelengths[i] - wavelengths[i - 1])
+                        break
+                if left_wl is not None and right_wl is not None:
+                    fwhm = float(right_wl - left_wl)
+
+        return peak_wl, fwhm
+
+    def _parse_thickness(self, orm) -> tuple[float | None, bool]:
+        """Extract thickness info from meta_json."""
+        thickness: float | None = None
+        thickness_missing = False
+        if orm.meta_json:
+            import json
+            try:
+                meta = json.loads(orm.meta_json)
+                thickness = meta.get("thickness_um")
+                thickness_missing = meta.get("thickness_missing", False)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return thickness, thickness_missing
+
     def list_spectra(self) -> list[SpectrumSummary]:
         """Return all spectra in the current project."""
         pid = self._main.current_project_id
@@ -248,7 +310,7 @@ class SpectrumController(QObject):
 
             from colorlab_pro.database.models import Spectrum as SpectrumORM
 
-            with self._main._session_factory() as session:
+            with self._main.session_factory() as session:
                 stmt = (
                     select(SpectrumORM)
                     .options(selectinload(SpectrumORM.points))
@@ -258,62 +320,13 @@ class SpectrumController(QObject):
                 orms = session.scalars(stmt).all()
                 result: list[SpectrumSummary] = []
                 for orm in orms:
-                    # Extract category from the dedicated column
-                    category = orm.category
-                    if not category:
-                        from colorlab_pro.engines.spectrum_normalizer import category_from_channel
+                    category = self._resolve_category(orm)
+                    peak_wl, fwhm = self._compute_fwhm_and_peak(orm)
+                    thickness, thickness_missing = self._parse_thickness(orm)
 
-                        category = category_from_channel(orm.channel)
-
-                    # Use pre-computed columns, fall back to points if NULL
-                    peak_wl = orm.peak_wavelength
-                    fwhm = orm.fwhm
-                    if (peak_wl is None or fwhm is None) and orm.points:
-                        import numpy as np
-
-                        wavelengths = np.array([p.wavelength for p in orm.points], dtype=np.float64)
-                        values = np.array([p.value for p in orm.points], dtype=np.float64)
-                        if peak_wl is None and values.size > 0:
-                            peak_wl = float(wavelengths[int(np.argmax(values))])
-                        if fwhm is None and values.size >= 3:
-                            peak_val = float(np.max(values))
-                            if peak_val > 0:
-                                half_max = peak_val / 2.0
-                                peak_idx = int(np.argmax(values))
-                                left_wl = None
-                                for i in range(peak_idx - 1, -1, -1):
-                                    if values[i] < half_max:
-                                        if i + 1 < values.size:
-                                            frac = (half_max - values[i]) / (values[i + 1] - values[i])
-                                            left_wl = wavelengths[i] + frac * (wavelengths[i + 1] - wavelengths[i])
-                                        break
-                                right_wl = None
-                                for i in range(peak_idx + 1, values.size):
-                                    if values[i] < half_max:
-                                        if i - 1 >= 0:
-                                            frac = (half_max - values[i - 1]) / (values[i] - values[i - 1])
-                                            right_wl = wavelengths[i - 1] + frac * (wavelengths[i] - wavelengths[i - 1])
-                                        break
-                                if left_wl is not None and right_wl is not None:
-                                    fwhm = float(right_wl - left_wl)
-
-                    # Format created_at
                     created_at_str = None
                     if orm.created_at is not None:
                         created_at_str = orm.created_at.strftime("%Y-%m-%d %H:%M")
-
-                    # Extract thickness from meta_json
-                    thickness = None
-                    thickness_missing = False
-                    if orm.meta_json:
-                        import json
-
-                        try:
-                            meta = json.loads(orm.meta_json)
-                            thickness = meta.get("thickness_um")
-                            thickness_missing = meta.get("thickness_missing", False)
-                        except (json.JSONDecodeError, TypeError):
-                            pass
 
                     result.append(
                         SpectrumSummary(
@@ -409,7 +422,7 @@ class SpectrumController(QObject):
         try:
             from colorlab_pro.database.models import Spectrum as SpectrumORM
 
-            with self._main._session_factory() as session:
+            with self._main.session_factory() as session:
                 orm = session.get(SpectrumORM, spectrum_id)
                 if orm is None:
                     return False

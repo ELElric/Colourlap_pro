@@ -111,8 +111,8 @@ class OptimizerPageBackend(QObject):
 
             target_gamut = standard_gamuts(target_standard)
 
-            # Grid search (3 steps per channel => 27 combos)
-            steps = 4
+            # Grid search (10 steps per channel => 1000 combos)
+            steps = 10
             candidates = []
             total = steps ** 3
             count = 0

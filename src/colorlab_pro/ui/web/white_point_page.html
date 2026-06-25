@@ -61,6 +61,7 @@
   .input-cell { background: #1e1e1e; }
   .input-field { background: transparent; border: 1px solid #555; border-radius: 3px; padding: 6px 8px; color: #e0e0e0; font-size: 12px; width: 80px; text-align: center; font-family: 'Consolas', monospace; }
   .input-field:focus { border-color: #4fc3f7; outline: none; }
+  .input-field[readonly] { background: #252526; color: #b0b0b0; cursor: default; border-color: #3a3a3a; }
 
   .output-cell { background: #252526; }
   .output-value { color: #b0b0b0; font-family: 'Consolas', monospace; font-size: 12px; }
@@ -87,14 +88,6 @@
   .cie-title { color: #81d4fa; font-size: 12px; font-weight: bold; }
   .cie-chart { height: 280px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
 
-  /* Quick Info Panel */
-  .quick-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-  .info-card { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; }
-  .info-label { color: #888; font-size: 11px; margin-bottom: 6px; }
-  .info-value { color: #e0e0e0; font-size: 18px; font-weight: 500; font-family: 'Consolas', monospace; }
-  .info-unit { color: #666; font-size: 11px; margin-left: 4px; }
-  .info-sub { color: #666; font-size: 10px; margin-top: 4px; }
-
   /* Status Bar */
   .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #252526; border: 1px solid #444; border-radius: 6px; }
   .status-left { color: #888; font-size: 11px; }
@@ -107,60 +100,38 @@
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
 <body>
 
 <!-- Page Header -->
 <div class="page-header">
   <div class="page-title">White Point Calculator</div>
-  <div class="calc-indicator" style="background:#3c3c3c;color:#aaa;animation:none;">
-    <span class="calc-dot" style="background:#888;animation:none;"></span>
-    Manual Calculate
-  </div>
+    <div class="calc-indicator">
+      <span class="calc-dot"></span>
+      Auto-calculate
+    </div>
 </div>
 
 <!-- Mode Selection -->
 <div class="mode-section">
-  <div class="mode-row" style="justify-content: space-between;">
+  <div class="mode-row">
     <div class="mode-group">
       <span class="mode-label">White Point Mode:</span>
-      <span style="color:#e0e0e0;font-size:12px;">Forward (RGB → White)</span>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="wp-mode" value="forward" checked onchange="switchMode('forward')">
+          Forward (RGB → White)
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="wp-mode" value="reverse" onchange="switchMode('reverse')">
+          Reverse (White → Ratio)
+        </label>
+      </div>
     </div>
     <div class="preset-section">
-      <button class="preset-btn" onclick="calculateWhitePoint()">Calculate</button>
-      <button class="preset-btn" onclick="toggleReverseMode()" id="reverse-toggle">Solve Ratios</button>
+      <button class="preset-btn" onclick="calculate()">Calculate</button>
     </div>
-  </div>
-</div>
-
-<div id="reverse-panel" style="display:none;padding:12px 24px;background:#1a1a1a;border-bottom:1px solid #333;">
-  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-    <span style="color:#aaa;">Target White xy:</span>
-    <input id="target-wx" class="input-field" type="number" step="0.0001" value="0.3127" style="width:90px;">
-    <input id="target-wy" class="input-field" type="number" step="0.0001" value="0.3290" style="width:90px;">
-    <button class="preset-btn" onclick="calculateRgbRatios()">Solve</button>
-  </div>
-</div>
-
-<!-- Quick Info Cards -->
-<div class="quick-info">
-  <div class="info-card">
-    <div class="info-label">White Point (xy)</div>
-    <div class="info-value" id="white-xy-value">-</div>
-  </div>
-  <div class="info-card">
-    <div class="info-label">White Point (u'v')</div>
-    <div class="info-value" id="white-uv-value">-</div>
-  </div>
-  <div class="info-card">
-    <div class="info-label">CCT</div>
-    <div class="info-value" id="cct-value">-<span class="info-unit">K</span></div>
-    <div class="info-sub">Correlated Color Temperature</div>
-  </div>
-  <div class="info-card">
-    <div class="info-label">Ratios (R:G:B)</div>
-    <div class="info-value" id="ratio-value">-</div>
-    <div class="info-sub">R : G : B mixing ratio</div>
   </div>
 </div>
 
@@ -170,7 +141,7 @@
   <div class="input-section">
     <div class="section-header">
       <div class="section-title">RGBW Input</div>
-      <div style="color: #666; font-size: 10px;">Forward Mode: Edit x,y,Ratio → Output W</div>
+      <div style="color: #666; font-size: 10px;">Forward: Edit RGB xy+Ratios → W output / Reverse: Edit RGB xy+W xy → Ratio output</div>
     </div>
     <table class="input-table">
       <thead>
@@ -184,27 +155,27 @@
       <tbody>
         <tr>
           <td class="channel-cell channel-r">R</td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.6400"></td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.3300"></td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.333"></td>
+          <td class="input-cell"><input id="r-x" class="input-field" type="text" value="0.6400"></td>
+          <td class="input-cell"><input id="r-y" class="input-field" type="text" value="0.3300"></td>
+          <td class="input-cell"><input id="r-ratio" class="input-field" type="text" value="0.333"></td>
         </tr>
         <tr>
           <td class="channel-cell channel-g">G</td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.3000"></td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.6000"></td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.333"></td>
+          <td class="input-cell"><input id="g-x" class="input-field" type="text" value="0.3000"></td>
+          <td class="input-cell"><input id="g-y" class="input-field" type="text" value="0.6000"></td>
+          <td class="input-cell"><input id="g-ratio" class="input-field" type="text" value="0.333"></td>
         </tr>
         <tr>
           <td class="channel-cell channel-b">B</td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.1500"></td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.0600"></td>
-          <td class="input-cell"><input type="text" class="input-field" value="0.333"></td>
+          <td class="input-cell"><input id="b-x" class="input-field" type="text" value="0.1500"></td>
+          <td class="input-cell"><input id="b-y" class="input-field" type="text" value="0.0600"></td>
+          <td class="input-cell"><input id="b-ratio" class="input-field" type="text" value="0.333"></td>
         </tr>
         <tr class="row-highlight">
           <td class="channel-cell channel-w">W</td>
-          <td class="output-cell"><span class="output-value">0.3127</span></td>
-          <td class="output-cell"><span class="output-value">0.3290</span></td>
-          <td class="output-cell"><span class="output-value" style="color: #666;">-</span></td>
+          <td class="input-cell"><input id="w-x" class="input-field" type="text" value="0.3127" readonly></td>
+          <td class="input-cell"><input id="w-y" class="input-field" type="text" value="0.3290" readonly></td>
+          <td class="output-cell"><span class="output-value" style="color:#666;">-</span></td>
         </tr>
       </tbody>
     </table>
@@ -261,6 +232,8 @@
 
 
 <script>
+var currentMode = 'forward';
+
 function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
@@ -293,79 +266,125 @@ function validateInput(el, valid) {
     else el.classList.add('input-error');
 }
 function getInputValues() {
-    var inputs = document.querySelectorAll('.input-table .input-field');
-    var rx = parseFloat(inputs[0].value), ry = parseFloat(inputs[1].value);
-    var gx = parseFloat(inputs[3].value), gy = parseFloat(inputs[4].value);
-    var bx = parseFloat(inputs[6].value), by = parseFloat(inputs[7].value);
-    var rr = parseFloat(inputs[2].value), gr = parseFloat(inputs[5].value), br = parseFloat(inputs[8].value);
-    validateInput(inputs[0], !isNaN(rx) && rx >= 0 && rx <= 1);
-    validateInput(inputs[1], !isNaN(ry) && ry >= 0 && ry <= 1);
-    validateInput(inputs[3], !isNaN(gx) && gx >= 0 && gx <= 1);
-    validateInput(inputs[4], !isNaN(gy) && gy >= 0 && gy <= 1);
-    validateInput(inputs[6], !isNaN(bx) && bx >= 0 && bx <= 1);
-    validateInput(inputs[7], !isNaN(by) && by >= 0 && by <= 1);
-    validateInput(inputs[2], !isNaN(rr) && rr >= 0);
-    validateInput(inputs[5], !isNaN(gr) && gr >= 0);
-    validateInput(inputs[8], !isNaN(br) && br >= 0);
+    var rx = parseFloat(document.getElementById('r-x').value);
+    var ry = parseFloat(document.getElementById('r-y').value);
+    var gx = parseFloat(document.getElementById('g-x').value);
+    var gy = parseFloat(document.getElementById('g-y').value);
+    var bx = parseFloat(document.getElementById('b-x').value);
+    var by = parseFloat(document.getElementById('b-y').value);
+    var rr = parseFloat(document.getElementById('r-ratio').value);
+    var gr = parseFloat(document.getElementById('g-ratio').value);
+    var br = parseFloat(document.getElementById('b-ratio').value);
+    var wx = parseFloat(document.getElementById('w-x').value);
+    var wy = parseFloat(document.getElementById('w-y').value);
+    validateInput(document.getElementById('r-x'), !isNaN(rx) && rx >= 0 && rx <= 1);
+    validateInput(document.getElementById('r-y'), !isNaN(ry) && ry >= 0 && ry <= 1);
+    validateInput(document.getElementById('g-x'), !isNaN(gx) && gx >= 0 && gx <= 1);
+    validateInput(document.getElementById('g-y'), !isNaN(gy) && gy >= 0 && gy <= 1);
+    validateInput(document.getElementById('b-x'), !isNaN(bx) && bx >= 0 && bx <= 1);
+    validateInput(document.getElementById('b-y'), !isNaN(by) && by >= 0 && by <= 1);
+    validateInput(document.getElementById('w-x'), !isNaN(wx) && wx >= 0 && wx <= 1);
+    validateInput(document.getElementById('w-y'), !isNaN(wy) && wy >= 0 && wy <= 1);
+    validateInput(document.getElementById('r-ratio'), !isNaN(rr) && rr >= 0);
+    validateInput(document.getElementById('g-ratio'), !isNaN(gr) && gr >= 0);
+    validateInput(document.getElementById('b-ratio'), !isNaN(br) && br >= 0);
     return {
         red_xy: [rx, ry],
         green_xy: [gx, gy],
         blue_xy: [bx, by],
-        ratios: {R: rr, G: gr, B: br}
+        ratios: {R: rr, G: gr, B: br},
+        white_xy: [wx, wy]
     };
 }
 function inputsValid() {
     var data = getInputValues();
-    return [data.red_xy, data.green_xy, data.blue_xy].every(function(c){ return !isNaN(c[0]) && c[0] >= 0 && c[0] <= 1 && !isNaN(c[1]) && c[1] >= 0 && c[1] <= 1; })
+    return [data.red_xy, data.green_xy, data.blue_xy, data.white_xy].every(function(c){ return !isNaN(c[0]) && c[0] >= 0 && c[0] <= 1 && !isNaN(c[1]) && c[1] >= 0 && c[1] <= 1; })
         && [data.ratios.R, data.ratios.G, data.ratios.B].every(function(r){ return !isNaN(r) && r >= 0; });
 }
-function renderWhitePoint(data) {
-    if (!data) return;
-    var xyEl = document.getElementById('white-xy-value');
-    var uvEl = document.getElementById('white-uv-value');
-    var cctEl = document.getElementById('cct-value');
-    var ratioEl = document.getElementById('ratio-value');
-    if (data.white_xy && xyEl) xyEl.textContent = data.white_xy[0].toFixed(4) + ', ' + data.white_xy[1].toFixed(4);
-    if (data.white_uv && uvEl) uvEl.textContent = data.white_uv[0].toFixed(4) + ', ' + data.white_uv[1].toFixed(4);
-    if (data.cct != null && cctEl) cctEl.innerHTML = data.cct.toFixed(0) + '<span class="info-unit">K</span>';
-    if (data.ratio && ratioEl) ratioEl.textContent = Number(data.ratio.R).toFixed(3) + ' : ' + Number(data.ratio.G).toFixed(3) + ' : ' + Number(data.ratio.B).toFixed(3);
-    var inputs = document.querySelectorAll('.input-table .input-field');
-    if (data.red_xy) { inputs[0].value = data.red_xy[0]; inputs[1].value = data.red_xy[1]; }
-    if (data.green_xy) { inputs[3].value = data.green_xy[0]; inputs[4].value = data.green_xy[1]; }
-    if (data.blue_xy) { inputs[6].value = data.blue_xy[0]; inputs[7].value = data.blue_xy[1]; }
-    if (data.ratio) { inputs[2].value = data.ratio.R; inputs[5].value = data.ratio.G; inputs[8].value = data.ratio.B; }
-    var wOutputs = document.querySelectorAll('.row-highlight .output-value');
-    if (data.white_xy) { wOutputs[0].textContent = data.white_xy[0].toFixed(4); wOutputs[1].textContent = data.white_xy[1].toFixed(4); }
-    renderGamutResults(data.results);
-    renderCIECharts(data);
-    logStatus('White point updated');
+function switchMode(mode) {
+    currentMode = mode;
+    var wX = document.getElementById('w-x');
+    var wY = document.getElementById('w-y');
+    var rR = document.getElementById('r-ratio');
+    var gR = document.getElementById('g-ratio');
+    var bR = document.getElementById('b-ratio');
+    if (mode === 'forward') {
+        wX.readOnly = true; wY.readOnly = true;
+        rR.readOnly = false; gR.readOnly = false; bR.readOnly = false;
+    } else {
+        wX.readOnly = false; wY.readOnly = false;
+        rR.readOnly = true; gR.readOnly = true; bR.readOnly = true;
+    }
+    document.getElementById('r-ratio').classList.remove('input-error');
+    document.getElementById('g-ratio').classList.remove('input-error');
+    document.getElementById('b-ratio').classList.remove('input-error');
+    document.getElementById('w-x').classList.remove('input-error');
+    document.getElementById('w-y').classList.remove('input-error');
 }
-function calculateWhitePoint() {
+function calculate() {
     if (!inputsValid()) {
         logStatus('Please fix invalid inputs');
         return;
     }
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     setLoading(true);
-    logStatus('Calculating...');
-    try {
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
-                setLoading(false);
-                var data = JSON.parse(json);
-                if (data.error) { logStatus('Error: ' + data.error); return; }
-                renderWhitePoint(data);
-                logStatus('Calculation complete');
+    if (currentMode === 'forward') {
+        logStatus('Calculating white point...');
+        try {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
+                    setLoading(false);
+                    var data = JSON.parse(json);
+                    if (data.error) { logStatus('Error: ' + data.error); return; }
+                    renderWhitePoint(data);
+                    logStatus('Calculation complete');
+                });
             });
-        });
-    } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
+        } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
+    } else {
+        logStatus('Solving RGB ratios...');
+        try {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                var vals = getInputValues();
+                var payload = JSON.stringify({
+                    red_xy: vals.red_xy,
+                    green_xy: vals.green_xy,
+                    blue_xy: vals.blue_xy,
+                    target_xy: vals.white_xy
+                });
+                channel.objects.backend.calculate_rgb_ratios(payload, function(json) {
+                    setLoading(false);
+                    var data = JSON.parse(json);
+                    if (data.error) { logStatus('Error: ' + data.error); return; }
+                    renderWhitePoint(data);
+                    logStatus('RGB ratios solved');
+                });
+            });
+        } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
+    }
+}
+function renderWhitePoint(data) {
+    if (!data) return;
+    document.getElementById('r-x').value = data.red_xy[0];
+    document.getElementById('r-y').value = data.red_xy[1];
+    document.getElementById('g-x').value = data.green_xy[0];
+    document.getElementById('g-y').value = data.green_xy[1];
+    document.getElementById('b-x').value = data.blue_xy[0];
+    document.getElementById('b-y').value = data.blue_xy[1];
+    document.getElementById('w-x').value = data.white_xy[0];
+    document.getElementById('w-y').value = data.white_xy[1];
+    document.getElementById('r-ratio').value = data.ratios.R;
+    document.getElementById('g-ratio').value = data.ratios.G;
+    document.getElementById('b-ratio').value = data.ratios.B;
+    renderGamutResults(data.results);
+    renderCIECharts(data);
+    logStatus('White point calculated');
 }
 function setRGBCoordinates(data) {
-    var inputs = document.querySelectorAll('.input-table .input-field');
-    if (data.red_xy) { inputs[0].value = data.red_xy[0]; inputs[1].value = data.red_xy[1]; }
-    if (data.green_xy) { inputs[3].value = data.green_xy[0]; inputs[4].value = data.green_xy[1]; }
-    if (data.blue_xy) { inputs[6].value = data.blue_xy[0]; inputs[7].value = data.blue_xy[1]; }
-    calculateWhitePoint();
+    if (data.red_xy) { document.getElementById('r-x').value = data.red_xy[0]; document.getElementById('r-y').value = data.red_xy[1]; }
+    if (data.green_xy) { document.getElementById('g-x').value = data.green_xy[0]; document.getElementById('g-y').value = data.green_xy[1]; }
+    if (data.blue_xy) { document.getElementById('b-x').value = data.blue_xy[0]; document.getElementById('b-y').value = data.blue_xy[1]; }
+    calculate();
 }
 </script>
 
@@ -384,8 +403,10 @@ function renderCIECharts(data) {
     var b = data.blue_xy || [0.15, 0.06];
     var w = data.white_xy || [0.3127, 0.3290];
     var stdPolygons = {
-        sRGB: [[0.64,0.33],[0.3,0.6],[0.15,0.06],[0.64,0.33]],
-        BT2020: [[0.708,0.292],[0.17,0.797],[0.131,0.046],[0.708,0.292]]
+        'sRGB':   [[0.6400,0.3300],[0.3000,0.6000],[0.1500,0.0600],[0.6400,0.3300]],
+        'NTSC':   [[0.6700,0.3300],[0.2100,0.7100],[0.1400,0.0800],[0.6700,0.3300]],
+        'DCI-P3': [[0.6800,0.3200],[0.2650,0.6900],[0.1500,0.0600],[0.6800,0.3200]],
+        'BT2020': [[0.7080,0.2920],[0.1700,0.7970],[0.1310,0.0460],[0.7080,0.2920]]
     };
     function axisRange(points) {
         var xs = points.map(function(p){return p[0];}), ys = points.map(function(p){return p[1];});
@@ -394,7 +415,7 @@ function renderCIECharts(data) {
         return { minX: Math.min(0, minX - 0.05), maxX: maxX + 0.05, minY: Math.min(0, minY - 0.05), maxY: maxY + 0.05 };
     }
     function buildOption(title, xName, yName, r, g, b, w, stds) {
-        var allPoints = [r,g,b,w].concat(stds.sRGB).concat(stds.BT2020);
+        var allPoints = [r,g,b,w].concat(stds.sRGB).concat(stds.NTSC).concat(stds['DCI-P3']).concat(stds.BT2020);
         var range = axisRange(allPoints);
         return {
             backgroundColor: 'transparent', title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
@@ -406,53 +427,25 @@ function renderCIECharts(data) {
                 { name: 'Device', type: 'line', data: [r,g,b,r], lineStyle: { color: '#4fc3f7' }, itemStyle: { color: '#4fc3f7' }, symbolSize: 6, areaStyle: { color: 'rgba(79,195,247,0.1)' } },
                 { name: 'White', type: 'scatter', data: [w], symbolSize: 10, itemStyle: { color: '#fff' } },
                 { name: 'sRGB', type: 'line', data: stds.sRGB, lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
+                { name: 'NTSC', type: 'line', data: stds.NTSC, lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
+                { name: 'DCI-P3', type: 'line', data: stds['DCI-P3'], lineStyle: { color: '#888', type: 'dashed' }, symbol: 'none' },
                 { name: 'BT2020', type: 'line', data: stds.BT2020, lineStyle: { color: '#aaa', type: 'dotted' }, symbol: 'none' }
             ],
-            legend: { data: ['Device', 'White', 'sRGB', 'BT2020'], textStyle: { color: '#ccc' }, bottom: 0 }
+            legend: { data: ['Device', 'White', 'sRGB', 'NTSC', 'DCI-P3', 'BT2020'], textStyle: { color: '#ccc' }, bottom: 0 }
         };
     }
     function xyToUV(xy) { var d = -2*xy[0] + 12*xy[1] + 3; if (d === 0) return [0,0]; return [4*xy[0]/d, 9*xy[1]/d]; }
     chart1931.setOption(buildOption('CIE 1931 xy', 'x', 'y', r, g, b, w, stdPolygons), true);
     var ruv = xyToUV(r), guv = xyToUV(g), buv = xyToUV(b), wuv = data.white_uv || xyToUV(w);
-    chart1976.setOption(buildOption("CIE 1976 u'v'", "u'", "v'", ruv, guv, buv, wuv, {sRGB: stdPolygons.sRGB.map(xyToUV), BT2020: stdPolygons.BT2020.map(xyToUV)}), true);
+    chart1976.setOption(buildOption("CIE 1976 u'v'", "u'", "v'", ruv, guv, buv, wuv, {
+        sRGB: stdPolygons.sRGB.map(xyToUV),
+        NTSC: stdPolygons.NTSC.map(xyToUV),
+        'DCI-P3': stdPolygons['DCI-P3'].map(xyToUV),
+        BT2020: stdPolygons.BT2020.map(xyToUV)
+    }), true);
 }
 </script>
 
-<script>
-
-function toggleReverseMode() {
-    var panel = document.getElementById('reverse-panel');
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
-function calculateRgbRatios() {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
-    var wx = parseFloat(document.getElementById('target-wx').value);
-    var wy = parseFloat(document.getElementById('target-wy').value);
-    if (isNaN(wx) || wx < 0 || wx > 1 || isNaN(wy) || wy < 0 || wy > 1) {
-        logStatus('Invalid target white point'); return;
-    }
-    setLoading(true);
-    logStatus('Solving RGB ratios...');
-    try {
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            var payload = JSON.stringify({
-                red_xy: [parseFloat(document.querySelectorAll('.input-table .input-field')[0].value), parseFloat(document.querySelectorAll('.input-table .input-field')[1].value)],
-                green_xy: [parseFloat(document.querySelectorAll('.input-table .input-field')[3].value), parseFloat(document.querySelectorAll('.input-table .input-field')[4].value)],
-                blue_xy: [parseFloat(document.querySelectorAll('.input-table .input-field')[6].value), parseFloat(document.querySelectorAll('.input-table .input-field')[7].value)],
-                target_xy: [wx, wy]
-            });
-            channel.objects.backend.calculate_rgb_ratios(payload, function(json) {
-                setLoading(false);
-                var data = JSON.parse(json);
-                if (data.error) { logStatus('Error: ' + data.error); return; }
-                renderWhitePoint(data);
-                logStatus('RGB ratios solved');
-            });
-        });
-    } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
-}
-
-</script>
 <div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>
 </body>
 </html>

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -76,7 +76,7 @@ class WebViewPage(QWidget):
         # setHtml makes the Qt WebChannel transport available; loading a
         # plain local file does not. The actual script injection is deferred
         # to loadFinished to avoid a hard-coded timeout.
-        self._view.setHtml(html.read_text(encoding="utf-8"))
+        self._view.setHtml(html.read_text(encoding="utf-8"), QUrl.fromLocalFile(str(html.parent)))
 
     def _on_load_finished(self, ok: bool) -> None:  # noqa: FBT001
         """Run the page script once the page is fully loaded."""
@@ -86,16 +86,6 @@ class WebViewPage(QWidget):
         if not ok:
             self.status_message.emit("Page load failed")
             return
-        script = self.page_script()
-        if script:
-            self._view.page().runJavaScript(script)
-        self.status_message.emit("Ready")
-
-    def _finish_setup(self) -> None:
-        """Run the page script and notify that the page is ready."""
-        if self._setup_done:
-            return
-        self._setup_done = True
         script = self.page_script()
         if script:
             self._view.page().runJavaScript(script)

@@ -121,12 +121,6 @@ class ColorController(QObject):
         Returns:
             MixResult or None on error.
         """
-        try:
-            self._color_service().mix_spectra_by_id(spectrum_ids, weights=weights)
-        except Exception as exc:  # noqa: BLE001
-            self.error_occurred.emit(f"Mix by id failed: {exc}")
-            return None
-
         # Need to load spectra for xyz calculation
         spectra = []
         for sid in spectrum_ids:

@@ -74,9 +74,10 @@ class ProjectController(QObject):
 
     def _session_factory(self) -> Callable[[], Session]:
         """Return the session factory from MainController."""
-        if self._main._session_factory is None:
+        factory = self._main.session_factory
+        if factory is None:
             raise RuntimeError("Database not initialized.")
-        return self._main._session_factory
+        return factory
 
     # ------------------------------------------------------------------ #
     # CRUD operations

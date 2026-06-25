@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from colorlab_pro.database.models import Project
@@ -31,7 +32,7 @@ def get_by_id(session: Session, project_id: int) -> Project | None:
 
 def list_all(session: Session) -> list[Project]:
     """Return all projects ordered by creation time (oldest first)."""
-    return session.query(Project).order_by(Project.created_at).all()
+    return session.execute(select(Project).order_by(Project.created_at)).scalars().all()
 
 
 def update(

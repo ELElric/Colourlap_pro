@@ -105,6 +105,7 @@
   .status-item { color: #666; font-size: 11px; }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
 <body>
 
@@ -149,14 +150,14 @@
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-r">R</span>
-            <select id="source-r" class="spectrum-select"><option>-- Select --</option><option>LED_R_630nm</option></select>
+            <select id="source-r" class="spectrum-select"><option>-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-rcf">RCF</span>
-            <select id="cf-r" class="spectrum-select"><option>-- Select --</option><option>CF_Red_1um</option></select>
+            <select id="cf-r" class="spectrum-select"><option>-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
@@ -174,14 +175,14 @@
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-g">G</span>
-            <select id="source-g" class="spectrum-select"><option>-- Select --</option><option>LED_G_525nm</option></select>
+            <select id="source-g" class="spectrum-select"><option>-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-gcf">GCF</span>
-            <select id="cf-g" class="spectrum-select"><option>-- Select --</option><option>CF_Green_1.5um</option></select>
+            <select id="cf-g" class="spectrum-select"><option>-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
@@ -199,14 +200,14 @@
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-b">B</span>
-            <select id="source-b" class="spectrum-select"><option>-- Select --</option><option>LED_B_450nm</option></select>
+            <select id="source-b" class="spectrum-select"><option>-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-bcf">BCF</span>
-            <select id="cf-b" class="spectrum-select"><option>-- Select --</option><option>CF_Blue_2um</option></select>
+            <select id="cf-b" class="spectrum-select"><option>-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
@@ -271,9 +272,9 @@
       <div class="chart-title">Scan Curves</div>
     </div>
     <div class="chart-tabs">
-      <div class="chart-tab active" onclick="switchScanTab('coverage', this)">Coverage</div>
-      <div class="chart-tab" onclick="switchScanTab('whitex', this)">White Point x</div>
-      <div class="chart-tab" onclick="switchScanTab('whitey', this)">White Point y</div>
+      <div class="chart-tab active" onclick="switchScanTab('coverage', this)">Thickness vs Coverage</div>
+      <div class="chart-tab" onclick="switchScanTab('whitex', this)">Thickness vs Coordinate</div>
+      <div class="chart-tab" onclick="switchScanTab('whitey', this)">Thickness vs White Point</div>
     </div>
     <div id="scan-chart" style="width:100%;height:300px;"></div>
   </div>

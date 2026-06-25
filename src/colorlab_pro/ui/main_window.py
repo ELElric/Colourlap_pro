@@ -17,13 +17,14 @@ from PySide6.QtWidgets import (
 )
 
 from colorlab_pro.config.settings import get_config
+from colorlab_pro.ui.dialogs.about_dialog import AboutDialog
 
 # Navigation items: (icon, label)
 _NAV_ITEMS: list[tuple[str, str]] = [
-    ("📊", "Spectrum Library"),
-    ("🎨", "Gamut Calculator"),
-    ("💡", "White Point"),
-    ("⚙️", "Thickness Optimizer"),
+    ("", "Spectrum Library"),
+    ("", "Gamut Calculator"),
+    ("", "White Point"),
+    ("", "Thickness Optimizer"),
 ]
 
 
@@ -41,8 +42,8 @@ class _Sidebar(QWidget):
         layout.setSpacing(0)
 
         self._buttons: list[QPushButton] = []
-        for idx, (icon, label) in enumerate(_NAV_ITEMS):
-            btn = QPushButton(f"{icon}  {label}")
+        for idx, (_icon, label) in enumerate(_NAV_ITEMS):
+            btn = QPushButton(f"{label}")
             btn.setObjectName("nav-item")
             btn.setProperty("nav_index", idx)
             btn.clicked.connect(lambda checked, i=idx: self._on_clicked(i))
@@ -64,9 +65,7 @@ class _Sidebar(QWidget):
 
 
 class TopBar(QWidget):
-    """Top bar with brand, menu hints, and status pill."""
-
-    settings_clicked = Signal()
+    """Top bar with brand and status pill."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -75,32 +74,22 @@ class TopBar(QWidget):
         layout.setContentsMargins(18, 0, 18, 0)
 
         brand = QLabel("ColorLab Pro")
-        brand.setStyleSheet("font-weight: 700; font-size: 15px; letter-spacing: 0.2px;")
+        brand.setObjectName("brand")
         layout.addWidget(brand)
         layout.addStretch()
 
-        settings_btn = QPushButton("Settings")
-        settings_btn.setProperty("class", "secondary")
-        settings_btn.setFixedHeight(32)
-        settings_btn.clicked.connect(self.settings_clicked.emit)
-        layout.addWidget(settings_btn)
-
         self._status_dot = QLabel()
+        self._status_dot.setObjectName("status-dot")
         self._status_dot.setFixedSize(8, 8)
-        self._status_dot.setStyleSheet(
-            "background: #3ddc84; border-radius: 4px; box-shadow: 0 0 8px rgba(61,220,132,0.5);"
-        )
         status_pill = QHBoxLayout()
         status_pill.setSpacing(8)
         status_pill.addWidget(self._status_dot)
         status_label = QLabel("Ready")
-        status_label.setStyleSheet("font-size: 13px;")
+        status_label.setObjectName("status-label")
         status_pill.addWidget(status_label)
         status_container = QWidget()
+        status_container.setObjectName("status-pill")
         status_container.setLayout(status_pill)
-        status_container.setStyleSheet(
-            "border: 1px solid #353b47; border-radius: 999px; padding: 0 12px; background: #20232a;"
-        )
         status_container.setFixedHeight(32)
         layout.addWidget(status_container)
 
@@ -110,10 +99,9 @@ class MainWindow(QMainWindow):
 
     page_about_to_show = Signal(int)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
+    def __init__(self) -> None:
+        super().__init__()
         self.setWindowTitle(get_config().app_name)
-        self._properties_visible = False
         self._build_ui()
         self._build_menu_bar()
         self._build_status_bar()
@@ -128,7 +116,6 @@ class MainWindow(QMainWindow):
 
         # Top bar
         self._top_bar = TopBar()
-        self._top_bar.settings_clicked.connect(self._on_settings_clicked)
         root_layout.addWidget(self._top_bar)
 
         # Body: sidebar + main content
@@ -142,63 +129,29 @@ class MainWindow(QMainWindow):
         self._sidebar.navigation_changed.connect(self._on_navigation_changed)
         body_layout.addWidget(self._sidebar)
 
-        # Main content area
-        main_content = QWidget()
-        main_layout = QHBoxLayout(main_content)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        # Stacked widget (workspace)
+        # Main content area (stacked widget for workspace pages)
         self._stack = QStackedWidget()
-        main_layout.addWidget(self._stack, 1)
+        body_layout.addWidget(self._stack, 1)
 
-        # Properties panel (hidden by default)
-        self._properties_panel = QWidget()
-        self._properties_panel.setFixedWidth(get_config().property_panel_width)
-        self._properties_panel.hide()
-        props_layout = QVBoxLayout(self._properties_panel)
-        props_layout.setContentsMargins(16, 16, 16, 16)
-        props_title = QLabel("Properties")
-        props_title.setStyleSheet("font-size: 16px; font-weight: 700;")
-        props_layout.addWidget(props_title)
-        props_layout.addStretch()
-        main_layout.addWidget(self._properties_panel)
-
-        body_layout.addWidget(main_content, 1)
         root_layout.addWidget(body, 1)
 
     def _build_menu_bar(self) -> None:
         menu_bar = self.menuBar()
 
         file_menu = menu_bar.addMenu("&File")
-        new_action = QAction("&New Project", self)
-        new_action.setShortcut("Ctrl+N")
-        file_menu.addAction(new_action)
-
-        open_action = QAction("&Open Project", self)
-        open_action.setShortcut("Ctrl+O")
-        file_menu.addAction(open_action)
-
-        file_menu.addSeparator()
-
         exit_action = QAction("E&xit", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        settings_action = QAction("&Settings", self)
-        settings_action.setShortcut("Ctrl+,")
-        settings_action.triggered.connect(self._on_settings_clicked)
-        menu_bar.addAction(settings_action)
-
         help_menu = menu_bar.addMenu("&Help")
         about_action = QAction("&About", self)
+        about_action.triggered.connect(self._on_about)
         help_menu.addAction(about_action)
 
-    def _on_settings_clicked(self) -> None:
-        from colorlab_pro.ui.dialogs.settings_dialog import SettingsDialog
-
-        dlg = SettingsDialog(self)
+    def _on_about(self) -> None:
+        """Handle Help → About."""
+        dlg = AboutDialog(self)
         dlg.exec()
 
     def _build_status_bar(self) -> None:
@@ -246,10 +199,6 @@ class MainWindow(QMainWindow):
         if 0 <= index < self._stack.count():
             self._sidebar.set_current_index(index)
             self._stack.setCurrentIndex(index)
-
-    def toggle_properties(self) -> None:
-        self._properties_visible = not self._properties_visible
-        self._properties_panel.setVisible(self._properties_visible)
 
     def _load_window_state(self) -> None:
         settings = QSettings(get_config().org_name, get_config().app_name)

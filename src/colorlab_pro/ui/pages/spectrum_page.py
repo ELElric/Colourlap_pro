@@ -10,6 +10,7 @@ from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QFileDialog, QWidget
 
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
+from colorlab_pro.engines.spectrum_analyzer import dominant_wavelength, uprime_vprime, xy
 from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
 from colorlab_pro.ui.webview_page import WebViewPage
 
@@ -39,6 +40,20 @@ class SpectrumPageBackend(QObject):
             spectra = []
             for s in summaries:
                 full_spec = self._controller.get_spectrum(s.id)
+                if full_spec is not None:
+                    try:
+                        xy_val = xy(full_spec)
+                        uv_val = uprime_vprime(full_spec)
+                        dom = dominant_wavelength(full_spec)
+                        xy_str = f"{xy_val.x:.4f}, {xy_val.y:.4f}"
+                        uv_str = f"{uv_val[0]:.4f}, {uv_val[1]:.4f}"
+                        dom_str = str(round(dom)) if dom is not None else "-"
+                        purity_str = "-"
+                    except Exception:
+                        xy_str = uv_str = dom_str = purity_str = "-"
+                else:
+                    xy_str = uv_str = dom_str = purity_str = "-"
+
                 spectra.append(
                     {
                         "id": s.id,
@@ -50,6 +65,10 @@ class SpectrumPageBackend(QObject):
                         "thickness_um": (
                             f"{s.thickness_um:.2f}" if s.thickness_um is not None else "-"
                         ),
+                        "xy": xy_str,
+                        "uv": uv_str,
+                        "dominant_nm": dom_str,
+                        "purity": purity_str,
                         "data": _sample_points(full_spec),
                     }
                 )
@@ -160,6 +179,7 @@ class SpectrumPage(WebViewPage):
 
     def page_script(self) -> str:
         return """
+        setLoading(true);
         if (typeof qt === 'undefined' || !qt.webChannelTransport) {
             console.error('QWebChannel transport not available');
             return;
@@ -169,6 +189,7 @@ class SpectrumPage(WebViewPage):
                 var data = JSON.parse(json);
                 if (data.error) {
                     console.error('Backend error:', data.error);
+                    setLoading(false);
                     return;
                 }
                 renderSpectra(data);
@@ -181,12 +202,21 @@ class SpectrumPage(WebViewPage):
         """Refresh data when the page becomes visible."""
         if index == self._page_index:
             self.run_javascript("""
+                setLoading(true);
                 if (typeof qt !== 'undefined' && qt.webChannelTransport) {
                     new QWebChannel(qt.webChannelTransport, function(channel) {
                         channel.objects.backend.get_spectra(function(json) {
-                            renderSpectra(JSON.parse(json));
+                            var data = JSON.parse(json);
+                            if (data.error) {
+                                console.error('Refresh error:', data.error);
+                                setLoading(false);
+                                return;
+                            }
+                            renderSpectra(data);
                         });
                     });
+                } else {
+                    setLoading(false);
                 }
             """)
 
