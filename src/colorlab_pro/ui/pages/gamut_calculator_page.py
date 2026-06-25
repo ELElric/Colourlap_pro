@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -12,6 +14,16 @@ from colorlab_pro.controllers.spectrum_controller import SpectrumController
 from colorlab_pro.exporters.report_exporter import ReportExporter
 from colorlab_pro.ui.webview_page import WebViewPage
 from colorlab_pro.utils.validation import validate_spectrum_id
+
+
+def _sample_points(spectrum, step: int = 5) -> list[list[float]]:
+    """Return a down-sampled list of [wavelength, value] for charting."""
+    if spectrum is None or len(spectrum.wavelengths) == 0:
+        return []
+    return [
+        [round(float(w), 1), round(float(v), 4)]
+        for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step], strict=False)
+    ]
 
 
 class GamutPageBackend(QObject):
@@ -39,28 +51,27 @@ class GamutPageBackend(QObject):
     def _spectra_json(self) -> list[dict]:
         summaries = self._spectrum_controller.list_spectra()
         return [
-            {"id": s.id, "name": s.name, "category": s.category or "", "channel": s.channel or ""}
+            {
+                "id": s.id,
+                "name": s.name,
+                "category": s.category or "",
+                "channel": s.channel or "",
+                "data": _sample_points(self._spectrum_controller.get_spectrum(s.id)),
+            }
             for s in summaries
         ]
 
     @Slot(result=str)
     def get_initial_data(self) -> str:
         """Return spectra list and empty gamut results as JSON."""
-        import json
-
         try:
             return json.dumps({"spectra": self._spectra_json(), "results": []})
         except Exception as exc:  # noqa: BLE001
-            import traceback
-
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
     @Slot(str, str, str, result=str)
     def calculate_gamut(self, red_id: str, green_id: str, blue_id: str) -> str:
         """Calculate gamut coverage/match for the selected RGB spectra."""
-        import json
-        import traceback
-
         self.calculation_started.emit()
         try:
             ids = [validate_spectrum_id(red_id), validate_spectrum_id(green_id), validate_spectrum_id(blue_id)]

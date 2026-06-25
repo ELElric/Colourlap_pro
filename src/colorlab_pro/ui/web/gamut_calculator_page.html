@@ -563,12 +563,13 @@ function switchCIETab(tab) {
     currentCIETab = tab;
     document.getElementById('cie-xy-chart').style.display = tab === 'xy' ? 'block' : 'none';
     document.getElementById('cie-uv-chart').style.display = tab === 'uv' ? 'block' : 'none';
-    var tabs = document.querySelectorAll('.tab');
-    // Simple toggle based on text
-    tabs.forEach(function(t) {
-        if (t.textContent.indexOf('CIE 1931') !== -1) t.classList.toggle('active', tab === 'xy');
-        if (t.textContent.indexOf('CIE 1976') !== -1) t.classList.toggle('active', tab === 'uv');
-    });
+    var ciePanel = document.getElementById('cie-xy-chart').parentElement;
+    if (ciePanel) {
+        ciePanel.querySelectorAll('.tab').forEach(function(t) {
+            if (t.textContent.indexOf('CIE 1931') !== -1) t.classList.toggle('active', tab === 'xy');
+            if (t.textContent.indexOf('CIE 1976') !== -1) t.classList.toggle('active', tab === 'uv');
+        });
+    }
 }
 
 function standardGamutPolygon(name) {
@@ -646,8 +647,8 @@ function renderCIECharts(primaries) {
         title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
         grid: { top: 30, right: 20, bottom: 30, left: 40 },
         legend: { data: refs.concat(['Device', 'White']), textStyle: { color: '#ccc' }, bottom: 0 },
-        xAxis: { type: 'value', min: 0, max: 0.65, name: "u'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        xAxis: { type: 'value', min: axisRange(uvSeries.flatMap(function(s){return s.data;})).minX, max: axisRange(uvSeries.flatMap(function(s){return s.data;})).maxX, name: "u'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', min: axisRange(uvSeries.flatMap(function(s){return s.data;})).minY, max: axisRange(uvSeries.flatMap(function(s){return s.data;})).maxY, name: "v'", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: uvSeries
     }, true);
 }

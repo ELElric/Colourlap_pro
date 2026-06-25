@@ -444,8 +444,8 @@ function renderScanCharts(results, best) {
     var rBest = best ? { coord: [best.thickness_r, best.coverage], value: 'Best RCF' } : null;
     var gBest = best ? { coord: [best.thickness_g, best.coverage], value: 'Best GCF' } : null;
     var bBest = best ? { coord: [best.thickness_b, best.coverage], value: 'Best BCF' } : null;
-    var title = currentTab === 'coverage' ? 'Thickness vs Coverage' : (currentTab === 'coordinate' ? 'Thickness vs Coordinate' : 'Thickness vs White Point');
-    var yName = currentTab === 'coverage' ? 'Coverage (%)' : (currentTab === 'coordinate' ? 'CIE 1931 y' : 'CIE 1931 y');
+    var title = currentTab === 'coverage' ? 'Coverage vs Thickness' : (currentTab === 'whitex' ? "White Point x vs Thickness" : "White Point y vs Thickness");
+    var yName = currentTab === 'coverage' ? 'Coverage (%)' : (currentTab === 'whitex' ? "x" : "y");
     var option = {
         backgroundColor: 'transparent',
         title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
