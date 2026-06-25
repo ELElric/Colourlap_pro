@@ -18,7 +18,6 @@ from colorlab_pro.services.database_service import DatabaseService
 from colorlab_pro.services.gamut_service import GamutService
 from colorlab_pro.services.optimization_service import OptimizationService
 from colorlab_pro.services.spectrum_service import SpectrumService
-from colorlab_pro.ui.dialogs.about_dialog import AboutDialog
 from colorlab_pro.ui.main_window import MainWindow
 from colorlab_pro.utils.paths import ensure_data_directory, get_default_db_path
 

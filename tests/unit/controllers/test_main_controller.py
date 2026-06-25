@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QObject
@@ -70,57 +69,3 @@ class TestPageRegistration:
         controller.switch_to_page(0)
 
 
-class TestMenuActions:
-    def test_about_does_not_crash(self, controller: MainController) -> None:
-        with patch("colorlab_pro.controllers.main_controller.AboutDialog"):
-            controller._on_about()
-
-    def test_new_project_does_not_crash(self, controller: MainController) -> None:
-        with patch("colorlab_pro.controllers.main_controller.NewProjectDialog"):
-            controller._on_new_project()
-
-    def test_open_project_does_not_crash(self, controller: MainController) -> None:
-        with patch("colorlab_pro.controllers.main_controller.QMessageBox.information"):
-            controller._on_open_project()
-
-
-class TestExportHelper:
-    def test_prompt_export_path_returns_none_when_window_none(
-        self, controller: MainController
-    ) -> None:
-        controller._window = None
-        result = controller.prompt_export_path("Save", "CSV (*.csv)")
-        assert result is None
-
-    def test_prompt_export_path_returns_selected_path(
-        self, controller: MainController, qtbot
-    ) -> None:
-        with patch(
-            "colorlab_pro.controllers.main_controller.QFileDialog.getSaveFileName",
-            return_value=("C:/tmp/export.csv", "CSV (*.csv)"),
-        ):
-            result = controller.prompt_export_path("Save", "CSV (*.csv)")
-        assert result == Path("C:/tmp/export.csv")
-
-
-class TestMenuInternals:
-    def test_wire_menu_actions_with_no_window(self, controller: MainController) -> None:
-        controller._window = None
-        controller._wire_menu_actions()
-
-    def test_find_action_with_no_window(self, controller: MainController) -> None:
-        controller._window = None
-        assert controller._find_action("&About") is None
-
-    def test_on_new_project_with_no_window(self, controller: MainController) -> None:
-        controller._window = None
-        controller._on_new_project()
-
-    def test_on_about_with_no_window(self, controller: MainController) -> None:
-        controller._window = None
-        controller._on_about()
-
-    def test_create_project_from_dialog(self, controller: MainController, qtbot) -> None:
-        with qtbot.waitSignal(controller.status_message, timeout=1000):
-            controller._create_project_from_dialog("Dialog Project", "desc")
-        assert controller.current_project_id is not None

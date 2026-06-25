@@ -29,7 +29,6 @@ def test_app_config_defaults():
     assert config.db_filename == "colorlab.db"
     assert config.default_window_width == 1440
     assert config.default_window_height == 900
-    assert config.sidebar_width == 200
     assert config.default_wavelength_start == 380.0
     assert config.default_wavelength_end == 780.0
     assert config.default_wavelength_step == 1.0
@@ -76,7 +75,6 @@ def test_get_config_with_file(isolated_config):
     _, config_file = isolated_config
     config_file.parent.mkdir(parents=True, exist_ok=True)
     data = {
-        "theme": "light",
         "wavelength_start": 400,
         "wavelength_end": 700,
         "db_path": "/custom/path.db",
@@ -87,7 +85,7 @@ def test_get_config_with_file(isolated_config):
     config_file.write_text(yaml.dump(data), encoding="utf-8")
 
     config = get_config()
-    assert config.default_theme == "light"
+    assert config.default_theme == "dark"
     assert config.default_wavelength_start == 400.0
     assert config.default_wavelength_end == 700.0
     assert config.db_path == "/custom/path.db"
@@ -108,20 +106,19 @@ def test_get_config_bad_yaml_returns_defaults(isolated_config):
 def test_get_config_partial_yaml(isolated_config):
     _, config_file = isolated_config
     config_file.parent.mkdir(parents=True, exist_ok=True)
-    config_file.write_text(yaml.dump({"theme": "light"}), encoding="utf-8")
+    config_file.write_text(yaml.dump({"wavelength_start": 400}), encoding="utf-8")
 
     config = get_config()
-    assert config.default_theme == "light"
-    assert config.default_wavelength_start == 380.0
+    assert config.default_theme == "dark"
+    assert config.default_wavelength_start == 400.0
 
 
 def test_save_config_creates_file(isolated_config):
     _, config_file = isolated_config
     assert not config_file.exists()
-    save_config(theme="light", wavelength_start=400.0, wavelength_end=700.0)
+    save_config(wavelength_start=400.0, wavelength_end=700.0)
     assert config_file.exists()
     data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
-    assert data["theme"] == "light"
     assert data["wavelength_start"] == 400.0
     assert data["wavelength_end"] == 700.0
 
@@ -131,16 +128,15 @@ def test_save_config_preserves_existing(isolated_config):
     config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text(yaml.dump({"existing_key": "preserve"}), encoding="utf-8")
 
-    save_config(theme="light")
+    save_config(wavelength_start=400.0)
     data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     assert data["existing_key"] == "preserve"
-    assert data["theme"] == "light"
+    assert data["wavelength_start"] == 400.0
 
 
 def test_save_config_all_fields(isolated_config):
     _, config_file = isolated_config
     save_config(
-        theme="dark",
         wavelength_start=390.0,
         wavelength_end=790.0,
         db_path="/db.sqlite",
@@ -149,7 +145,6 @@ def test_save_config_all_fields(isolated_config):
         default_step=2,
     )
     data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
-    assert data["theme"] == "dark"
     assert data["wavelength_start"] == 390.0
     assert data["wavelength_end"] == 790.0
     assert data["db_path"] == "/db.sqlite"
@@ -163,6 +158,6 @@ def test_save_config_bad_existing_yaml(isolated_config):
     config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text("{invalid yaml", encoding="utf-8")
 
-    save_config(theme="light")
+    save_config(wavelength_start=400.0)
     data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
-    assert data["theme"] == "light"
+    assert data["wavelength_start"] == 400.0

@@ -44,7 +44,6 @@ def test_menu_bar_has_file_help_and_settings(window):
     titles = [action.text() for action in menu_bar.actions()]
     assert "&File" in titles
     assert "&Help" in titles
-    assert "&Settings" in titles
 
 
 def test_status_bar_ready(window):

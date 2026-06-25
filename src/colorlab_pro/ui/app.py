@@ -12,12 +12,12 @@ from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.controllers.optimization_controller import OptimizationController
 from colorlab_pro.controllers.project_controller import ProjectController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
-from colorlab_pro.utils.default_data_loader import load_default_spectra
 from colorlab_pro.ui.main_window import create_application
 from colorlab_pro.ui.pages.gamut_calculator_page import GamutCalculatorPage
 from colorlab_pro.ui.pages.spectrum_page import SpectrumPage
 from colorlab_pro.ui.pages.thickness_optimizer_page import ThicknessOptimizerPage
 from colorlab_pro.ui.pages.white_point_page import WhitePointPage
+from colorlab_pro.utils.default_data_loader import load_default_spectra
 
 
 def _install_excepthook() -> None:

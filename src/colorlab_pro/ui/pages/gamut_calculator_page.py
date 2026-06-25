@@ -95,18 +95,25 @@ class GamutPageBackend(QObject):
         filtered = spectrum.values * attenuation
         return Spectrum(wavelengths=wl, values=filtered, unit=spectrum.unit, meta=spectrum.meta)
 
-    @Slot(str, result=str)
-    def calculate_gamut(self, payload: str) -> str:
+    @Slot(str, str, str, result=str)
+    def calculate_gamut(self, red_id: str, green_id: str = "", blue_id: str = "") -> str:
         """Calculate gamut coverage/match for the selected RGB spectra.
 
-        Accepts a JSON payload with keys:
+        Accepts either three spectrum IDs (legacy call) or a JSON payload as
+        the first argument with keys:
             red_id, green_id, blue_id (required)
             cf_red_id, cf_green_id, cf_blue_id (optional)
             thickness_r, thickness_g, thickness_b (optional, default 0)
         """
         self.calculation_started.emit()
         try:
-            data = json.loads(payload)
+            # Support both JSON payload and legacy 3-argument calls
+            try:
+                data = json.loads(red_id)
+                if not isinstance(data, dict):
+                    raise ValueError("Payload must be a JSON object")
+            except (json.JSONDecodeError, ValueError):
+                data = {"red_id": red_id, "green_id": green_id, "blue_id": blue_id}
             red_id = data["red_id"]
             green_id = data["green_id"]
             blue_id = data["blue_id"]
