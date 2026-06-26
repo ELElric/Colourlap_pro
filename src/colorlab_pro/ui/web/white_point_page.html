@@ -142,6 +142,16 @@
         </label>
       </div>
     </div>
+    <div class="divider"></div>
+    <div class="mode-group">
+      <span class="mode-label">Reference Gamuts:</span>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="updateReferenceGamuts()"> sRGB</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="updateReferenceGamuts()"> NTSC</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="updateReferenceGamuts()"> DCI-P3</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="updateReferenceGamuts()"> BT2020</label>
+      </div>
+    </div>
     <div class="checkbox-group" style="margin-left:auto;">
       <label class="checkbox-label" title="Automatically recalculate when inputs change">
         <input type="checkbox" id="auto-calc-toggle" checked onchange="toggleAutoCalculate(this.checked)">
@@ -349,8 +359,9 @@ function logStatus(msg) {
 function renderGamutResults(results) {
     var tbody = document.getElementById('gamut-results-body');
     if (!tbody || !results) return;
+    var selected = getRefGamuts();
     tbody.innerHTML = '';
-    results.forEach(function(r) {
+    results.filter(function(r) { return selected.indexOf(r.standard) >= 0; }).forEach(function(r) {
         var cov1931 = r.coverage_1931 || 0;
         var match1931 = r.match_1931 || 0;
         var cov1976 = r.coverage_1976 || 0;
@@ -485,6 +496,7 @@ function calculate() {
 }
 function renderWhitePoint(data) {
     if (!data) return;
+    window.lastWhitePointData = data;
     document.getElementById('r-x').value = data.red_xy[0];
     document.getElementById('r-y').value = data.red_xy[1];
     document.getElementById('g-x').value = data.green_xy[0];
@@ -527,7 +539,26 @@ function xyToUV(x, y) {
 }
 
 function getRefGamuts() {
-    return ['sRGB', 'NTSC', 'DCI-P3', 'BT2020'];
+    var mapping = [
+        { id: 'ref-srgb', name: 'sRGB' },
+        { id: 'ref-ntsc', name: 'NTSC' },
+        { id: 'ref-dci', name: 'DCI-P3' },
+        { id: 'ref-bt2020', name: 'BT2020' }
+    ];
+    return mapping.filter(function(item) {
+        var el = document.getElementById(item.id);
+        return el && el.checked;
+    }).map(function(item) { return item.name; });
+}
+
+function updateReferenceGamuts() {
+    if (chart1931 && chart1976) {
+        chart1931.setOption({ series: buildBaseSeriesXY() }, false);
+        chart1976.setOption({ series: buildBaseSeriesUV() }, false);
+    }
+    // Update results table to show only selected standards
+    var lastData = window.lastWhitePointData;
+    if (lastData) renderGamutResults(lastData.results);
 }
 
 function renderFillItem(params, api) {
