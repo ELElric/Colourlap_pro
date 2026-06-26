@@ -21,10 +21,10 @@ from colorlab_pro.ui.dialogs.about_dialog import AboutDialog
 
 # Navigation items: (icon, label)
 _NAV_ITEMS: list[tuple[str, str]] = [
-    ("", "Spectrum Library"),
-    ("", "Gamut Calculator"),
-    ("", "White Point"),
-    ("", "Thickness Optimizer"),
+    ("◈", "Spectrum Library"),
+    ("▦", "Gamut Calculator"),
+    ("◎", "White Point"),
+    ("⚙", "Thickness Optimizer"),
 ]
 
 
@@ -42,8 +42,8 @@ class _Sidebar(QWidget):
         layout.setSpacing(0)
 
         self._buttons: list[QPushButton] = []
-        for idx, (_icon, label) in enumerate(_NAV_ITEMS):
-            btn = QPushButton(f"{label}")
+        for idx, (icon, label) in enumerate(_NAV_ITEMS):
+            btn = QPushButton(f"{icon}  {label}")
             btn.setObjectName("nav-item")
             btn.setProperty("nav_index", idx)
             btn.clicked.connect(lambda checked, i=idx: self._on_clicked(i))
@@ -190,15 +190,28 @@ class MainWindow(QMainWindow):
         if 0 <= index < self._stack.count():
             self.page_about_to_show.emit(index)
             self._stack.setCurrentIndex(index)
+            self._update_window_title(index)
 
     def add_page(self, widget: QWidget, name: str) -> int:
         idx = self._stack.addWidget(widget)
+        if not hasattr(self, "_page_names"):
+            self._page_names: list[str] = []
+        self._page_names.append(name)
         return idx
+
+    def _update_window_title(self, index: int) -> None:
+        """Update the window title to include the current page name."""
+        names = getattr(self, "_page_names", [])
+        if 0 <= index < len(names):
+            self.setWindowTitle(f"{get_config().app_name} — {names[index]}")
+        else:
+            self.setWindowTitle(get_config().app_name)
 
     def set_page(self, index: int) -> None:
         if 0 <= index < self._stack.count():
             self._sidebar.set_current_index(index)
             self._stack.setCurrentIndex(index)
+            self._update_window_title(index)
 
     def _load_window_state(self) -> None:
         settings = QSettings(get_config().org_name, get_config().app_name)

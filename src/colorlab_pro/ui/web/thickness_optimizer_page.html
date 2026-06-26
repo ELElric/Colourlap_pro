@@ -71,7 +71,7 @@
   .result-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
   .result-count { color: #888; font-size: 11px; }
 
-  .result-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .result-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .result-table thead { position: sticky; top: 0; }
   .result-table th { background: #1e1e1e; color: #4fc3f7; padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid #444; white-space: nowrap; }
   .result-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #333; }
@@ -103,6 +103,9 @@
   .status-left { color: #888; font-size: 11px; }
   .status-right { display: flex; gap: 16px; }
   .status-item { color: #666; font-size: 11px; }
+
+  #sensitivity-chart { display: none; }
+  .chart-placeholder { color: #666; font-size: 12px; text-align: center; padding: 40px; }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
@@ -246,7 +249,7 @@
   <div class="result-panel">
     <div class="result-header">
       <div class="result-title">Optimization Results</div>
-      <div class="result-count">Top 20</div>
+      <div class="result-count" id="result-count">Top 0 / 0 results</div>
     </div>
     <div style="max-height: 380px; overflow-y: auto;">
       <table class="result-table" id="result-table">
@@ -277,6 +280,8 @@
       <div class="chart-tab" onclick="switchScanTab('whitey', this)">White y vs Thickness</div>
     </div>
     <div id="scan-chart" style="width:100%;height:300px;"></div>
+    <div id="sensitivity-chart" style="width:100%;height:300px;"></div>
+    <div id="sensitivity-placeholder" class="chart-placeholder" style="display:none;">Run sensitivity analysis to see White Point drift</div>
   </div>
 </div>
 
@@ -312,6 +317,7 @@ var sensitivityChart = null;
 var lastResults = [];
 var lastBest = null;
 var currentTab = 'coverage';
+var sensitivityData = { whitex: [], whitey: [] };
 
 function populateSelectors(spectra) {
     var ids = ['source-r', 'source-g', 'source-b', 'cf-r', 'cf-g', 'cf-b'];
@@ -389,7 +395,7 @@ function startOptimization() {
         backend.optimize(JSON.stringify(data), function(json) {
             var res = JSON.parse(json);
             setLoading(false);
-            if (res.error) { logStatus('Optimization failed: ' + res.error); updateProgress(0); return; }
+            if (res.error) { logStatus(formatError(res, 'Optimization failed')); updateProgress(0); return; }
             if (res.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
             renderResults(res.results, res.best);
             updateProgress(100, 'Best coverage: ' + (res.best ? res.best.coverage : '-') + '%');
@@ -408,6 +414,8 @@ function stopOptimization() {
 function renderResults(results, best) {
     lastResults = results || [];
     lastBest = best || null;
+    var countEl = document.getElementById('result-count');
+    if (countEl) countEl.textContent = lastResults.length ? ('Top ' + lastResults.length + ' / ' + lastResults.length + ' results') : 'Top 0 / 0 results';
     var tbody = document.getElementById('result-tbody');
     if (!tbody) return;
     if (!lastResults.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No results</td></tr>'; return; }
@@ -468,10 +476,24 @@ function switchScanTab(tab, el) {
     currentTab = tab;
     document.querySelectorAll('.chart-tab').forEach(function(t) { t.classList.remove('active'); });
     if (el) el.classList.add('active');
+    var scanDom = document.getElementById('scan-chart');
+    var sensDom = document.getElementById('sensitivity-chart');
+    var placeholder = document.getElementById('sensitivity-placeholder');
     if (tab === 'coverage') {
+        if (scanDom) scanDom.style.display = 'block';
+        if (sensDom) sensDom.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'none';
         renderScanCharts(lastResults, lastBest);
     } else if (tab === 'whitex' || tab === 'whitey') {
-        runSensitivity(tab);
+        if (scanDom) scanDom.style.display = 'none';
+        var hasData = sensitivityData[tab] && sensitivityData[tab].length;
+        if (sensDom) sensDom.style.display = hasData ? 'block' : 'none';
+        if (placeholder) placeholder.style.display = hasData ? 'none' : 'block';
+        if (hasData) {
+            renderSensitivityChart(sensitivityData[tab], tab);
+        } else {
+            runSensitivity(tab);
+        }
     }
 }
 
@@ -489,7 +511,12 @@ function runSensitivity(metric) {
         backend.sensitivity_analysis(JSON.stringify(data), function(json) {
             setLoading(false);
             var res = JSON.parse(json);
-            if (res.error) { logStatus('Sensitivity failed: ' + res.error); updateProgress(0); return; }
+            if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
+            sensitivityData[metric] = res.points || [];
+            var sensDom = document.getElementById('sensitivity-chart');
+            var placeholder = document.getElementById('sensitivity-placeholder');
+            if (sensDom) sensDom.style.display = 'block';
+            if (placeholder) placeholder.style.display = 'none';
             renderSensitivityChart(res.points, metric);
             updateProgress(100, 'Sensitivity complete');
         });
@@ -497,9 +524,9 @@ function runSensitivity(metric) {
 }
 
 function renderSensitivityChart(points, metric) {
-    var dom = document.getElementById('scan-chart');
+    var dom = document.getElementById('sensitivity-chart');
     if (!dom) return;
-    if (!scanChart) scanChart = echarts.init(dom, 'dark');
+    if (!sensitivityChart) sensitivityChart = echarts.init(dom, 'dark');
     var data = [];
     points.forEach(function(p) {
         data.push([p.thickness, metric === 'whitex' ? p.white_x : p.white_y]);
@@ -514,7 +541,7 @@ function renderSensitivityChart(points, metric) {
         yAxis: { type: 'value', name: metric === 'whitex' ? "x" : "y", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: [{ name: 'White point', type: 'line', smooth: true, showSymbol: false, data: data, itemStyle: { color: '#ffd700' }, lineStyle: { width: 2 } }]
     };
-    scanChart.setOption(option, true);
+    sensitivityChart.setOption(option, true);
 }
 
 function runSensitivityPanel() {
@@ -523,13 +550,13 @@ function runSensitivityPanel() {
 }
 
 function pasteSpectrumToSelect(btn) {
-    var text = prompt('Paste wavelength/value pairs (nm a.u.):');
+    var text = prompt('Paste wavelength/value pairs (nm a.u.) for a new spectrum:');
     if (!text) return;
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: 'Pasted CF' }), function(json) {
             var res = JSON.parse(json);
-            if (res.error) { logStatus('Paste failed: ' + res.error); return; }
+            if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
             logStatus('Pasted spectrum ' + res.id);
             refreshData();
         });
@@ -541,7 +568,7 @@ function refreshData() {
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.get_initial_data(function(json) {
             var data = JSON.parse(json);
-            if (data.error) { logStatus('Refresh failed: ' + data.error); return; }
+            if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
             populateSelectors(data.spectra);
         });
     });
@@ -550,6 +577,17 @@ function refreshData() {
 function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
+}
+function formatError(res, defaultMsg) {
+    if (!res || !res.error) return defaultMsg;
+    var err = String(res.error);
+    var idx = err.indexOf('Traceback');
+    if (idx !== -1) err = err.substring(0, idx).trim();
+    if (err.indexOf('Insufficient common wavelength') !== -1) return defaultMsg + ': insufficient common wavelength points';
+    if (err.indexOf('could not convert') !== -1 || err.indexOf('invalid literal') !== -1) return defaultMsg + ': invalid numeric input';
+    if (err.indexOf('must be a pair of numbers') !== -1) return defaultMsg + ': invalid coordinate format';
+    if (err.indexOf('between 0 and 1') !== -1) return defaultMsg + ': coordinate out of range';
+    return defaultMsg + ': ' + err;
 }
 
 

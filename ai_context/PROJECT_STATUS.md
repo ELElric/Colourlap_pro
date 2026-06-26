@@ -5,6 +5,8 @@
 
 ## 总览 — V1.1 持续迭代中 ✅
 
+> 2026-06-26 UI/UX 体验改进完成：按审查报告修复高/中/低优先级问题（#8 跳过），覆盖初始化状态、空状态、输入校验、操作防护、信息层级、效率与打磨细节。
+>
 > 2026-06-26 CIE 色度图彩色填充完成：由 colour-science 对 80×80 网格单元格预计算马蹄形内部真实彩色并作为静态缓存，复刻 `plot_chromaticity_diagram_colours` 的 `normalise_maximum` 归一化方式，渲染平滑渐变；同时精简图表标签/图例，避免与页面复选框重复。
 >
 > 2026-06-26 CIE 色度图固定背景渲染完成：页面加载后即显示马蹄形色度图轮廓与标准色域参考线，数据输入仅叠加 Device 三角形与 White 点。
@@ -50,6 +52,7 @@
 | UI Maintenance | White Point 页面重构 | ✅ done |
 | UI Maintenance | CIE 色度图彩色填充 + 标签精简 | ✅ done |
 | UI Maintenance | CIE 色度图固定背景渲染 | ✅ done |
+| UI Maintenance | UI/UX 体验改进（审查报告 1–21，#8 跳过） | ✅ done |
 | UI Maintenance | 删除 Project Comparison | ✅ done |
 
 ## 详细

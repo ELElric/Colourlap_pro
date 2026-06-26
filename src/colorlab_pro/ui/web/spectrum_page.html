@@ -127,6 +127,17 @@
 
   /* Change Indicator */
   .change-badge { display: inline-block; background: #264f78; color: #4fc3f7; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 8px; }
+
+  /* Inline modal panel */
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 10000; }
+  .modal-overlay.active { display: flex; }
+  .modal-panel { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 16px; width: 480px; max-width: 90%; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+  .modal-title { color: #4fc3f7; font-weight: bold; font-size: 14px; margin-bottom: 12px; }
+  .modal-body { margin-bottom: 16px; }
+  .modal-label { color: #888; font-size: 11px; margin-bottom: 4px; display: block; }
+  .modal-textarea { width: 100%; height: 160px; background: #1e1e1e; border: 1px solid #555; border-radius: 4px; color: #e0e0e0; padding: 8px; font-family: 'Consolas', monospace; font-size: 12px; resize: vertical; }
+  .modal-input { width: 100%; background: #1e1e1e; border: 1px solid #555; border-radius: 4px; color: #e0e0e0; padding: 6px 8px; font-size: 12px; margin-top: 4px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="echarts.min.js"></script>
@@ -138,7 +149,7 @@
 <div class="page-header">
   <div class="page-title">Spectrum Page</div>
   <div class="header-actions">
-    <button class="btn btn-secondary" onclick="alert('Settings not implemented yet')">⚙ Settings</button>
+    <button class="btn btn-secondary" onclick="logStatus('Settings not available yet')">⚙ Settings</button>
   </div>
 </div>
 
@@ -269,6 +280,25 @@
   </div>
 </div>
 
+
+<!-- Paste Modal -->
+<div id="paste-modal" class="modal-overlay">
+  <div class="modal-panel">
+    <div class="modal-title">Paste Spectrum Data</div>
+    <div class="modal-body">
+      <label class="modal-label">Wavelength / value pairs (nm a.u.), one pair per line:</label>
+      <textarea id="paste-text" class="modal-textarea" placeholder="380 0.1
+400 0.5
+..."></textarea>
+      <label class="modal-label" style="margin-top:10px;">Spectrum name:</label>
+      <input type="text" id="paste-name" class="modal-input" value="Pasted Spectrum" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hidePasteModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPasteModal()">Paste</button>
+    </div>
+  </div>
+</div>
 <div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div></div>
 
 <!-- Status Bar -->
@@ -277,7 +307,7 @@
   <div class="status-right">
     <span class="status-item" id="status-total">Total: 0 spectra</span>
     <span class="status-item" id="status-selected">Selected: 0</span>
-    <span class="status-item" id="status-last">Last import: -</span>
+    <span class="status-item" id="status-last">Last added: -</span>
   </div>
 </div>
 
@@ -377,6 +407,16 @@ function getFilteredSpectra() {
     });
 }
 
+function _parseNumber(value) {
+    if (value === undefined || value === null || value === '-') return NaN;
+    var n = parseFloat(String(value));
+    return isNaN(n) ? NaN : n;
+}
+function _avg(values) {
+    var valid = values.filter(function(v) { return !isNaN(v); });
+    if (valid.length === 0) return NaN;
+    return valid.reduce(function(a, b) { return a + b; }, 0) / valid.length;
+}
 function updateInfoCards() {
     var ids = Array.from(selectedIds);
     var elXY = document.getElementById('info-xy');
@@ -386,24 +426,56 @@ function updateInfoCards() {
     var elDom = document.getElementById('info-dom');
     var elPurity = document.getElementById('info-purity');
 
-    if (ids.length !== 1) {
-        var label = ids.length === 0 ? '-' : '(' + ids.length + ' selected)';
-        elXY.textContent = label;
-        elUV.textContent = label;
+    if (ids.length === 0) {
+        elXY.textContent = '-';
+        elUV.textContent = '-';
         elPeak.innerHTML = '-<span class="info-card-unit">nm</span>';
         elFwhm.innerHTML = '-<span class="info-card-unit">nm</span>';
         elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
         elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
         return;
     }
-    var s = allSpectra.find(function(x) { return x.id === ids[0]; });
-    if (!s) return;
-    elXY.textContent = s.xy || '-';
-    elUV.textContent = s.uv || '-';
-    elDom.innerHTML = (s.dominant_nm || '-') + '<span class="info-card-unit">nm</span>';
-    elPurity.innerHTML = (s.purity || '-') + '<span class="info-card-unit">%</span>';
-    elPeak.innerHTML = s.peak_nm + '<span class="info-card-unit">nm</span>';
-    elFwhm.innerHTML = s.fwhm_nm + '<span class="info-card-unit">nm</span>';
+
+    if (ids.length === 1) {
+        var s = allSpectra.find(function(x) { return x.id === ids[0]; });
+        if (!s) return;
+        elXY.textContent = s.xy || '-';
+        elUV.textContent = s.uv || '-';
+        elDom.innerHTML = (s.dominant_nm || '-') + '<span class="info-card-unit">nm</span>';
+        elPurity.innerHTML = (s.purity || '-') + '<span class="info-card-unit">%</span>';
+        elPeak.innerHTML = s.peak_nm + '<span class="info-card-unit">nm</span>';
+        elFwhm.innerHTML = s.fwhm_nm + '<span class="info-card-unit">nm</span>';
+        return;
+    }
+
+    // Multi-selection summary.
+    var selected = allSpectra.filter(function(s) { return selectedIds.has(s.id); });
+    var wavelengths = [];
+    selected.forEach(function(s) {
+        if (s.data) s.data.forEach(function(p) { wavelengths.push(p[0]); });
+    });
+    var wlMin = wavelengths.length ? Math.min.apply(null, wavelengths) : NaN;
+    var wlMax = wavelengths.length ? Math.max.apply(null, wavelengths) : NaN;
+
+    var xyVals = selected.map(function(s) {
+        if (!s.xy || s.xy === '-') return [NaN, NaN];
+        var parts = String(s.xy).split(',');
+        return [parseFloat(parts[0]), parseFloat(parts[1])];
+    });
+    var avgX = _avg(xyVals.map(function(v) { return v[0]; }));
+    var avgY = _avg(xyVals.map(function(v) { return v[1]; }));
+
+    var fwhmVals = selected.map(function(s) { return _parseNumber(s.fwhm_nm); });
+    var avgFwhm = _avg(fwhmVals);
+    var purityVals = selected.map(function(s) { return _parseNumber(s.purity); });
+    var avgPurity = _avg(purityVals);
+
+    elXY.textContent = ids.length + ' selected';
+    elUV.textContent = (!isNaN(avgX) && !isNaN(avgY)) ? (avgX.toFixed(4) + ', ' + avgY.toFixed(4)) : '-';
+    elPeak.innerHTML = (!isNaN(wlMin) && !isNaN(wlMax)) ? (wlMin + '-' + wlMax + '<span class="info-card-unit">nm</span>') : '-<span class="info-card-unit">nm</span>';
+    elFwhm.innerHTML = !isNaN(avgFwhm) ? (avgFwhm.toFixed(1) + '<span class="info-card-unit">nm</span>') : '-<span class="info-card-unit">nm</span>';
+    elDom.innerHTML = ids.length + '<span class="info-card-unit">selected</span>';
+    elPurity.innerHTML = !isNaN(avgPurity) ? (avgPurity.toFixed(1) + '<span class="info-card-unit">%</span>') : '-<span class="info-card-unit">%</span>';
 }
 
 function updateStatus() {
@@ -465,9 +537,21 @@ function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
 }
-function updateLastImport() {
+function formatError(res, defaultMsg) {
+    if (!res || !res.error) return defaultMsg;
+    var err = String(res.error);
+    // Strip Python traceback noise if present.
+    var idx = err.indexOf('Traceback');
+    if (idx !== -1) err = err.substring(0, idx).trim();
+    if (err.indexOf('Insufficient common wavelength') !== -1) return defaultMsg + ': insufficient common wavelength points';
+    if (err.indexOf('could not convert') !== -1 || err.indexOf('invalid literal') !== -1) return defaultMsg + ': invalid numeric input';
+    if (err.indexOf('must be a pair of numbers') !== -1) return defaultMsg + ': invalid coordinate format';
+    if (err.indexOf('between 0 and 1') !== -1) return defaultMsg + ': coordinate out of range';
+    return defaultMsg + ': ' + err;
+}
+function updateLastAdded() {
     var el = document.getElementById('status-last');
-    if (el) el.textContent = 'Last import: ' + new Date().toLocaleString();
+    if (el) el.textContent = 'Last added: ' + new Date().toLocaleString();
 }
 
 function importSpectra() {
@@ -477,9 +561,9 @@ function importSpectra() {
         channel.objects.backend.import_spectra(function(json) {
             setLoading(false);
             var res = JSON.parse(json);
-            if (res.error) { setLoading(false); logStatus('Import failed: ' + res.error); return; }
+            if (res.error) { setLoading(false); logStatus(formatError(res, 'Import failed')); return; }
             logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
-            updateLastImport();
+            updateLastAdded();
             refreshSpectra();
         });
     });
@@ -491,7 +575,7 @@ function exportSelected() {
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.export_selected(JSON.stringify(Array.from(selectedIds)), function(json) {
             var res = JSON.parse(json);
-            if (res.error) { logStatus('Export failed: ' + res.error); return; }
+            if (res.error) { logStatus(formatError(res, 'Export failed')); return; }
             logStatus('Exported to ' + res.path);
         });
     });
@@ -499,33 +583,60 @@ function exportSelected() {
 
 function deleteSelected() {
     if (selectedIds.size === 0) { logStatus('No spectra selected'); return; }
-    if (!confirm('Delete ' + selectedIds.size + ' selected spectra?')) return;
+    var selected = allSpectra.filter(function(s) { return selectedIds.has(s.id); });
+    var names = selected.map(function(s) { return s.name; });
+    var preview = names.slice(0, 8).join('\n- ');
+    var more = names.length > 8 ? '\n... and ' + (names.length - 8) + ' more' : '';
+    var msg = selectedIds.size === 1
+        ? 'Delete spectrum "' + names[0] + '"?'
+        : 'Delete ' + selectedIds.size + ' spectra?\n- ' + preview + more;
+    if (!confirm(msg)) return;
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.delete_spectra(JSON.stringify(Array.from(selectedIds)), function(json) {
             var res = JSON.parse(json);
-            if (res.error) { logStatus('Delete failed: ' + res.error); return; }
+            if (res.error) { logStatus(formatError(res, 'Delete failed')); return; }
             selectedIds.clear();
-            logStatus('Deleted ' + res.deleted + ' spectra');
+            var n = res.deleted || 0;
+            logStatus('Deleted ' + n + ' spectrum' + (n === 1 ? '' : 's'));
+            setTimeout(function() { logStatus('Ready'); }, 3000);
             refreshSpectra();
         });
     });
 }
 
-function pasteSpectrum() {
-    var text = prompt('Paste wavelength/value pairs (nm a.u.):');
-    if (!text) return;
-    var name = prompt('Spectrum name:', 'Pasted Spectrum');
+function showPasteModal() {
+    var modal = document.getElementById('paste-modal');
+    if (modal) modal.classList.add('active');
+    var ta = document.getElementById('paste-text');
+    if (ta) { ta.value = ''; ta.focus(); }
+    var nameInput = document.getElementById('paste-name');
+    if (nameInput) nameInput.value = 'Pasted Spectrum';
+}
+function hidePasteModal() {
+    var modal = document.getElementById('paste-modal');
+    if (modal) modal.classList.remove('active');
+}
+function submitPasteModal() {
+    var text = document.getElementById('paste-text').value;
+    var name = document.getElementById('paste-name').value || 'Pasted Spectrum';
+    if (!text.trim()) { logStatus('No data pasted'); return; }
+    hidePasteModal();
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    setLoading(true);
     new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: name || 'Pasted Spectrum' }), function(json) {
+        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: name }), function(json) {
+            setLoading(false);
             var res = JSON.parse(json);
-            if (res.error) { logStatus('Paste failed: ' + res.error); return; }
+            if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
             logStatus('Pasted spectrum ' + res.id);
-            updateLastImport();
+            updateLastAdded();
             refreshSpectra();
         });
     });
+}
+function pasteSpectrum() {
+    showPasteModal();
 }
 
 function refreshSpectra() {
@@ -533,7 +644,7 @@ function refreshSpectra() {
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.get_spectra(function(json) {
             var data = JSON.parse(json);
-            if (data.error) { logStatus('Refresh failed: ' + data.error); return; }
+            if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
             renderSpectra(data);
         });
     });

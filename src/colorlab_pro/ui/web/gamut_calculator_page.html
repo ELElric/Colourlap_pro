@@ -117,10 +117,9 @@
   <div class="page-title">Gamut Calculator</div>
 </div>
 
-<!-- Controls Bar (2 rows) -->
+<!-- Controls Bar -->
 <div class="controls-bar">
-  <!-- Row 1: Mode & Display Options -->
-  <div class="controls-row" style="margin-bottom: 10px;">
+  <div class="controls-row">
     <div class="controls-section">
       <span class="section-label">Mode:</span>
       <select id="mode-select" class="mode-select" onchange="onModeChange()">
@@ -132,26 +131,12 @@
     <div class="divider"></div>
 
     <div class="controls-section">
-      <span class="section-label">Display:</span>
-      <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateDisplay()"> Original</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-filtered" checked onchange="updateDisplay()"> Filtered</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-white" checked onchange="updateDisplay()"> White Point</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-trajectory" onchange="updateDisplay()"> Trajectory</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-triangle" checked onchange="updateDisplay()"> Triangle</label>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Row 2: Reference Gamuts -->
-  <div class="controls-row">
-    <div class="controls-section">
       <span class="section-label">Reference Gamuts:</span>
       <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults()"> sRGB</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults()"> NTSC</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults()"> DCI-P3</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults()"> BT2020</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults(); updateDisplay();"> sRGB</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults(); updateDisplay();"> NTSC</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults(); updateDisplay();"> DCI-P3</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults(); updateDisplay();"> BT2020</label>
       </div>
     </div>
   </div>
@@ -215,6 +200,8 @@
           <button class="spin-btn" onclick="adjustThickness('rcf', -1)">−</button>
           <input id="thickness-rcf" class="spin-value" type="number" value="2.0" step="0.1" min="0.1" max="20" onchange="onThicknessChange()">
           <button class="spin-btn" onclick="adjustThickness('rcf', 1)">+</button>
+          <span class="step-label">Step</span>
+          <input id="step-rcf" class="step-value" type="number" value="0.1" step="0.01" min="0.01" max="5">
         </div>
       </div>
       <div class="selector-row">
@@ -223,6 +210,8 @@
           <button class="spin-btn" onclick="adjustThickness('gcf', -1)">−</button>
           <input id="thickness-gcf" class="spin-value" type="number" value="2.0" step="0.1" min="0.1" max="20" onchange="onThicknessChange()">
           <button class="spin-btn" onclick="adjustThickness('gcf', 1)">+</button>
+          <span class="step-label">Step</span>
+          <input id="step-gcf" class="step-value" type="number" value="0.1" step="0.01" min="0.01" max="5">
         </div>
       </div>
       <div class="selector-row">
@@ -231,6 +220,8 @@
           <button class="spin-btn" onclick="adjustThickness('bcf', -1)">−</button>
           <input id="thickness-bcf" class="spin-value" type="number" value="2.0" step="0.1" min="0.1" max="20" onchange="onThicknessChange()">
           <button class="spin-btn" onclick="adjustThickness('bcf', 1)">+</button>
+          <span class="step-label">Step</span>
+          <input id="step-bcf" class="step-value" type="number" value="0.1" step="0.01" min="0.01" max="5">
         </div>
       </div>
     </div>
@@ -241,8 +232,13 @@
 <div class="main-grid">
   <!-- CIE Diagram -->
   <div class="panel">
-    <div class="panel-header">
+    <div class="panel-header" style="flex-wrap: wrap;">
       <div class="panel-title">CIE Chromaticity Diagrams</div>
+      <div class="checkbox-group" style="gap:10px;">
+        <label class="checkbox-label"><input type="checkbox" id="disp-white" checked onchange="updateDisplay()"> White Point</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-trajectory" onchange="updateDisplay()"> Trajectory</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-triangle" checked onchange="updateDisplay()"> Triangle</label>
+      </div>
     </div>
     <div class="tabs">
       <div class="tab active" onclick="switchCIETab('xy')">CIE 1931 xy</div>
@@ -250,18 +246,29 @@
     </div>
     <div id="cie-xy-chart" style="width:100%;height:240px;display:block;"></div>
     <div id="cie-uv-chart" style="width:100%;height:240px;display:none;"></div>
+    <div style="display:flex;justify-content:center;gap:16px;padding:6px 0;font-size:11px;color:#aaa;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#ff6666;display:inline-block;"></span>sRGB</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#ffd700;display:inline-block;"></span>NTSC</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#66ff66;display:inline-block;"></span>DCI-P3</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#6666ff;display:inline-block;"></span>BT2020</span>
+    </div>
   </div>
 
   <!-- Spectrum Preview -->
   <div class="panel">
-    <div class="panel-header">
+    <div class="panel-header" style="flex-wrap: wrap;">
       <div class="panel-title">Spectrum Preview</div>
+      <div class="checkbox-group" style="gap:10px;">
+        <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateSpectrumPreview()"> Original</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-filtered" checked onchange="updateSpectrumPreview()"> Filtered</label>
+      </div>
     </div>
     <div class="tabs">
       <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
       <div class="tab" onclick="switchPreviewTab('filtered', this)">Filtered</div>
     </div>
-    <div id="spectrum-preview-chart" style="width:100%;height:100%;"></div><div id="spectrum-empty" class="chart-area" style="display:none;">Select spectra to preview</div>
+    <div id="spectrum-preview-chart" style="width:100%;height:240px;"></div>
+    <div id="spectrum-empty" class="chart-area" style="display:none;">Select R/G/B spectra to preview</div>
   </div>
 
   <!-- Gamut Result -->
@@ -310,7 +317,8 @@
 
 <!-- Calculate Button -->
 <div style="margin: 12px 0; text-align: center;">
-  <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button> <button id="export-btn" style="background: #3c3c3c; color: #e0e0e0; border: 1px solid #555; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer; margin-left: 8px;">Export Report</button>
+  <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button>
+  <button id="export-report-btn" disabled title="Calculate gamut first to enable export" style="background: #3c3c3c; color: #888; border: 1px solid #555; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: not-allowed; margin-left: 8px;">Export Report</button>
 </div>
 
 <!-- Status Bar -->
@@ -333,6 +341,15 @@ function logStatus(msg) {
     if (el) el.textContent = msg;
 }
 
+function setExportEnabled(enabled) {
+    var btn = document.getElementById('export-report-btn');
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.title = enabled ? 'Export gamut analysis report' : 'Calculate gamut first to enable export';
+    btn.style.color = enabled ? '#e0e0e0' : '#888';
+    btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+}
+
 function populateSelectors(spectra) {
     currentSpectra = spectra || [];
     var ids = ['red-select', 'green-select', 'blue-select', 'white-select', 'rcf-select', 'gcf-select', 'bcf-select'];
@@ -353,15 +370,18 @@ function populateSelectors(spectra) {
 
 function adjustThickness(ch, delta) {
     var input = document.getElementById('thickness-' + ch);
+    var stepInput = document.getElementById('step-' + ch);
     if (!input) return;
-    var step = parseFloat(input.step) || 0.1;
+    var step = parseFloat(stepInput && stepInput.value) || 0.1;
     var val = parseFloat(input.value) || 0;
-    val = Math.round((val + delta * step) * 10) / 10;
+    var decimals = Math.max(1, (step.toString().split('.')[1] || '').length);
+    var factor = Math.pow(10, decimals);
+    val = Math.round((val + delta * step) * factor) / factor;
     var min = parseFloat(input.min) || 0;
     var max = parseFloat(input.max) || 100;
     if (val < min) val = min;
     if (val > max) val = max;
-    input.value = val.toFixed(1);
+    input.value = val.toFixed(decimals);
     onThicknessChange();
 }
 
@@ -411,8 +431,7 @@ function onModeChange() {
     });
     if (whiteRow) whiteRow.style.display = (mode === 'whitecf') ? 'flex' : 'none';
 }
-function validateSelectors() {
-    var mode = document.getElementById('mode-select').value;
+function validateSelectors(mode) {
     var ids = (mode === 'whitecf') ? ['white-select'] : ['red-select','green-select','blue-select'];
     var valid = true;
     ids.forEach(function(id){
@@ -424,11 +443,11 @@ function validateSelectors() {
     return valid;
 }
 function calculateGamut() {
-    if (!validateSelectors()) {
+    var mode = document.getElementById('mode-select').value;
+    if (!validateSelectors(mode)) {
         logStatus(mode === 'whitecf' ? 'Please select a white spectrum' : 'Please select R/G/B spectra');
         return;
     }
-    var mode = document.getElementById('mode-select').value;
     var payload = JSON.stringify({
         mode: mode,
         red_id: document.getElementById('red-select').value,
@@ -457,6 +476,7 @@ function calculateGamut() {
             renderChromaticityData(data.primaries);
             renderSpectrumPreview();
             renderCIECharts(data.primaries);
+            setExportEnabled(true);
             logStatus('Calculation complete');
         });
     });
@@ -487,6 +507,10 @@ function xyToUV(x, y) {
 var previewChart = null;
 var currentPreviewTab = 'original';
 
+function updateSpectrumPreview() {
+    renderSpectrumPreview();
+}
+
 function switchPreviewTab(tab, el) {
     currentPreviewTab = tab;
     var panel = document.getElementById('spectrum-preview-chart').parentElement;
@@ -494,6 +518,10 @@ function switchPreviewTab(tab, el) {
         panel.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
     }
     if (el) el.classList.add('active');
+    var originalCb = document.getElementById('disp-original');
+    var filteredCb = document.getElementById('disp-filtered');
+    if (originalCb) originalCb.checked = (tab === 'original');
+    if (filteredCb) filteredCb.checked = (tab === 'filtered');
     renderSpectrumPreview();
 }
 function applyFilter(data, filterData, thickness) {
@@ -532,38 +560,38 @@ function renderSpectrumPreview() {
         var el = document.getElementById(id);
         return el ? parseFloat(el.value) || 0 : 0;
     });
+    var showOriginal = document.getElementById('disp-original') ? document.getElementById('disp-original').checked : true;
+    var showFiltered = document.getElementById('disp-filtered') ? document.getElementById('disp-filtered').checked : true;
     var dom = document.getElementById('spectrum-preview-chart');
     var empty = document.getElementById('spectrum-empty');
-    if (selected.length === 0) {
+    if (selected.length === 0 || (!showOriginal && !showFiltered)) {
         if (previewChart) previewChart.clear();
         if (empty) empty.style.display = 'flex';
         return;
     }
     if (empty) empty.style.display = 'none';
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
-    var series = selected.map(function(s, idx) {
-        var colors = ['#FF4444', '#44FF44', '#4488FF'];
+    var colors = ['#FF4444', '#44FF44', '#4488FF'];
+    var series = [];
+    selected.forEach(function(s, idx) {
         var rawData = (s.data || []).map(function(p) { return [p[0], p[1]]; });
-        var plotData = rawData;
-        if (currentPreviewTab === 'filtered' && cfSelected[idx] && thicknesses[idx] > 0) {
+        if (showOriginal) {
+            series.push({ name: s.name + ' (Original)', type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: colors[idx] || '#ccc', width: 2 } });
+        }
+        if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
             var cf = cfSelected[idx];
             var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
-            plotData = applyFilter(rawData, cfData, thicknesses[idx]);
+            var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
+            series.push({ name: s.name + ' (Filtered)', type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: colors[idx] || '#ccc', width: 2, type: 'dashed' } });
         }
-        if (currentPreviewTab === 'normalized') {
-            var maxVal = Math.max.apply(null, plotData.map(function(p){ return p[1]; }));
-            var norm = Math.max(1e-9, maxVal);
-            plotData = plotData.map(function(p){ return [p[0], p[1] / norm]; });
-        }
-        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: colors[idx] || '#ccc', width: 2 } };
     });
     previewChart.setOption({
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
-        legend: { data: selected.map(function(s){return s.name;}), textStyle: { color: '#ccc' }, bottom: 0 },
+        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc' }, bottom: 0 },
         grid: { top: 30, right: 20, bottom: 40, left: 50 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: currentPreviewTab === 'normalized' ? 'Normalized' : 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
     }, true);
 }
@@ -590,9 +618,10 @@ function pasteSpectrum(selectId) {
 (function() {
     var btn = document.getElementById('calculate-btn');
     if (btn) btn.addEventListener('click', calculateGamut);
-    var exp = document.getElementById('export-btn');
+    var exp = document.getElementById('export-report-btn');
     if (exp) exp.addEventListener('click', exportReport);
 })();
+</script>
 
 
 <script>

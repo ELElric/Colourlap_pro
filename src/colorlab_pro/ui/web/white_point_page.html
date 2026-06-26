@@ -95,9 +95,17 @@
   .status-item { color: #666; font-size: 11px; }
 
   /* Calculation Indicator */
-  .calc-indicator { display: inline-flex; align-items: center; gap: 6px; background: #264f78; color: #4fc3f7; padding: 4px 10px; border-radius: 4px; font-size: 11px; }
-  .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: #4fc3f7; animation: pulse 1.5s infinite; }
+  .calc-indicator { display: inline-flex; align-items: center; gap: 6px; background: #3c3c3c; color: #999; padding: 4px 10px; border-radius: 4px; font-size: 11px; transition: background 0.2s, color 0.2s; }
+  .calc-indicator.ready { background: #264f78; color: #4fc3f7; }
+  .calc-indicator.error { background: #5c2b2b; color: #ff6666; }
+  .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: #888; }
+  .calc-indicator.ready .calc-dot { background: #4fc3f7; }
+  .calc-indicator.error .calc-dot { background: #ff6666; }
+  .calc-dot.pulse { animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .retry-btn { display: none; background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; color: #e0e0e0; font-size: 11px; cursor: pointer; margin-left: 8px; }
+  .retry-btn.visible { display: inline-block; }
+  .retry-btn:hover { background: #4a4a4a; border-color: #4fc3f7; }
 </style>
 <script src="cie_chromaticity_data.js?v=3"></script>
 <script src="echarts.min.js"></script>
@@ -109,10 +117,13 @@
 <!-- Page Header -->
 <div class="page-header">
   <div class="page-title">White Point Calculator</div>
-    <div class="calc-indicator">
-      <span class="calc-dot"></span>
-      Auto-calculate
+  <div style="display:flex;align-items:center;">
+    <div id="calc-indicator" class="calc-indicator">
+      <span id="calc-dot" class="calc-dot"></span>
+      <span id="calc-indicator-text">Auto-calculate</span>
     </div>
+    <button id="backend-retry" class="retry-btn" onclick="checkBackend()">Retry</button>
+  </div>
 </div>
 
 <!-- Mode Selection -->
@@ -131,8 +142,21 @@
         </label>
       </div>
     </div>
+    <div class="checkbox-group" style="margin-left:auto;">
+      <label class="checkbox-label" title="Automatically recalculate when inputs change">
+        <input type="checkbox" id="auto-calc-toggle" checked onchange="toggleAutoCalculate(this.checked)">
+        Auto-calculate
+      </label>
+    </div>
+    <div class="divider"></div>
     <div class="preset-section">
-      <button class="preset-btn" onclick="calculate()">Recalculate</button>
+      <span class="mode-label" style="margin-right:4px;">Presets:</span>
+      <button class="preset-btn" onclick="applyPreset(0.3127,0.3290)">D65</button>
+      <button class="preset-btn" onclick="applyPreset(0.3457,0.3585)">D50</button>
+      <button class="preset-btn" onclick="applyPreset(0.3140,0.3510)">DCI-P3</button>
+      <button class="preset-btn" onclick="applyPreset(0.3127,0.3290)">BT2020</button>
+      <div class="divider" style="margin:0 8px;"></div>
+      <button id="recalc-btn" class="preset-btn" onclick="calculate()">Recalculate</button>
     </div>
   </div>
 </div>
@@ -234,7 +258,78 @@
 <script>
 var currentMode = 'forward';
 var calcTimer = null;
+var autoCalcEnabled = true;
+var backendReady = false;
+var backendError = false;
+var firstSuccess = false;
+
+function toggleAutoCalculate(enabled) {
+    autoCalcEnabled = enabled;
+    updateIndicator();
+    updateRecalcButtonText();
+}
+function updateRecalcButtonText() {
+    var btn = document.getElementById('recalc-btn');
+    if (btn) btn.textContent = autoCalcEnabled ? 'Calculate Now' : 'Recalculate';
+}
+function updateIndicator() {
+    var ind = document.getElementById('calc-indicator');
+    var dot = document.getElementById('calc-dot');
+    var txt = document.getElementById('calc-indicator-text');
+    var retry = document.getElementById('backend-retry');
+    if (!ind || !dot || !txt) return;
+    ind.classList.remove('ready', 'error');
+    dot.classList.remove('pulse');
+    if (retry) retry.classList.remove('visible');
+    if (backendError) {
+        ind.classList.add('error');
+        txt.textContent = 'Backend disconnected';
+        if (retry) retry.classList.add('visible');
+    } else if (!backendReady || !autoCalcEnabled) {
+        txt.textContent = autoCalcEnabled ? 'Auto-calculate' : 'Auto-calculate off';
+    } else {
+        ind.classList.add('ready');
+        txt.textContent = 'Auto-calculate';
+        if (firstSuccess) dot.classList.add('pulse');
+    }
+}
+function setBackendReady(ready) {
+    backendReady = ready;
+    backendError = !ready;
+    updateIndicator();
+}
+function checkBackend() {
+    backendError = false;
+    updateIndicator();
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) {
+        setBackendReady(false);
+        logStatus('Backend not ready');
+        return;
+    }
+    try {
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+            if (channel.objects.backend) {
+                setBackendReady(true);
+                if (inputsValid() && autoCalcEnabled) calculate();
+            } else {
+                setBackendReady(false);
+                logStatus('Backend disconnected');
+            }
+        });
+    } catch (e) {
+        setBackendReady(false);
+        logStatus('Backend check error: ' + e.message);
+    }
+}
+function applyPreset(x, y) {
+    document.getElementById('w-x').value = x.toFixed(4);
+    document.getElementById('w-y').value = y.toFixed(4);
+    if (inputsValid()) calculate();
+    else logStatus('Please fix invalid inputs');
+}
+
 function scheduleCalculate() {
+    if (!autoCalcEnabled || !backendReady) return;
     if (calcTimer) clearTimeout(calcTimer);
     calcTimer = setTimeout(function() {
         if (inputsValid()) calculate();
@@ -284,14 +379,15 @@ function getInputValues() {
     var br = parseFloat(document.getElementById('b-ratio').value);
     var wx = parseFloat(document.getElementById('w-x').value);
     var wy = parseFloat(document.getElementById('w-y').value);
-    validateInput(document.getElementById('r-x'), !isNaN(rx) && rx >= 0 && rx <= 1);
-    validateInput(document.getElementById('r-y'), !isNaN(ry) && ry >= 0 && ry <= 1);
-    validateInput(document.getElementById('g-x'), !isNaN(gx) && gx >= 0 && gx <= 1);
-    validateInput(document.getElementById('g-y'), !isNaN(gy) && gy >= 0 && gy <= 1);
-    validateInput(document.getElementById('b-x'), !isNaN(bx) && bx >= 0 && bx <= 1);
-    validateInput(document.getElementById('b-y'), !isNaN(by) && by >= 0 && by <= 1);
-    validateInput(document.getElementById('w-x'), !isNaN(wx) && wx >= 0 && wx <= 1);
-    validateInput(document.getElementById('w-y'), !isNaN(wy) && wy >= 0 && wy <= 1);
+    function validXY(x, y) { return !isNaN(x) && !isNaN(y) && x >= 0 && x <= 1 && y >= 0 && y <= 1 && (x + y) <= 1; }
+    validateInput(document.getElementById('r-x'), validXY(rx, ry));
+    validateInput(document.getElementById('r-y'), validXY(rx, ry));
+    validateInput(document.getElementById('g-x'), validXY(gx, gy));
+    validateInput(document.getElementById('g-y'), validXY(gx, gy));
+    validateInput(document.getElementById('b-x'), validXY(bx, by));
+    validateInput(document.getElementById('b-y'), validXY(bx, by));
+    validateInput(document.getElementById('w-x'), validXY(wx, wy));
+    validateInput(document.getElementById('w-y'), validXY(wx, wy));
     validateInput(document.getElementById('r-ratio'), !isNaN(rr) && rr >= 0);
     validateInput(document.getElementById('g-ratio'), !isNaN(gr) && gr >= 0);
     validateInput(document.getElementById('b-ratio'), !isNaN(br) && br >= 0);
@@ -305,7 +401,8 @@ function getInputValues() {
 }
 function inputsValid() {
     var data = getInputValues();
-    return [data.red_xy, data.green_xy, data.blue_xy, data.white_xy].every(function(c){ return !isNaN(c[0]) && c[0] >= 0 && c[0] <= 1 && !isNaN(c[1]) && c[1] >= 0 && c[1] <= 1; })
+    function validXY(c) { return !isNaN(c[0]) && !isNaN(c[1]) && c[0] >= 0 && c[0] <= 1 && c[1] >= 0 && c[1] <= 1 && (c[0] + c[1]) <= 1; }
+    return [data.red_xy, data.green_xy, data.blue_xy, data.white_xy].every(validXY)
         && [data.ratios.R, data.ratios.G, data.ratios.B].every(function(r){ return !isNaN(r) && r >= 0; });
 }
 function switchMode(mode) {
@@ -333,16 +430,23 @@ function calculate() {
         logStatus('Please fix invalid inputs');
         return;
     }
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) {
+        setBackendReady(false);
+        logStatus('Backend not ready');
+        return;
+    }
     setLoading(true);
     if (currentMode === 'forward') {
         logStatus('Calculating white point...');
         try {
             new QWebChannel(qt.webChannelTransport, function(channel) {
+                if (!channel.objects.backend) { setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
                 channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
                     setLoading(false);
                     var data = JSON.parse(json);
                     if (data.error) { logStatus('Error: ' + data.error); return; }
+                    firstSuccess = true;
+                    updateIndicator();
                     renderWhitePoint(data);
                     logStatus('Calculation complete');
                 });
@@ -352,6 +456,7 @@ function calculate() {
         logStatus('Solving RGB ratios...');
         try {
             new QWebChannel(qt.webChannelTransport, function(channel) {
+                if (!channel.objects.backend) { setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
                 var vals = getInputValues();
                 var payload = JSON.stringify({
                     red_xy: vals.red_xy,
@@ -363,6 +468,8 @@ function calculate() {
                     setLoading(false);
                     var data = JSON.parse(json);
                     if (data.error) { logStatus('Error: ' + data.error); return; }
+                    firstSuccess = true;
+                    updateIndicator();
                     renderWhitePoint(data);
                     logStatus('RGB ratios solved');
                 });
@@ -397,9 +504,9 @@ function setRGBCoordinates(data) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        if (inputsValid()) calculate();
-    }, 300);
+    updateIndicator();
+    updateRecalcButtonText();
+    setTimeout(checkBackend, 300);
 });
 </script>
 

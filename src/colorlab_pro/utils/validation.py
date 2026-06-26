@@ -2,18 +2,50 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, overload
 
 
-def validate_xy(value: Any, name: str = "xy") -> tuple[float, float]:
-    """Validate and return a CIE 1931 xy coordinate pair."""
+def _xy_in_bounds(x: float, y: float) -> bool:
+    """Return True if (x, y) lies inside the valid CIE 1931 xy triangle."""
+    return 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and x + y <= 1.0
+
+
+@overload
+def validate_xy(value: Any, name: str = "xy") -> tuple[float, float]: ...
+
+
+@overload
+def validate_xy(x: float, y: float) -> bool: ...
+
+
+def validate_xy(value_or_x: Any, name_or_y: Any | None = None) -> tuple[float, float] | bool:
+    """Validate a CIE 1931 xy coordinate pair.
+
+    Supports two call patterns:
+        - ``validate_xy(value, name="xy")`` returns ``(x, y)`` (existing API).
+        - ``validate_xy(x, y)`` returns ``True``/``False``.
+
+    The bool-returning form checks ``0 <= x <= 1``, ``0 <= y <= 1`` and
+    ``x + y <= 1`` without raising.
+    """
+    if isinstance(name_or_y, str):
+        # Existing tuple-returning API used by white_point_page.py.
+        name = name_or_y
+        try:
+            x, y = float(value_or_x[0]), float(value_or_x[1])
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(f"{name} must be a pair of numbers") from exc
+        if not _xy_in_bounds(x, y):
+            raise ValueError(f"{name} values must be between 0 and 1 and satisfy x + y <= 1")
+        return x, y
+
+    # New bool-returning API: validate_xy(x, y).
     try:
-        x, y = float(value[0]), float(value[1])
+        x = float(value_or_x)
+        y = float(name_or_y) if name_or_y is not None else 0.0
     except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"{name} must be a pair of numbers") from exc
-    if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
-        raise ValueError(f"{name} values must be between 0 and 1")
-    return x, y
+        raise ValueError("xy must be a pair of numbers") from exc
+    return _xy_in_bounds(x, y)
 
 
 def validate_ratio(value: Any, name: str = "ratio") -> float:

@@ -5,34 +5,26 @@
 
 ## Active Task
 
-**CIE 色度图彩色填充 + 标签精简**
+无
 
+## Task History
+
+### UI/UX 体验改进（2026-06-26）
+
+- 来源: 使用体验审查报告（问题 1–21，#8 跳过）
 - 状态: done
-- 完成时间: 2026-06-26
-- 修改文件: `src/colorlab_pro/ui/web/cie_chromaticity_data.js`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`, `src/colorlab_pro/ui/web/white_point_page.html`
-
-### 目标
-色度图内部使用 `colour-science` 预计算真实彩色填充并作为静态缓存数据；同时取消图表内的波长标签、E 点标签和图例，避免与页面已有复选框/标题重复。
-
-### 改动
-- 更新 `generate_cie_data.py`：在 CIE 1931 xy / CIE 1976 u'v' 坐标范围内建立 80×80 网格，对每个落在马蹄形内部的网格单元格中心，复刻 `colour.plotting.diagrams.plot_chromaticity_diagram_colours` 的方法生成 sRGB 色值：xyY → XYZ（Y=1）→ sRGB → `colour.algebra.normalise_maximum` → clip；u'v' 单元格通过逆变换转回 xy 后再算色。结果写入 `cie_chromaticity_data.js` 的 `xy_fill` / `uv_fill`。
-- `gamut_calculator_page.html` / `white_point_page.html`：`renderFillItem()` 由绘制三角形改为绘制网格矩形（`rect`），以呈现平滑自然的连续渐变；移除 `Wavelength`、`E` 标签系列和 `legend`；White Point 页面同时移除面板头部 "R G B W" 小标签。
-- 修复 `gamut_calculator_page.html` 的 `renderCIECharts` 缺少 `xyToUV` 的问题。
-- 为 `cie_chromaticity_data.js` 引用添加 `?v=3` 缓存刷新参数，避免旧版数据被浏览器缓存。
-
-### 验证
-- 本地 HTTP 服务截图：无数据时色度图显示彩色填充；注入 mock 数据后 Device 三角形正确叠加。
-- ruff check: 0 errors
-- pytest: 494 passed, 7 skipped
-
-### CIE 色度图固定背景渲染（2026-06-26）
-
-- 来源: UI 需求对齐
-- 修改文件: `src/colorlab_pro/ui/web/cie_chromaticity_data.js`, `src/colorlab_pro/ui/web/gamut_calculator_page.html`, `src/colorlab_pro/ui/web/white_point_page.html`
+- 修改文件:
+  - src/colorlab_pro/ui/web/gamut_calculator_page.html
+  - src/colorlab_pro/ui/web/white_point_page.html
+  - src/colorlab_pro/ui/web/spectrum_page.html
+  - src/colorlab_pro/ui/web/thickness_optimizer_page.html
+  - src/colorlab_pro/ui/main_window.py
+  - src/colorlab_pro/utils/validation.py
+  - i_context/CURRENT_TASK.md
 - 完成内容:
-  - CIE 1931 xy / CIE 1976 u'v' 色度图不再依赖后端数据才渲染
-  - 页面加载后显示固定马蹄形色度轮廓、波长标签、等能白点 E 和标准色域参考线
-  - 数据输入仅叠加 Device 三角形、RGB 顶点标记和 White 点
+  - 阶段一（高优先级）: White Point backend 状态指示、Spectrum Preview 空状态、Export Report 禁用、膜厚 Step 输入、删除确认、xy 校验 x+y≤1、Gamut mode 作用域修复
+  - 阶段二（中优先级）: CIE 参考色域图例、Display 控制分组、White Point 标准光源预设、Auto-calculate 语义
+  - 阶段三（中低优先级）: 浏览器弹窗替换、Spectrum 多选汇总、Optimizer 敏感度独立图表、友好错误提示、侧边栏图标、窗口标题、Top N 动态、Last added 文案、表格字号
 - 验证: ruff 0 errors / pytest 494 passed, 7 skipped
 
 ## How to Mark a Task Complete
