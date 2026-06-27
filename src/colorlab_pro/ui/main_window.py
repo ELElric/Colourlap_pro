@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, QSize, Signal
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -98,6 +98,7 @@ class MainWindow(QMainWindow):
     """Primary application window with sidebar navigation."""
 
     page_about_to_show = Signal(int)
+    theme_changed = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -144,6 +145,27 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        view_menu = menu_bar.addMenu("&View")
+
+        theme_menu = view_menu.addMenu("&Theme")
+        self._theme_group: list[QAction] = []
+
+        light_action = QAction("&Light", self)
+        light_action.setCheckable(True)
+        light_action.setData("light")
+        light_action.triggered.connect(lambda: self._on_theme_changed("light"))
+        theme_menu.addAction(light_action)
+        self._theme_group.append(light_action)
+
+        dark_action = QAction("&Dark", self)
+        dark_action.setCheckable(True)
+        dark_action.setData("dark")
+        dark_action.triggered.connect(lambda: self._on_theme_changed("dark"))
+        theme_menu.addAction(dark_action)
+        self._theme_group.append(dark_action)
+
+        self._sync_theme_menu(get_config().default_theme)
+
         help_menu = menu_bar.addMenu("&Help")
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._on_about)
@@ -153,6 +175,14 @@ class MainWindow(QMainWindow):
         """Handle Help → About."""
         dlg = AboutDialog(self)
         dlg.exec()
+
+    def _on_theme_changed(self, theme: str) -> None:
+        self._sync_theme_menu(theme)
+        self.theme_changed.emit(theme)
+
+    def _sync_theme_menu(self, theme: str) -> None:
+        for action in self._theme_group:
+            action.setChecked(action.data() == theme)
 
     def _build_status_bar(self) -> None:
         status = QStatusBar(self)

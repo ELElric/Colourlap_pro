@@ -93,6 +93,10 @@ class WebViewPage(QWidget):
         if not ok:
             self.status_message.emit("Page load failed")
             return
+        url = self._view.url().toString()
+        if not url or "about:blank" in url:
+            return
+        self._view.loadFinished.disconnect(self._on_load_finished)
         script = self.page_script()
         if script:
             self._view.page().runJavaScript(script)

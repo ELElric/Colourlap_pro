@@ -301,11 +301,9 @@
 
 <!-- Status Bar -->
 <div class="status-bar">
-  <div class="status-left">Ready</div>
+  <div class="status-left">Loading page...</div>
   <div class="status-right">
-    <span class="status-item" id="status-target">Target: -</span>
     <span class="status-item" id="status-best">Best: -</span>
-    <span class="status-item" id="status-time">Time: -</span>
   </div>
 </div>
 
@@ -320,16 +318,30 @@ var currentTab = 'coverage';
 var sensitivityData = { whitex: [], whitey: [] };
 
 function populateSelectors(spectra) {
-    var ids = ['source-r', 'source-g', 'source-b', 'cf-r', 'cf-g', 'cf-b'];
-    ids.forEach(function(id) {
-        var sel = document.getElementById(id);
+    var configs = [
+        { id: 'source-r', catFilter: ['QD','LED'], chFilter: 'R' },
+        { id: 'source-g', catFilter: ['QD','LED'], chFilter: 'G' },
+        { id: 'source-b', catFilter: ['QD','LED'], chFilter: 'B' },
+        { id: 'cf-r',     catFilter: ['CF'],       chFilter: 'R' },
+        { id: 'cf-g',     catFilter: ['CF'],       chFilter: 'G' },
+        { id: 'cf-b',     catFilter: ['CF'],       chFilter: 'B' }
+    ];
+    configs.forEach(function(cfg) {
+        var sel = document.getElementById(cfg.id);
         if (!sel) return;
         var current = sel.value;
         sel.innerHTML = '<option value="">-- Select --</option>';
-        spectra.forEach(function(s) {
+        var filtered = (spectra || []).filter(function(s) {
+            var cat = (s.category || '').toUpperCase();
+            var ch = (s.channel || '').toUpperCase();
+            if (cfg.catFilter && cat && cfg.catFilter.indexOf(cat) === -1) return false;
+            if (cfg.chFilter && ch && ch !== cfg.chFilter) return false;
+            return true;
+        });
+        filtered.forEach(function(s) {
             var opt = document.createElement('option');
             opt.value = String(s.id);
-            opt.textContent = s.name;
+            opt.textContent = s.name + (s.category ? ' (' + s.category + ')' : '');
             sel.appendChild(opt);
         });
         if (current) sel.value = current;
@@ -398,7 +410,7 @@ function startOptimization() {
             if (res.error) { logStatus(formatError(res, 'Optimization failed')); updateProgress(0); return; }
             if (res.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
             renderResults(res.results, res.best);
-            updateProgress(100, 'Best coverage: ' + (res.best ? res.best.coverage : '-') + '%');
+            updateProgress(100, 'Best coverage: ' + (res.best ? Number(res.best.coverage).toFixed(2) : '-') + '%');
             logStatus('Optimization complete');
         });
     });
@@ -424,18 +436,18 @@ function renderResults(results, best) {
         var bestClass = idx === 0 ? 'result-best' : '';
         html += '<tr class="' + bestClass + '">' +
             '<td class="result-rank">' + r.rank + '</td>' +
-            '<td class="result-value">' + r.thickness_r + '</td>' +
-            '<td class="result-value">' + r.thickness_g + '</td>' +
-            '<td class="result-value">' + r.thickness_b + '</td>' +
-            '<td class="result-value ' + (r.coverage >= 90 ? 'result-cov-high' : 'result-cov-medium') + '">' + r.coverage + '%</td>' +
-            '<td class="result-value">' + r.match + '%</td>' +
-            '<td class="result-value">' + (r.white_xy ? r.white_xy.join(', ') : '-') + '</td>' +
+            '<td class="result-value">' + Number(r.thickness_r).toFixed(1) + '</td>' +
+            '<td class="result-value">' + Number(r.thickness_g).toFixed(1) + '</td>' +
+            '<td class="result-value">' + Number(r.thickness_b).toFixed(1) + '</td>' +
+            '<td class="result-value ' + (r.coverage >= 90 ? 'result-cov-high' : 'result-cov-medium') + '">' + Number(r.coverage).toFixed(2) + '%</td>' +
+            '<td class="result-value">' + Number(r.match).toFixed(2) + '%</td>' +
+            '<td class="result-value">' + (r.white_xy ? Number(r.white_xy[0]).toFixed(3) + ', ' + Number(r.white_xy[1]).toFixed(3) : '-') + '</td>' +
             '</tr>';
     });
     tbody.innerHTML = html;
     if (best) {
-        document.getElementById('status-best').textContent = 'Best: ' + best.coverage + '%';
-        document.getElementById('progress-summary').textContent = 'Best result: R=' + best.thickness_r + ' G=' + best.thickness_g + ' B=' + best.thickness_b;
+        document.getElementById('status-best').textContent = 'Best: ' + Number(best.coverage).toFixed(2) + '%';
+        document.getElementById('progress-summary').textContent = 'Best result: R=' + Number(best.thickness_r).toFixed(1) + ' G=' + Number(best.thickness_g).toFixed(1) + ' B=' + Number(best.thickness_b).toFixed(1);
     }
     renderScanCharts(lastResults, lastBest);
 }
@@ -578,6 +590,7 @@ function logStatus(msg) {
     var el = document.querySelector('.status-left');
     if (el) el.textContent = msg;
 }
+
 function formatError(res, defaultMsg) {
     if (!res || !res.error) return defaultMsg;
     var err = String(res.error);
@@ -589,6 +602,7 @@ function formatError(res, defaultMsg) {
     if (err.indexOf('between 0 and 1') !== -1) return defaultMsg + ': coordinate out of range';
     return defaultMsg + ': ' + err;
 }
+</script>
 
 
 </body>

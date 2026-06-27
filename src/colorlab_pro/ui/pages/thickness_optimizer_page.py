@@ -297,13 +297,13 @@ class ThicknessOptimizerPage(WebViewPage):
             "  new QWebChannel(qt.webChannelTransport, function(channel) {"
             "    channel.objects.backend.get_initial_data(function(json) {"
             "      var data = JSON.parse(json);"
-            "      if (data.error) { logStatus('Backend error: ' + data.error); return; }"
-            "      populateSelectors(data.spectra);"
-            "      renderResults(data.results, data.best);"
-            "      logStatus('Loaded optimizer data');"
+            "      if (typeof populateSelectors === 'function') populateSelectors(data.spectra);"
+            "      if (typeof renderResults === 'function') renderResults(data.results, data.best);"
+            "      var el = document.querySelector('.status-left');"
+            "      if (el) el.textContent = 'Ready (' + (data.spectra ? data.spectra.length : 0) + ' spectra)';"
             "    });"
             "  });"
-            "} catch (e) { logStatus('JS error: ' + e.message); }"
+            "} catch (e) { var el = document.querySelector('.status-left'); if (el) el.textContent = 'Error: ' + e.message; }"
         )
 
     def connect_auto_refresh(self, window: QWidget) -> None:
@@ -312,15 +312,28 @@ class ThicknessOptimizerPage(WebViewPage):
     def _on_page_about_to_show(self, index: int) -> None:
         if index == self._page_index:
             self.run_javascript("""
-                if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-                    new QWebChannel(qt.webChannelTransport, function(channel) {
-                        channel.objects.backend.get_initial_data(function(json) {
-                            var data = JSON.parse(json);
-                            if (typeof populateSelectors === 'function') populateSelectors(data.spectra);
-                            if (typeof renderResults === 'function') renderResults(data.results, data.best);
+                try {
+                    if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                        new QWebChannel(qt.webChannelTransport, function(channel) {
+                            try {
+                                channel.objects.backend.get_initial_data(function(json) {
+                                    try {
+                                        var data = JSON.parse(json);
+                                        if (data.error) {
+                                            document.querySelector('.status-left').textContent = 'Error: ' + data.error;
+                                            return;
+                                        }
+                                        if (typeof populateSelectors === 'function') populateSelectors(data.spectra);
+                                        if (typeof renderResults === 'function') renderResults(data.results, data.best);
+                                        document.querySelector('.status-left').textContent = 'Refreshed ' + (data.spectra ? data.spectra.length : 0) + ' spectra';
+                                    } catch(e) { document.querySelector('.status-left').textContent = 'Parse error: ' + e.message; }
+                                });
+                            } catch(e) { document.querySelector('.status-left').textContent = 'Call error: ' + e.message; }
                         });
-                    });
-                }
+                    } else {
+                        document.querySelector('.status-left').textContent = 'Transport not ready on refresh';
+                    }
+                } catch(e) { document.querySelector('.status-left').textContent = 'Refresh error: ' + e.message; }
             """)
 
     def refresh_spectrum_list(self) -> None:

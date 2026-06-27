@@ -112,11 +112,14 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
     """Inner runner wrapped by :func:`main` for exception safety."""
     app = create_application(argv if argv is not None else sys.argv)
 
-    # Load theme stylesheet at startup
-    theme = get_config().default_theme
-    qss_path = Path(__file__).resolve().parent / "resources" / "styles" / f"{theme}.qss"
-    if qss_path.exists():
-        app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+    styles_dir = Path(__file__).resolve().parent / "resources" / "styles"
+
+    def apply_theme(theme_name: str) -> None:
+        qss_path = styles_dir / f"{theme_name}.qss"
+        if qss_path.exists():
+            app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+
+    apply_theme(get_config().default_theme)
 
     # Initialize the application controller (database + services)
     main_ctrl = MainController()
@@ -134,6 +137,13 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
 
     # Create the main window
     window = main_ctrl.create_window()
+
+    def on_theme_changed(theme: str) -> None:
+        apply_theme(theme)
+        from colorlab_pro.config.settings import save_config
+        save_config(default_theme=theme)
+
+    window.theme_changed.connect(on_theme_changed)
 
     # Create sub-controllers
     spec_ctrl = SpectrumController(main_ctrl)

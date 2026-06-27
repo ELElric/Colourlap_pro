@@ -48,7 +48,7 @@ class SpectrumPageBackend(QObject):
                         "peak_nm": s.peak_wavelength if s.peak_wavelength is not None else "-",
                         "fwhm_nm": s.fwhm if s.fwhm is not None else "-",
                         "thickness_um": (
-                            f"{s.thickness_um:.2f}" if s.thickness_um is not None else "-"
+                            round(s.thickness_um, 3) if s.thickness_um is not None else "-"
                         ),
                         "xy": s.xy_str or "-",
                         "uv": s.uv_str or "-",
@@ -74,9 +74,9 @@ class SpectrumPageBackend(QObject):
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
-    @Slot(result=str)
-    def import_spectra(self) -> str:
-        """Open a file dialog and import CSV/XLSX/TXT spectra."""
+    @Slot(str, result=str)
+    def import_spectra(self, category: str) -> str:
+        """Open a file dialog and import CSV/XLSX/TXT spectra with given category."""
         parent = self.parent()
         path_str, _ = QFileDialog.getOpenFileName(
             parent,
@@ -90,9 +90,9 @@ class SpectrumPageBackend(QObject):
         try:
             suffix = path.suffix.lower()
             if suffix == ".xlsx":
-                result = self._controller.import_xlsx_file(path)
+                result = self._controller.import_xlsx_file(path, category=category)
             else:
-                result = self._controller.import_csv_file(path)
+                result = self._controller.import_csv_file(path, category=category)
             ids = result if isinstance(result, list) else ([result] if result else [])
             return json.dumps({"ids": [i for i in ids if i is not None]})
         except Exception as exc:  # noqa: BLE001
@@ -141,6 +141,27 @@ class SpectrumPageBackend(QObject):
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
 
+    @Slot(str, result=str)
+    def update_spectrum(self, payload: str) -> str:
+        """Update editable fields of a spectrum (name, category, channel, thickness_um)."""
+        try:
+            data = json.loads(payload)
+            sid = int(data["id"])
+            ok = True
+            if "name" in data:
+                ok = ok and self._controller.rename_spectrum(sid, str(data["name"]))
+            if "category" in data:
+                ok = ok and self._controller.update_category(sid, str(data["category"]))
+            if "channel" in data:
+                ok = ok and self._controller.update_channel(sid, str(data["channel"]))
+            if "thickness_um" in data:
+                val = data["thickness_um"]
+                thickness = float(val) if val is not None and val != "" else None
+                ok = ok and self._controller.update_thickness(sid, thickness)
+            return json.dumps({"ok": ok})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
 
 class SpectrumPage(WebViewPage):
     """Spectrum Library workspace page rendered as HTML."""
@@ -165,22 +186,22 @@ class SpectrumPage(WebViewPage):
     def page_script(self) -> str:
         return """
         setLoading(true);
-        if (typeof qt === 'undefined' || !qt.webChannelTransport) {
-            console.error('QWebChannel transport not available');
-            return;
-        }
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            channel.objects.backend.get_spectra(function(json) {
-                var data = JSON.parse(json);
-                if (data.error) {
-                    console.error('Backend error:', data.error);
-                    setLoading(false);
-                    return;
-                }
-                renderSpectra(data);
-                logStatus('Loaded ' + data.length + ' spectra');
+        if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                channel.objects.backend.get_spectra(function(json) {
+                    var data = JSON.parse(json);
+                    if (data.error) {
+                        console.error('Backend error:', data.error);
+                        setLoading(false);
+                        return;
+                    }
+                    renderSpectra(data);
+                    logStatus('Loaded ' + data.length + ' spectra');
+                });
             });
-        });
+        } else {
+            setLoading(false);
+        }
         """
 
     def _on_page_about_to_show(self, index: int) -> None:

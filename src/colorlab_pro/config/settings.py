@@ -96,6 +96,7 @@ def get_config() -> AppConfig:
                 default_observer=data.get("default_observer", defaults.default_observer),
                 default_illuminant=data.get("default_illuminant", defaults.default_illuminant),
                 default_step=int(data.get("default_step", defaults.default_step)),
+                default_theme=data.get("default_theme", defaults.default_theme),
             )
         except Exception as exc:  # noqa: BLE001
             # Log the failure so the user can diagnose why their custom
@@ -122,6 +123,7 @@ def save_config(
     default_observer: str | None = None,
     default_illuminant: str | None = None,
     default_step: int | None = None,
+    default_theme: str | None = None,
 ) -> None:
     """Save user settings to ~/.colorlab_pro/config.yaml.
 
@@ -151,6 +153,8 @@ def save_config(
         existing["default_illuminant"] = default_illuminant
     if default_step is not None:
         existing["default_step"] = default_step
+    if default_theme is not None:
+        existing["default_theme"] = default_theme
 
     with open(_CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.dump(existing, f, default_flow_style=False)

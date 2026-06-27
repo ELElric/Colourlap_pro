@@ -338,8 +338,8 @@ function checkBackend() {
     }
 }
 function applyPreset(x, y) {
-    document.getElementById('w-x').value = x.toFixed(4);
-    document.getElementById('w-y').value = y.toFixed(4);
+    document.getElementById('w-x').value = x.toFixed(3);
+    document.getElementById('w-y').value = y.toFixed(3);
     if (inputsValid()) calculate();
     else logStatus('Please fix invalid inputs');
 }
@@ -368,10 +368,10 @@ function renderGamutResults(results) {
         var match1976 = r.match_1976 || 0;
         function cls(v) { return v >= 90 ? 'gamut-high' : (v >= 70 ? 'gamut-medium' : 'gamut-low'); }
         var row = '<tr><td style="color:#888;">' + r.standard + '</td>' +
-            '<td class="gamut-value ' + cls(cov1931) + '">' + cov1931.toFixed(1) + '</td>' +
-            '<td class="gamut-value ' + cls(match1931) + '">' + match1931.toFixed(1) + '</td>' +
-            '<td class="gamut-value ' + cls(cov1976) + '">' + cov1976.toFixed(1) + '</td>' +
-            '<td class="gamut-value ' + cls(match1976) + '">' + match1976.toFixed(1) + '</td></tr>';
+            '<td class="gamut-value ' + cls(cov1931) + '">' + cov1931.toFixed(2) + '</td>' +
+            '<td class="gamut-value ' + cls(match1931) + '">' + match1931.toFixed(2) + '</td>' +
+            '<td class="gamut-value ' + cls(cov1976) + '">' + cov1976.toFixed(2) + '</td>' +
+            '<td class="gamut-value ' + cls(match1976) + '">' + match1976.toFixed(2) + '</td></tr>';
         tbody.innerHTML += row;
     });
 }
@@ -616,8 +616,8 @@ function bindCoordTooltip(chart, dom, xLabel, yLabel) {
         }
         var tip = ensureTooltip();
         tip.style.display = 'block';
-        tip.innerHTML = '<b>' + xLabel + ':</b> ' + data[0].toFixed(4)
-            + '&nbsp;&nbsp;<b>' + yLabel + ':</b> ' + data[1].toFixed(4);
+        tip.innerHTML = '<b>' + xLabel + ':</b> ' + data[0].toFixed(3)
+            + '&nbsp;&nbsp;<b>' + yLabel + ':</b> ' + data[1].toFixed(3);
         tip.style.left = (px + 16) + 'px';
         tip.style.top = (py - 12) + 'px';
     });

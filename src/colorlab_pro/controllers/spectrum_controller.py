@@ -470,6 +470,37 @@ class SpectrumController(QObject):
             self.error_occurred.emit(f"Failed to update category: {exc}")
             return False
 
+    def update_thickness(self, spectrum_id: int, thickness: float | None) -> bool:
+        """Update the thickness_um value in meta_json."""
+        try:
+            import json
+
+            from colorlab_pro.database.models import Spectrum as SpectrumORM
+
+            with self._main.session_factory() as session:
+                orm = session.get(SpectrumORM, spectrum_id)
+                if orm is None:
+                    return False
+                meta: dict = {}
+                if orm.meta_json:
+                    try:
+                        meta = json.loads(orm.meta_json)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if thickness is None:
+                    meta.pop("thickness_um", None)
+                    meta["thickness_missing"] = True
+                else:
+                    meta["thickness_um"] = thickness
+                    meta.pop("thickness_missing", None)
+                orm.meta_json = json.dumps(meta, ensure_ascii=False, sort_keys=True)
+                session.commit()
+            self.spectra_updated.emit()
+            return True
+        except Exception as exc:  # noqa: BLE001
+            self.error_occurred.emit(f"Failed to update thickness: {exc}")
+            return False
+
     def preprocess_spectrum(
         self,
         spectrum_id: int,

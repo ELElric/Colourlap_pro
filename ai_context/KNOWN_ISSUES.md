@@ -1,7 +1,7 @@
 # ColorLab Pro — Known Issues
 
 > Project: ColorLab Pro V1.1
-> Last Updated: 2026-06-18
+> Last Updated: 2026-06-27
 
 ## Open Issues
 
@@ -119,3 +119,55 @@
 - Resolved At: 2026-06-18
 - Description: 之前以为需用户手动安装 Python 3.11
 - Resolution: 实际系统已通过 py launcher 提供 Python 3.11.7，可直接 `py -3.11 -m venv .venv`
+
+---
+
+## 2026-06-27 Session Issues
+
+### I-012: 导入光谱缺少 category 选择
+
+- Status: resolved
+- Severity: medium
+- Discovered At: 2026-06-27
+- Resolved At: 2026-06-27
+- Description: 点击导入按钮时，光谱自动默认 LED category，没有让用户选择 QD/LED/CF/W 的弹窗。
+- Resolution: 在 spectrum_page.html 中添加导入分类模态框（Import Category Modal），四个按钮分别对应 LED/CF/QD/W。`import_spectra(category)` 接收参数后传给后端 controller。后端 `import_xlsx_file/import_csv_file` 已支持 `category` 参数。
+
+### I-013: 前端显示格式不统一
+
+- Status: resolved
+- Severity: medium
+- Discovered At: 2026-06-27
+- Resolved At: 2026-06-27
+- Description: 各页面数值显示精度不一致：膜厚有时多位小数，波长有时带小数，色坐标和色域精度不统一。
+- Resolution: 仅在前端 HTML/JS 用 `toFixed()/Math.round()` 格式化，后端返回完整精度不做截断。规则：膜厚 1 位小数、波长/半峰宽取整（Math.round）、色坐标 3 位小数、色域 2 位小数。涉及 4 个 HTML 文件。**策略：后端保持完整精度，前端负责显示格式化。**
+
+### I-014: 光谱库表格不可编辑
+
+- Status: resolved
+- Severity: high
+- Discovered At: 2026-06-27
+- Resolved At: 2026-06-27
+- Description: 导入的光谱数据（name、category、channel、thickness）在表格中只能查看不能修改。
+- Resolution: 表格中 name、category、channel、thickness 四列改为可编辑（双击触发）。name/thickness 用 input，category/channel 用 select 下拉框。后端新增 `update_spectrum` Slot 和 controller 层 `update_thickness` 方法。
+- Gotcha: 可编辑 `<td>` 必须加 `onclick="event.stopPropagation()"` 阻止单击冒泡，否则 `<tr onclick="toggleRowSelection">` 会在 dblclick 前触发表格重绘，导致编辑功能失效。
+
+### I-015: 色域/膜厚优化页下拉框未按 category+channel 过滤
+
+- Status: resolved
+- Severity: medium
+- Discovered At: 2026-06-27
+- Resolved At: 2026-06-27
+- Description: 色域计算器和膜厚优化器的光谱下拉框显示全部光谱，没有按用途过滤。R/G/B 发光谱应只显示 QD/LED，CF 透射率只显示 CF，且 RCF 只显示 channel=R 的 CF。
+- Resolution: 用 config 对象定义每个 select 的 `catFilter` 和 `chFilter`，过滤时采用宽松模式：**仅当 category/channel 已明确设置且不匹配时才排除**，未设置的光谱仍显示。严格模式会导致无候选（见 I-016）。
+
+### I-016: 膜厚优化页下拉框完全无候选
+
+- Status: resolved
+- Severity: high
+- Discovered At: 2026-06-27
+- Resolved At: 2026-06-27
+- Description: 膜厚优化页的光谱下拉框没有任何可选项，即使谱库中有数据。
+- Root Cause: **`thickness_optimizer_page.html` 中 `<script>` 块缺少 `</script>` 关闭标签！** 浏览器把 `</body></html>` 及后续所有内容都当成 JavaScript 解析，导致语法错误，所有函数（`populateSelectors`、`renderResults` 等）全部未定义。同时 `page_script()` 中调用了 HTML 内定义的 `logStatus()` 函数，但 `runJavaScript` 可能在 HTML 内联脚本执行前就运行了，触发 `ReferenceError: logStatus is not defined`。
+- Resolution: 1) 补上缺失的 `</script>` 标签；2) `page_script()` 不再依赖 HTML 内定义的函数，改用原始 DOM 操作；3) `_on_page_about_to_show` 加完整 try-catch 错误处理。
+- **教训：HTML 文件中 `<script>` 块必须确保有对应的 `</script>` 关闭标签，否则整个页面 JS 瘫痪。**

@@ -34,11 +34,11 @@ class WhitePointPageBackend(QObject):
 
         return json.dumps(
             {
-                "red_xy": [0.6400, 0.3300],
-                "green_xy": [0.3000, 0.6000],
-                "blue_xy": [0.1500, 0.0600],
-                "ratios": [0.333, 0.333, 0.333],
-                "white_xy": [0.3127, 0.3290],
+                "red_xy": [0.6407, 0.330],
+                "green_xy": [0.300, 0.600],
+                "blue_xy": [0.150, 0.060],
+                "ratios": [0.3333, 0.3333, 0.3333],
+                "white_xy": [0.3127, 0.329],
                 "white_uv": [0.1978, 0.4683],
                 "cct": 6504,
                 "results": [],

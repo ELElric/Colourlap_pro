@@ -352,16 +352,32 @@ function setExportEnabled(enabled) {
 
 function populateSelectors(spectra) {
     currentSpectra = spectra || [];
-    var ids = ['red-select', 'green-select', 'blue-select', 'white-select', 'rcf-select', 'gcf-select', 'bcf-select'];
-    ids.forEach(function(id) {
-        var sel = document.getElementById(id);
+    var configs = [
+        { id: 'red-select',   catFilter: ['QD','LED'], chFilter: 'R' },
+        { id: 'green-select', catFilter: ['QD','LED'], chFilter: 'G' },
+        { id: 'blue-select',  catFilter: ['QD','LED'], chFilter: 'B' },
+        { id: 'white-select', catFilter: null,          chFilter: 'W' },
+        { id: 'rcf-select',   catFilter: ['CF'],        chFilter: 'R' },
+        { id: 'gcf-select',   catFilter: ['CF'],        chFilter: 'G' },
+        { id: 'bcf-select',   catFilter: ['CF'],        chFilter: 'B' }
+    ];
+    configs.forEach(function(cfg) {
+        var sel = document.getElementById(cfg.id);
         if (!sel) return;
         var current = sel.value;
         sel.innerHTML = '<option value="">-- Select --</option>';
-        spectra.forEach(function(s) {
+        var filtered = currentSpectra.filter(function(s) {
+            var cat = (s.category || '').toUpperCase();
+            var ch = (s.channel || '').toUpperCase();
+            // Only exclude if category/channel is explicitly set and doesn't match
+            if (cfg.catFilter && cat && cfg.catFilter.indexOf(cat) === -1) return false;
+            if (cfg.chFilter && ch && ch !== cfg.chFilter) return false;
+            return true;
+        });
+        filtered.forEach(function(s) {
             var opt = document.createElement('option');
             opt.value = String(s.id);
-            opt.textContent = s.name + ' (' + s.category + ')';
+            opt.textContent = s.name + ' (' + (s.category || '') + ')';
             sel.appendChild(opt);
         });
         if (current) sel.value = current;
@@ -412,8 +428,8 @@ function filterReferenceResults() {
         var clsMatch1931 = r.match_1931 >= 90 ? 'gamut-high' : (r.match_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
         var clsCov1976 = r.coverage_1976 >= 90 ? 'gamut-high' : (r.coverage_1976 >= 70 ? 'gamut-medium' : 'gamut-low');
         var clsMatch1976 = r.match_1976 >= 90 ? 'gamut-high' : (r.match_1976 >= 70 ? 'gamut-medium' : 'gamut-low');
-        t1931.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1931 + '">' + r.coverage_1931 + '</td><td class="' + clsMatch1931 + '">' + r.match_1931 + '</td></tr>';
-        t1976.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1976 + '">' + r.coverage_1976 + '</td><td class="' + clsMatch1976 + '">' + r.match_1976 + '</td></tr>';
+        t1931.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1931 + '">' + Number(r.coverage_1931).toFixed(2) + '</td><td class="' + clsMatch1931 + '">' + Number(r.match_1931).toFixed(2) + '</td></tr>';
+        t1976.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1976 + '">' + Number(r.coverage_1976).toFixed(2) + '</td><td class="' + clsMatch1976 + '">' + Number(r.match_1976).toFixed(2) + '</td></tr>';
     });
 
     // Reference gamut toggled → rebuild background & refresh chart
@@ -493,12 +509,12 @@ function renderChromaticityData(primaries) {
         var uv = xyToUV(p.x, p.y);
         var row = document.createElement('tr');
         row.innerHTML = '<td class="channel-' + p.ch.toLowerCase() + '">' + p.ch + '</td>' +
-            '<td class="data-value">' + p.x.toFixed(4) + '</td>' +
-            '<td class="data-value">' + p.y.toFixed(4) + '</td>' +
-            '<td class="data-value">' + uv.u.toFixed(4) + '</td>' +
-            '<td class="data-value">' + uv.v.toFixed(4) + '</td>' +
-            '<td class="data-value">' + (p.X != null ? p.X.toFixed(4) : '-') + '</td>' +
-            '<td class="data-value">' + (p.Y != null ? p.Y.toFixed(4) : '-') + '</td>' +
+            '<td class="data-value">' + p.x.toFixed(3) + '</td>' +
+            '<td class="data-value">' + p.y.toFixed(3) + '</td>' +
+            '<td class="data-value">' + uv.u.toFixed(3) + '</td>' +
+            '<td class="data-value">' + uv.v.toFixed(3) + '</td>' +
+            '<td class="data-value">' + (p.X != null ? p.X.toFixed(3) : '-') + '</td>' +
+            '<td class="data-value">' + (p.Y != null ? p.Y.toFixed(3) : '-') + '</td>' +
             '<td class="data-value">' + (p.cct != null ? p.cct : '-') + '</td>';
         tbody.appendChild(row);
     });
@@ -619,17 +635,6 @@ function pasteSpectrum(selectId) {
     });
 }
 
-(function() {
-    var btn = document.getElementById('calculate-btn');
-    if (btn) btn.addEventListener('click', calculateGamut);
-    var exp = document.getElementById('export-report-btn');
-    if (exp) exp.addEventListener('click', exportReport);
-})();
-</script>
-
-
-<script>
-
 function exportReport() {
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     new QWebChannel(qt.webChannelTransport, function(channel){
@@ -647,6 +652,12 @@ function exportReport() {
     });
 }
 
+(function() {
+    var btn = document.getElementById('calculate-btn');
+    if (btn) btn.addEventListener('click', calculateGamut);
+    var exp = document.getElementById('export-report-btn');
+    if (exp) exp.addEventListener('click', exportReport);
+})();
 </script>
 
 
@@ -742,8 +753,8 @@ function bindCoordTooltip(chart, dom, xLabel, yLabel) {
         }
         var tip = ensureTooltip();
         tip.style.display = 'block';
-        tip.innerHTML = '<b>' + xLabel + ':</b> ' + data[0].toFixed(4)
-            + '&nbsp;&nbsp;<b>' + yLabel + ':</b> ' + data[1].toFixed(4);
+        tip.innerHTML = '<b>' + xLabel + ':</b> ' + data[0].toFixed(3)
+            + '&nbsp;&nbsp;<b>' + yLabel + ':</b> ' + data[1].toFixed(3);
         tip.style.left = (px + 16) + 'px';
         tip.style.top = (py - 12) + 'px';
     });
