@@ -510,7 +510,12 @@ function renderWhitePoint(data) {
     document.getElementById('b-ratio').value = data.ratios[2];
     renderGamutResults(data.results);
     renderCIECharts(data);
-    logStatus('White point calculated');
+    // Update status bar
+    var sp = document.getElementById('status-primaries');
+    var sw = document.getElementById('status-white');
+    if (sp) sp.textContent = 'R(' + data.red_xy[0] + ',' + data.red_xy[1] + ') G(' + data.green_xy[0] + ',' + data.green_xy[1] + ') B(' + data.blue_xy[0] + ',' + data.blue_xy[1] + ')';
+    if (sw) sw.textContent = 'White: ' + data.white_xy[0] + ', ' + data.white_xy[1] + (data.cct ? ' (' + Math.round(data.cct) + 'K)' : '');
+    logStatus('White point calculated' + (data.cct ? ' (CCT: ' + Math.round(data.cct) + 'K)' : ''));
 }
 function setRGBCoordinates(data) {
     if (data.red_xy) { document.getElementById('r-x').value = data.red_xy[0]; document.getElementById('r-y').value = data.red_xy[1]; }

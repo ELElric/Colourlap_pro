@@ -236,7 +236,6 @@
       <div class="panel-title">CIE Chromaticity Diagrams</div>
       <div class="checkbox-group" style="gap:10px;">
         <label class="checkbox-label"><input type="checkbox" id="disp-white" checked onchange="updateDisplay()"> White Point</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-trajectory" onchange="updateDisplay()"> Trajectory</label>
         <label class="checkbox-label"><input type="checkbox" id="disp-triangle" checked onchange="updateDisplay()"> Triangle</label>
       </div>
     </div>
@@ -307,7 +306,7 @@
       <div class="data-title">RGB Spectrum Data</div>
       <table class="data-table">
         <thead><tr><th>Ch</th><th>Peak (nm)</th><th>FWHM (nm)</th><th>Dom. λ (nm)</th><th>Purity</th></tr></thead>
-        <tbody id="spectrum-data-body"><tr><td colspan="5" style="text-align:center;color:#666;padding:12px;">No data</td></tr></tbody>
+        <tbody id="spectrum-data-body"></tbody>
       </table>
     </div>
   </div>
@@ -497,6 +496,7 @@ function calculateGamut() {
             lastWhiteXY = data.white_xy || null;
             renderResults(data.results);
             renderChromaticityData(data.primaries);
+            renderSpectrumDataTable(data.primaries);
             renderSpectrumPreview();
             renderCIECharts(data.primaries);
             setExportEnabled(true);
@@ -563,6 +563,22 @@ function applyFilter(data, filterData, thickness) {
         filtered.push([wl, p[1] * attenuation]);
     });
     return filtered;
+}
+
+function renderSpectrumDataTable(primaries) {
+    var tbody = document.getElementById('spectrum-data-body');
+    if (!tbody || !primaries) return;
+    var html = '';
+    primaries.forEach(function(p) {
+        html += '<tr>' +
+            '<td><span class="channel-tag channel-' + p.ch.toLowerCase() + '">' + p.ch + '</span></td>' +
+            '<td class="result-value">' + (p.peak_nm != null ? Math.round(p.peak_nm) : '-') + '</td>' +
+            '<td class="result-value">' + (p.fwhm_nm != null ? Math.round(p.fwhm_nm) : '-') + '</td>' +
+            '<td class="result-value">' + (p.dominant_nm != null ? Math.round(p.dominant_nm) : '-') + '</td>' +
+            '<td class="result-value">' + (p.purity != null ? Number(p.purity).toFixed(1) + '%' : '-') + '</td>' +
+            '</tr>';
+    });
+    tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#666;padding:12px;">No data</td></tr>';
 }
 
 function renderSpectrumPreview() {

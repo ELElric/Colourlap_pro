@@ -524,7 +524,9 @@ function runSensitivity(metric) {
     updateProgress(0, 'Running sensitivity...');
     new QWebChannel(qt.webChannelTransport, function(channel) {
         var backend = channel.objects.backend;
-        backend.progress.connect(function(value) { updateProgress(value); });
+        if (_progressHandler) { backend.progress.disconnect(_progressHandler); }
+        _progressHandler = function(value) { updateProgress(value); };
+        backend.progress.connect(_progressHandler);
         backend.sensitivity_analysis(JSON.stringify(data), function(json) {
             setLoading(false);
             var res = JSON.parse(json);
@@ -564,8 +566,13 @@ function renderSensitivityChart(points, metric) {
 function runSensitivityPanel() {
     // Clear cached data to force re-run
     sensitivityData = { whitex: [], whitey: [] };
-    var tab = (currentTab === 'coverage' || currentTab === 'whitex' || currentTab === 'whitey') ? currentTab : 'whitey';
-    switchScanTab(tab, null);
+    // Always switch to whitex tab when clicking Run Sensitivity
+    var targetTab = 'whitex';
+    // Update tab UI
+    document.querySelectorAll('.chart-tab').forEach(function(t) { t.classList.remove('active'); });
+    var tabEl = document.querySelector('.chart-tab[onclick*="whitex"]');
+    if (tabEl) tabEl.classList.add('active');
+    switchScanTab(targetTab, null);
 }
 
 function pasteSpectrumToSelect(btn) {

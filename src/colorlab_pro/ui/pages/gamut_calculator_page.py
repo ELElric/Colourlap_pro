@@ -196,9 +196,23 @@ class GamutPageBackend(QObject):
                     return 0
 
             primaries = []
-            for ch, xy_pt in [("R", device.red), ("G", device.green), ("B", device.blue)]:
+            for idx, (ch, xy_pt) in enumerate([("R", device.red), ("G", device.green), ("B", device.blue)]):
                 x, y = round(xy_pt[0], 4), round(xy_pt[1], 4)
                 xyz = _xy_to_xyz(x, y)
+                # Get spectrum analysis data from the filtered spectrum
+                sp = filtered_specs[idx]
+                try:
+                    peak_nm = float(sp.wavelengths[np.argmax(sp.values)])
+                    peak_val = float(np.max(sp.values))
+                    half_max = peak_val / 2.0
+                    above_half = sp.values >= half_max
+                    if np.any(above_half):
+                        indices = np.where(above_half)[0]
+                        fwhm_nm = float(sp.wavelengths[indices[-1]] - sp.wavelengths[indices[0]])
+                    else:
+                        fwhm_nm = None
+                except Exception:
+                    peak_nm, fwhm_nm = None, None
                 primaries.append(
                     {
                         "ch": ch,
@@ -208,6 +222,8 @@ class GamutPageBackend(QObject):
                         "Y": round(xyz[1], 4),
                         "Z": round(xyz[2], 4),
                         "cct": _cct_from_xy(x, y),
+                        "peak_nm": peak_nm,
+                        "fwhm_nm": fwhm_nm,
                     }
                 )
             self._last_primaries = primaries
