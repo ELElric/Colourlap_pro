@@ -244,8 +244,8 @@
       <div class="tab active" onclick="switchCIETab('xy')">CIE 1931 xy</div>
       <div class="tab" onclick="switchCIETab('uv')">CIE 1976 u'v'</div>
     </div>
-    <div id="cie-xy-chart" style="width:100%;aspect-ratio:0.89;display:block;"></div>
-    <div id="cie-uv-chart" style="width:100%;aspect-ratio:1.08;display:none;"></div>
+    <div id="cie-xy-chart" style="width:100%;height:400px;display:block;"></div>
+    <div id="cie-uv-chart" style="width:100%;height:400px;display:none;"></div>
     <div style="display:flex;justify-content:center;gap:16px;padding:6px 0;font-size:11px;color:#aaa;">
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#ff6666;display:inline-block;"></span>sRGB</span>
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#ffd700;display:inline-block;"></span>NTSC</span>
@@ -657,6 +657,7 @@ var currentCIETab = 'xy';
 var _cieBgRendered = { xy: false, uv: false };
 var _baseSeriesXY = null;
 var _baseSeriesUV = null;
+var _cieGridPad = { top: 30, right: 20, bottom: 40, left: 45 };
 
 function xyToUV(x, y) {
     var denom = -2 * x + 12 * y + 3;
@@ -675,6 +676,9 @@ function switchCIETab(tab) {
             if (t.textContent.indexOf('CIE 1976') !== -1) t.classList.toggle('active', tab === 'uv');
         });
     }
+    // Resize chart after display change
+    if (tab === 'xy' && cieXYChart) { cieXYChart.resize(); }
+    if (tab === 'uv' && cieUVChart) { cieUVChart.resize(); }
 }
 
 function computeWhitePoint(primaries) {
@@ -693,31 +697,63 @@ function getRefGamuts() {
     return refs;
 }
 
-function renderFillItem(params, api) {
-    var x = api.value(0);
-    var y = api.value(1);
-    var w = api.value(2);
-    var h = api.value(3);
-    var start = api.coord([x, y]);
-    var end = api.coord([x + w, y + h]);
+// Shared base chart options (axes, grid, title) — NOT including series
+function getBaseOptionXY() {
     return {
-        type: 'rect',
-        shape: { x: start[0], y: end[1], width: end[0] - start[0], height: start[1] - end[1] },
-        style: { fill: api.visual('color') || '#888888', stroke: null },
-        silent: true
+        backgroundColor: 'transparent',
+        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: _cieGridPad,
+        xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } },
+        yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } }
     };
+}
+function getBaseOptionUV() {
+    return {
+        backgroundColor: 'transparent',
+        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: _cieGridPad,
+        xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } },
+        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } }
+    };
+}
+
+// Custom coord tooltip: show mouse position as xy or u'v' data coordinates
+function bindCoordTooltip(chart, dom, xLabel, yLabel) {
+    var tooltipEl = null;
+    function ensureTooltip() {
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.style.cssText = 'position:absolute;pointer-events:none;background:rgba(30,30,30,0.92);'
+                + 'border:1px solid #555;border-radius:4px;padding:6px 10px;font-size:11px;color:#e0e0e0;'
+                + 'font-family:Consolas,monospace;z-index:999;white-space:nowrap;';
+            dom.style.position = 'relative';
+            dom.appendChild(tooltipEl);
+        }
+        return tooltipEl;
+    }
+    dom.addEventListener('mousemove', function(e) {
+        var rect = dom.getBoundingClientRect();
+        var px = e.clientX - rect.left;
+        var py = e.clientY - rect.top;
+        var data = chart.convertFromPixel('grid', [px, py]);
+        if (!data || isNaN(data[0]) || isNaN(data[1])) {
+            if (tooltipEl) tooltipEl.style.display = 'none';
+            return;
+        }
+        var tip = ensureTooltip();
+        tip.style.display = 'block';
+        tip.innerHTML = '<b>' + xLabel + ':</b> ' + data[0].toFixed(4)
+            + '&nbsp;&nbsp;<b>' + yLabel + ':</b> ' + data[1].toFixed(4);
+        tip.style.left = (px + 16) + 'px';
+        tip.style.top = (py - 12) + 'px';
+    });
+    dom.addEventListener('mouseleave', function() {
+        if (tooltipEl) tooltipEl.style.display = 'none';
+    });
 }
 
 function buildBaseSeriesXY() {
     var series = [];
-    series.push({
-        name: 'Fill',
-        type: 'custom',
-        renderItem: renderFillItem,
-        data: CIE_DATA.xy_fill.map(function(c){ return { value: [c.x, c.y, c.w, c.h], itemStyle: { color: c.color } }; }),
-        z: 0,
-        silent: true
-    });
     series.push({
         name: 'Visible Spectrum',
         type: 'line',
@@ -745,14 +781,6 @@ function buildBaseSeriesXY() {
 
 function buildBaseSeriesUV() {
     var series = [];
-    series.push({
-        name: 'Fill',
-        type: 'custom',
-        renderItem: renderFillItem,
-        data: CIE_DATA.uv_fill.map(function(c){ return { value: [c.u, c.v, c.w, c.h], itemStyle: { color: c.color } }; }),
-        z: 0,
-        silent: true
-    });
     series.push({
         name: 'Visible Spectrum',
         type: 'line',
@@ -789,39 +817,75 @@ function getBaseSeriesUV() {
 function invalidateBaseSeries() {
     _baseSeriesXY = null;
     _baseSeriesUV = null;
-    _cieBgRendered = { xy: false, uv: false };
 }
 
+// Compute correct chart height from container width to preserve CIE aspect ratio.
+function adjustChartHeights() {
+    var xyDom = document.getElementById('cie-xy-chart');
+    var uvDom = document.getElementById('cie-uv-chart');
+    if (!xyDom) return;
+
+    var containerW = xyDom.parentElement ? xyDom.parentElement.clientWidth : xyDom.clientWidth;
+    if (containerW < 100) containerW = 500;
+    var gridW = containerW - _cieGridPad.left - _cieGridPad.right;
+    var xyGridH = gridW * (0.95 / 0.85);
+    var xyChartH = Math.round(xyGridH + _cieGridPad.top + _cieGridPad.bottom);
+    var uvGridH = gridW * (0.65 / 0.70);
+    var uvChartH = Math.round(uvGridH + _cieGridPad.top + _cieGridPad.bottom);
+
+    xyDom.style.height = xyChartH + 'px';
+    if (uvDom) uvDom.style.height = uvChartH + 'px';
+
+    if (cieXYChart) cieXYChart.resize();
+    if (cieUVChart) cieUVChart.resize();
+}
+
+// One-time setup: init charts, CSS background, axes/grid config.
+// Does NOT set series — that's handled by updateCIESeries().
 function renderCIEBackground() {
     var xyDom = document.getElementById('cie-xy-chart');
     var uvDom = document.getElementById('cie-uv-chart');
     if (!xyDom || !uvDom) return;
-    if (!cieXYChart) cieXYChart = echarts.init(xyDom, 'dark');
-    if (!cieUVChart) cieUVChart = echarts.init(uvDom, 'dark');
+
+    if (!cieXYChart) {
+        cieXYChart = echarts.init(xyDom, 'dark');
+        bindCoordTooltip(cieXYChart, xyDom, 'x', 'y');
+    }
+    if (!cieUVChart) {
+        cieUVChart = echarts.init(uvDom, 'dark');
+        bindCoordTooltip(cieUVChart, uvDom, "u'", "v'");
+    }
+
+    adjustChartHeights();
 
     if (!_cieBgRendered.xy) {
-        cieXYChart.setOption({
-            backgroundColor: 'transparent',
-            title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-            grid: { top: 30, right: 20, bottom: 40, left: 45 },
-            xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            series: getBaseSeriesXY()
-        }, true);
+        setupCIEBackground(xyDom, 'cie_1931_xy_bg.png', _cieGridPad);
+        cieXYChart.setOption(Object.assign({ series: getBaseSeriesXY() }, getBaseOptionXY()), true);
         _cieBgRendered.xy = true;
     }
 
     if (!_cieBgRendered.uv) {
-        cieUVChart.setOption({
-            backgroundColor: 'transparent',
-            title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-            grid: { top: 30, right: 20, bottom: 40, left: 45 },
-            xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            series: getBaseSeriesUV()
-        }, true);
+        setupCIEBackground(uvDom, 'cie_1976_uvp_bg.png', _cieGridPad);
+        cieUVChart.setOption(Object.assign({ series: getBaseSeriesUV() }, getBaseOptionUV()), true);
         _cieBgRendered.uv = true;
     }
+}
+
+// Place the pre-rendered PNG as a CSS background-image on the chart container.
+function setupCIEBackground(chartDom, imageUrl, gridPad) {
+    if (!chartDom) return;
+    chartDom.style.backgroundColor = 'transparent';
+    chartDom.style.backgroundImage = "url('" + imageUrl + "')";
+    chartDom.style.backgroundRepeat = 'no-repeat';
+    chartDom.style.backgroundPosition = gridPad.left + 'px ' + gridPad.top + 'px';
+    chartDom.style.backgroundSize = 'calc(100% - ' + (gridPad.left + gridPad.right) + 'px) calc(100% - ' + (gridPad.top + gridPad.bottom) + 'px)';
+}
+
+// Update series only (base + dynamic). Uses notMerge=true so ref gamut changes
+// are always a clean replacement — no stale series from previous renders.
+function updateCIESeries(seriesXY, seriesUV) {
+    if (cieXYChart) cieXYChart.setOption(Object.assign({ series: seriesXY }, getBaseOptionXY()), true);
+    if (cieUVChart) cieUVChart.setOption(Object.assign({ series: seriesUV }, getBaseOptionUV()), true);
 }
 
 function renderCIECharts(primaries) {
@@ -858,18 +922,42 @@ function renderCIECharts(primaries) {
         dynamicUV.push({ name: 'White', type: 'scatter', data: [[whiteUV.u, whiteUV.v]], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 });
     }
 
-    // Only update dynamic series; background is already rendered once
-    cieXYChart.setOption({ series: getBaseSeriesXY().concat(dynamicXY) }, false);
-    cieUVChart.setOption({ series: getBaseSeriesUV().concat(dynamicUV) }, false);
+    updateCIESeries(getBaseSeriesXY().concat(dynamicXY), getBaseSeriesUV().concat(dynamicUV));
 }
 
 function updateDisplay() {
-    if (lastPrimaries) renderCIECharts(lastPrimaries);
+    if (lastPrimaries) {
+        renderCIECharts(lastPrimaries);
+    } else if (cieXYChart && cieUVChart) {
+        // No calculation yet — just update ref gamut dashed lines
+        updateCIESeries(getBaseSeriesXY(), getBaseSeriesUV());
+    }
 }
 
 // Render fixed background on page load
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(renderCIEBackground, 200);
+    // Use requestAnimationFrame to ensure layout is complete
+    requestAnimationFrame(function() {
+        setTimeout(function() {
+            adjustChartHeights();
+            renderCIEBackground();
+            if (cieXYChart) cieXYChart.resize();
+            if (cieUVChart) cieUVChart.resize();
+        }, 100);
+    });
+});
+
+// Re-compute heights and resize on window resize
+window.addEventListener('resize', function() {
+    if (cieXYChart || cieUVChart) {
+        adjustChartHeights();
+        // Re-render background since height changed
+        _cieBgRendered = { xy: false, uv: false };
+        renderCIEBackground();
+        if (cieXYChart) cieXYChart.resize();
+        if (cieUVChart) cieUVChart.resize();
+        if (lastPrimaries) renderCIECharts(lastPrimaries);
+    }
 });
 </script>
 

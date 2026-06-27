@@ -244,13 +244,13 @@
       <div class="cie-header">
         <div class="cie-title">CIE 1931 xy Chromaticity Diagram</div>
       </div>
-      <div id="cie-1931-chart" style="width:100%;height:280px;"></div>
+      <div id="cie-1931-chart" style="width:100%;height:400px;"></div>
     </div>
     <div class="cie-panel">
       <div class="cie-header">
         <div class="cie-title">CIE 1976 u'v' Chromaticity Diagram</div>
       </div>
-      <div id="cie-1976-chart" style="width:100%;height:280px;"></div>
+      <div id="cie-1976-chart" style="width:100%;height:400px;"></div>
     </div>
   </div>
   <div style="display:flex;justify-content:center;gap:16px;padding:6px 0;font-size:11px;color:#aaa;">
@@ -534,6 +534,7 @@ var chart1976 = null;
 var _wpBgRendered = { xy: false, uv: false };
 var _wpBaseSeriesXY = null;
 var _wpBaseSeriesUV = null;
+var _wpGridPad = { top: 30, right: 20, bottom: 40, left: 45 };
 
 function xyToUV(x, y) {
     var denom = -2 * x + 12 * y + 3;
@@ -555,43 +556,78 @@ function getRefGamuts() {
 }
 
 function updateReferenceGamuts() {
-    // Reference gamut toggled → rebuild background & refresh chart
     invalidateWpBaseSeries();
     if (chart1931 && chart1976) {
         renderCIEBackground();
         var lastData = window.lastWhitePointData;
-        if (lastData) renderCIECharts(lastData);
+        if (lastData) {
+            renderCIECharts(lastData);
+        } else {
+            // No calculation yet — just update ref gamut dashed lines
+            updateWpCIESeries(getWpBaseSeriesXY(), getWpBaseSeriesUV());
+        }
     }
-    // Update results table to show only selected standards
     var lastData = window.lastWhitePointData;
     if (lastData) renderGamutResults(lastData.results);
 }
 
-function renderFillItem(params, api) {
-    var x = api.value(0);
-    var y = api.value(1);
-    var w = api.value(2);
-    var h = api.value(3);
-    var start = api.coord([x, y]);
-    var end = api.coord([x + w, y + h]);
+// Shared base chart options (axes, grid, title) — NOT including series
+function getWpBaseOptionXY() {
     return {
-        type: 'rect',
-        shape: { x: start[0], y: end[1], width: end[0] - start[0], height: start[1] - end[1] },
-        style: { fill: api.visual('color') || '#888888', stroke: null },
-        silent: true
+        backgroundColor: 'transparent',
+        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: _wpGridPad,
+        xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } },
+        yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } }
     };
+}
+function getWpBaseOptionUV() {
+    return {
+        backgroundColor: 'transparent',
+        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+        grid: _wpGridPad,
+        xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } },
+        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { show: false } }
+    };
+}
+
+// Custom coord tooltip: show mouse position as xy or u'v' data coordinates
+function bindCoordTooltip(chart, dom, xLabel, yLabel) {
+    var tooltipEl = null;
+    function ensureTooltip() {
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.style.cssText = 'position:absolute;pointer-events:none;background:rgba(30,30,30,0.92);'
+                + 'border:1px solid #555;border-radius:4px;padding:6px 10px;font-size:11px;color:#e0e0e0;'
+                + 'font-family:Consolas,monospace;z-index:999;white-space:nowrap;';
+            dom.style.position = 'relative';
+            dom.appendChild(tooltipEl);
+        }
+        return tooltipEl;
+    }
+    dom.addEventListener('mousemove', function(e) {
+        var rect = dom.getBoundingClientRect();
+        var px = e.clientX - rect.left;
+        var py = e.clientY - rect.top;
+        var data = chart.convertFromPixel('grid', [px, py]);
+        if (!data || isNaN(data[0]) || isNaN(data[1])) {
+            if (tooltipEl) tooltipEl.style.display = 'none';
+            return;
+        }
+        var tip = ensureTooltip();
+        tip.style.display = 'block';
+        tip.innerHTML = '<b>' + xLabel + ':</b> ' + data[0].toFixed(4)
+            + '&nbsp;&nbsp;<b>' + yLabel + ':</b> ' + data[1].toFixed(4);
+        tip.style.left = (px + 16) + 'px';
+        tip.style.top = (py - 12) + 'px';
+    });
+    dom.addEventListener('mouseleave', function() {
+        if (tooltipEl) tooltipEl.style.display = 'none';
+    });
 }
 
 function buildBaseSeriesXY() {
     var series = [];
-    series.push({
-        name: 'Fill',
-        type: 'custom',
-        renderItem: renderFillItem,
-        data: CIE_DATA.xy_fill.map(function(c){ return { value: [c.x, c.y, c.w, c.h], itemStyle: { color: c.color } }; }),
-        z: 0,
-        silent: true
-    });
     series.push({
         name: 'Visible Spectrum',
         type: 'line',
@@ -619,14 +655,6 @@ function buildBaseSeriesXY() {
 
 function buildBaseSeriesUV() {
     var series = [];
-    series.push({
-        name: 'Fill',
-        type: 'custom',
-        renderItem: renderFillItem,
-        data: CIE_DATA.uv_fill.map(function(c){ return { value: [c.u, c.v, c.w, c.h], itemStyle: { color: c.color } }; }),
-        z: 0,
-        silent: true
-    });
     series.push({
         name: 'Visible Spectrum',
         type: 'line',
@@ -663,41 +691,74 @@ function getWpBaseSeriesUV() {
 function invalidateWpBaseSeries() {
     _wpBaseSeriesXY = null;
     _wpBaseSeriesUV = null;
-    _wpBgRendered = { xy: false, uv: false };
 }
 
+// Compute correct chart height from container width to preserve CIE aspect ratio.
+function adjustWpChartHeights() {
+    var c1931 = document.getElementById('cie-1931-chart');
+    var c1976 = document.getElementById('cie-1976-chart');
+    if (!c1931) return;
+
+    var containerW = c1931.parentElement ? c1931.parentElement.clientWidth : c1931.clientWidth;
+    if (containerW < 100) containerW = 400;
+    var gridW = containerW - _wpGridPad.left - _wpGridPad.right;
+    var xyGridH = gridW * (0.95 / 0.85);
+    var xyChartH = Math.round(xyGridH + _wpGridPad.top + _wpGridPad.bottom);
+    var uvGridH = gridW * (0.65 / 0.70);
+    var uvChartH = Math.round(uvGridH + _wpGridPad.top + _wpGridPad.bottom);
+
+    c1931.style.height = xyChartH + 'px';
+    if (c1976) c1976.style.height = uvChartH + 'px';
+
+    if (chart1931) chart1931.resize();
+    if (chart1976) chart1976.resize();
+}
+
+// One-time setup: init charts, CSS background, axes/grid config.
 function renderCIEBackground() {
     var c1931 = document.getElementById('cie-1931-chart');
     var c1976 = document.getElementById('cie-1976-chart');
     if (!c1931 || !c1976) return;
-    if (!chart1931) chart1931 = echarts.init(c1931, 'dark');
-    if (!chart1976) chart1976 = echarts.init(c1976, 'dark');
+
+    adjustWpChartHeights();
+
+    if (!chart1931) {
+        chart1931 = echarts.init(c1931, 'dark');
+        bindCoordTooltip(chart1931, c1931, 'x', 'y');
+    }
+    if (!chart1976) {
+        chart1976 = echarts.init(c1976, 'dark');
+        bindCoordTooltip(chart1976, c1976, "u'", "v'");
+    }
 
     if (!_wpBgRendered.xy) {
-        chart1931.setOption({
-            backgroundColor: 'transparent',
-            title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-            grid: { top: 30, right: 20, bottom: 40, left: 45 },
-            tooltip: { trigger: 'item' },
-            xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            series: getWpBaseSeriesXY()
-        }, true);
+        setupCIEBackground(c1931, 'cie_1931_xy_bg.png', _wpGridPad);
+        chart1931.setOption(Object.assign({ series: getWpBaseSeriesXY() }, getWpBaseOptionXY()), true);
         _wpBgRendered.xy = true;
     }
 
     if (!_wpBgRendered.uv) {
-        chart1976.setOption({
-            backgroundColor: 'transparent',
-            title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-            grid: { top: 30, right: 20, bottom: 40, left: 45 },
-            tooltip: { trigger: 'item' },
-            xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-            series: getWpBaseSeriesUV()
-        }, true);
+        setupCIEBackground(c1976, 'cie_1976_uvp_bg.png', _wpGridPad);
+        chart1976.setOption(Object.assign({ series: getWpBaseSeriesUV() }, getWpBaseOptionUV()), true);
         _wpBgRendered.uv = true;
     }
+}
+
+// Place the pre-rendered PNG as a CSS background-image on the chart container.
+function setupCIEBackground(chartDom, imageUrl, gridPad) {
+    if (!chartDom) return;
+    chartDom.style.backgroundColor = 'transparent';
+    chartDom.style.backgroundImage = "url('" + imageUrl + "')";
+    chartDom.style.backgroundRepeat = 'no-repeat';
+    chartDom.style.backgroundPosition = gridPad.left + 'px ' + gridPad.top + 'px';
+    chartDom.style.backgroundSize = 'calc(100% - ' + (gridPad.left + gridPad.right) + 'px) calc(100% - ' + (gridPad.top + gridPad.bottom) + 'px)';
+}
+
+// Update series only (base + dynamic). Uses notMerge=true so ref gamut changes
+// are always a clean replacement — no stale series from previous renders.
+function updateWpCIESeries(seriesXY, seriesUV) {
+    if (chart1931) chart1931.setOption(Object.assign({ series: seriesXY }, getWpBaseOptionXY()), true);
+    if (chart1976) chart1976.setOption(Object.assign({ series: seriesUV }, getWpBaseOptionUV()), true);
 }
 
 function renderCIECharts(data) {
@@ -728,13 +789,32 @@ function renderCIECharts(data) {
         { name: 'White', type: 'scatter', data: [[wuv.u, wuv.v]], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 }
     ];
 
-    // Only update dynamic series; background is already rendered once
-    chart1931.setOption({ series: getWpBaseSeriesXY().concat(dynamicXY) }, false);
-    chart1976.setOption({ series: getWpBaseSeriesUV().concat(dynamicUV) }, false);
+    updateWpCIESeries(getWpBaseSeriesXY().concat(dynamicXY), getWpBaseSeriesUV().concat(dynamicUV));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(renderCIEBackground, 200);
+    // Use requestAnimationFrame to ensure layout is complete
+    requestAnimationFrame(function() {
+        setTimeout(function() {
+            adjustWpChartHeights();
+            renderCIEBackground();
+            if (chart1931) chart1931.resize();
+            if (chart1976) chart1976.resize();
+        }, 100);
+    });
+});
+
+// Re-compute heights and resize on window resize
+window.addEventListener('resize', function() {
+    if (chart1931 || chart1976) {
+        adjustWpChartHeights();
+        _wpBgRendered = { xy: false, uv: false };
+        renderCIEBackground();
+        if (chart1931) chart1931.resize();
+        if (chart1976) chart1976.resize();
+        var lastData = window.lastWhitePointData;
+        if (lastData) renderCIECharts(lastData);
+    }
 });
 </script>
 
