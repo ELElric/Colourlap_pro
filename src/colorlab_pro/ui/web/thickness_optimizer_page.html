@@ -492,7 +492,17 @@ function renderScanCharts(results, best) {
 function switchScanTab(tab, el) {
     currentTab = tab;
     document.querySelectorAll('.chart-tab').forEach(function(t) { t.classList.remove('active'); });
-    if (el) el.classList.add('active');
+    // Highlight the active tab: use el if provided, otherwise find by tab name
+    if (el) {
+        el.classList.add('active');
+    } else {
+        var tabs = document.querySelectorAll('.chart-tab');
+        tabs.forEach(function(t) {
+            if (t.getAttribute('onclick') && t.getAttribute('onclick').indexOf("'" + tab + "'") !== -1) {
+                t.classList.add('active');
+            }
+        });
+    }
     var scanDom = document.getElementById('scan-chart');
     var sensDom = document.getElementById('sensitivity-chart');
     var placeholder = document.getElementById('sensitivity-placeholder');

@@ -213,6 +213,38 @@ class GamutPageBackend(QObject):
                         fwhm_nm = None
                 except Exception:
                     peak_nm, fwhm_nm = None, None
+                # Compute dominant wavelength (peak as proxy) and excitation purity
+                try:
+                    dominant_nm = peak_nm  # Peak wavelength as proxy for dominant
+                    # Excitation purity: distance from white to color / distance from white to spectrum locus
+                    # Use simple Euclidean distance from white point as approximation
+                    import colour
+                    wl_cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"]
+                    # Find closest dominant wavelength on spectrum locus
+                    best_nm, best_dist = None, float("inf")
+                    for w in range(380, 781, 5):
+                        cmf = wl_cmfs[np.float64(w)]
+                        lx, ly = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2])), float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
+                        d = (lx - x) ** 2 + (ly - y) ** 2
+                        if d < best_dist:
+                            best_dist = d
+                            best_nm = w
+                    dominant_nm = best_nm
+                    # Purity: |color-white| / |locus-white| along dominant direction
+                    try:
+                        cmf = wl_cmfs[np.float64(dominant_nm)]
+                        lx = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2]))
+                        ly = float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
+                        # white point (D65)
+                        wx, wy = 0.3127, 0.3290
+                        import math
+                        dist_cw = math.sqrt((x - wx) ** 2 + (y - wy) ** 2)
+                        dist_lw = math.sqrt((lx - wx) ** 2 + (ly - wy) ** 2)
+                        purity = (dist_cw / dist_lw * 100) if dist_lw > 0.001 else None
+                    except Exception:
+                        purity = None
+                except Exception:
+                    dominant_nm, purity = None, None
                 primaries.append(
                     {
                         "ch": ch,
@@ -224,6 +256,8 @@ class GamutPageBackend(QObject):
                         "cct": _cct_from_xy(x, y),
                         "peak_nm": peak_nm,
                         "fwhm_nm": fwhm_nm,
+                        "dominant_nm": dominant_nm,
+                        "purity": round(purity, 1) if purity is not None else None,
                     }
                 )
             self._last_primaries = primaries

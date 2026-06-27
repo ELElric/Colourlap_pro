@@ -484,6 +484,7 @@ function calculateGamut() {
     });
     setLoading(true);
     logStatus('Calculating...');
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); setLoading(false); return; }
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.calculate_gamut(payload, function(json) {
             setLoading(false);
@@ -500,6 +501,21 @@ function calculateGamut() {
             renderSpectrumPreview();
             renderCIECharts(data.primaries);
             setExportEnabled(true);
+            // Update status bar with white point and CCT
+            if (data.white_xy) {
+                var sw = document.getElementById('status-white');
+                if (sw) sw.textContent = 'White: ' + Number(data.white_xy[0]).toFixed(4) + ', ' + Number(data.white_xy[1]).toFixed(4);
+            }
+            // Estimate CCT from white point
+            if (data.white_xy) {
+                try {
+                    var wx = data.white_xy[0], wy = data.white_xy[1];
+                    var n = (wx - 0.3320) / (0.1858 - wy);
+                    var cct = 449 * n * n * n + 3525 * n * n + 6823.3 * n + 5520.33;
+                    var sc = document.getElementById('status-cct');
+                    if (sc) sc.textContent = 'CCT: ' + Math.round(cct) + 'K';
+                } catch(e) {}
+            }
             logStatus('Calculation complete');
         });
     });
@@ -582,7 +598,8 @@ function renderSpectrumDataTable(primaries) {
 }
 
 function renderSpectrumPreview() {
-    var ids = ['red-select','green-select','blue-select'];
+    var mode = document.getElementById('mode-select').value;
+    var ids = (mode === 'whitecf') ? ['white-select'] : ['red-select','green-select','blue-select'];
     var selected = [];
     ids.forEach(function(id) {
         var val = document.getElementById(id).value;

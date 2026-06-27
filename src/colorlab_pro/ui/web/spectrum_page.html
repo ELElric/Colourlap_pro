@@ -487,6 +487,7 @@ function toggleSelectAll() {
     renderSpectraTable(filtered);
     updateInfoCards();
     updateStatus();
+    if (typeof renderSpectrumChart === 'function') renderSpectrumChart(allSpectra, selectedIds);
 }
 
 function toggleRowSelection(id) {
@@ -495,6 +496,7 @@ function toggleRowSelection(id) {
     renderSpectraTable(getFilteredSpectra());
     updateInfoCards();
     updateStatus();
+    if (typeof renderSpectrumChart === 'function') renderSpectrumChart(allSpectra, selectedIds);
 }
 
 function getFilteredSpectra() {
