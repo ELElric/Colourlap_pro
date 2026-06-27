@@ -62,6 +62,8 @@
   .badge-led { background: #3a3a2a; color: #ffd700; border: 1px solid #555500; }
   .badge-cf { background: #2a3a3a; color: #4fc3f7; border: 1px solid #005555; }
   .badge-qd { background: #3a2a3a; color: #e040e0; border: 1px solid #550055; }
+  .badge-w { background: #3a3a3a; color: #ffffff; border: 1px solid #555555; }
+  .badge-other { background: #333333; color: #aaaaaa; border: 1px solid #444444; }
 
   .channel-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; min-width: 24px; text-align: center; }
   .channel-r { background: #4a2020; color: #ff6666; }
@@ -176,6 +178,7 @@
         <option value="LED">LED</option>
         <option value="CF">CF</option>
         <option value="QD">QD</option>
+        <option value="W">W</option>
       </select>
     </div>
     <div class="filter-group">
@@ -364,7 +367,7 @@ function renderSpectraTable(spectra) {
     var html = '';
     spectra.forEach(function(s) {
         var isSelected = selectedIds.has(s.id);
-        var catClass = s.category === 'LED' ? 'badge-led' : (s.category === 'CF' ? 'badge-cf' : 'badge-qd');
+        var catClass = {'LED': 'badge-led', 'CF': 'badge-cf', 'QD': 'badge-qd', 'W': 'badge-w'}[s.category] || 'badge-other';
         var chClass = s.channel === 'R' ? 'channel-r' : (s.channel === 'G' ? 'channel-g' : (s.channel === 'B' ? 'channel-b' : 'channel-w'));
         html += '<tr class="' + (isSelected ? 'selected' : '') + '" data-id="' + s.id + '" onclick="toggleRowSelection(' + s.id + ')">' +
             '<td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ' + (isSelected ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleRowSelection(' + s.id + ');"></td>' +
@@ -564,13 +567,20 @@ function updateInfoCards() {
     var avgX = _avg(xyVals.map(function(v) { return v[0]; }));
     var avgY = _avg(xyVals.map(function(v) { return v[1]; }));
 
+    // Convert xy average to u'v'
+    var avgU = 0, avgV = 0;
+    if (!isNaN(avgX) && !isNaN(avgY)) {
+        var denom = -2 * avgX + 12 * avgY + 3;
+        if (denom !== 0) { avgU = 4 * avgX / denom; avgV = 9 * avgY / denom; }
+    }
+
     var fwhmVals = selected.map(function(s) { return _parseNumber(s.fwhm_nm); });
     var avgFwhm = _avg(fwhmVals);
     var purityVals = selected.map(function(s) { return _parseNumber(s.purity); });
     var avgPurity = _avg(purityVals);
 
-    elXY.textContent = ids.length + ' selected';
-    elUV.textContent = (!isNaN(avgX) && !isNaN(avgY)) ? (avgX.toFixed(3) + ', ' + avgY.toFixed(3)) : '-';
+    elXY.textContent = (!isNaN(avgX) && !isNaN(avgY)) ? (avgX.toFixed(3) + ', ' + avgY.toFixed(3)) : (ids.length + ' selected');
+    elUV.textContent = (!isNaN(avgU) && !isNaN(avgV)) ? (avgU.toFixed(3) + ', ' + avgV.toFixed(3)) : '-';
     elPeak.innerHTML = (!isNaN(wlMin) && !isNaN(wlMax)) ? (Math.round(wlMin) + '-' + Math.round(wlMax) + '<span class="info-card-unit">nm</span>') : '-<span class="info-card-unit">nm</span>';
     elFwhm.innerHTML = !isNaN(avgFwhm) ? (Math.round(avgFwhm) + '<span class="info-card-unit">nm</span>') : '-<span class="info-card-unit">nm</span>';
     elDom.innerHTML = ids.length + '<span class="info-card-unit">selected</span>';

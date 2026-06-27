@@ -180,6 +180,7 @@ class OptimizerPageBackend(QObject):
             source_ids = [int(x) for x in data["source_ids"]]
             cf_ids = [int(x) for x in data["cf_ids"]]
             bounds = data["bounds"]
+            target_standard = data.get("target_standard", "BT2020")
 
             sources = [self._spectrum_controller.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_controller.get_spectrum(sid) for sid in cf_ids]
@@ -213,7 +214,10 @@ class OptimizerPageBackend(QObject):
                 return -np.log10(t)
 
             alphas = [transmittance_to_alpha(c.values) for c in cfs]
-            target = standard_gamuts("BT2020")
+            try:
+                target = standard_gamuts(target_standard)
+            except (ValueError, KeyError):
+                target = standard_gamuts("BT2020")
             channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
             lo, hi = bounds[channel_idx]
 

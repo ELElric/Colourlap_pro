@@ -133,10 +133,10 @@
     <div class="controls-section">
       <span class="section-label">Reference Gamuts:</span>
       <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults(); updateDisplay();"> sRGB</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults(); updateDisplay();"> NTSC</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults(); updateDisplay();"> DCI-P3</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults(); updateDisplay();"> BT2020</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults()"> sRGB</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults()"> NTSC</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults()"> DCI-P3</label>
+        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults()"> BT2020</label>
       </div>
     </div>
   </div>
@@ -333,6 +333,7 @@
 
 <script>
 var lastPrimaries = null;
+var lastWhiteXY = null;
 var lastResults = [];
 var currentSpectra = [];
 
@@ -348,6 +349,7 @@ function setExportEnabled(enabled) {
     btn.title = enabled ? 'Export gamut analysis report' : 'Calculate gamut first to enable export';
     btn.style.color = enabled ? '#e0e0e0' : '#888';
     btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+    btn.style.background = enabled ? '#0078d4' : '#3c3c3c';
 }
 
 function populateSelectors(spectra) {
@@ -492,6 +494,7 @@ function calculateGamut() {
                 return;
             }
             lastPrimaries = data.primaries;
+            lastWhiteXY = data.white_xy || null;
             renderResults(data.results);
             renderChromaticityData(data.primaries);
             renderSpectrumPreview();
@@ -692,7 +695,8 @@ function switchCIETab(tab) {
     if (tab === 'uv' && cieUVChart) { cieUVChart.resize(); }
 }
 
-function computeWhitePoint(primaries) {
+function computeWhitePoint(primaries, white_xy) {
+    if (white_xy && white_xy.length === 2) return { x: white_xy[0], y: white_xy[1] };
     if (!primaries || primaries.length < 3) return { x: 0, y: 0 };
     var x = (primaries[0].x + primaries[1].x + primaries[2].x) / 3;
     var y = (primaries[0].y + primaries[1].y + primaries[2].y) / 3;
@@ -908,7 +912,7 @@ function renderCIECharts(primaries) {
 
     var devicePoly = [[primaries[0].x, primaries[0].y], [primaries[1].x, primaries[1].y], [primaries[2].x, primaries[2].y], [primaries[0].x, primaries[0].y]];
     var deviceUVPoly = [xyToUV(primaries[0].x, primaries[0].y), xyToUV(primaries[1].x, primaries[1].y), xyToUV(primaries[2].x, primaries[2].y), xyToUV(primaries[0].x, primaries[0].y)];
-    var white = computeWhitePoint(primaries);
+    var white = computeWhitePoint(primaries, lastWhiteXY);
     var whiteUV = xyToUV(white.x, white.y);
 
     var dynamicXY = [];

@@ -232,7 +232,14 @@ class GamutPageBackend(QObject):
                 )
             self._last_results = results
 
-            return json.dumps({"primaries": primaries, "results": results})
+            # Compute white point from device
+            try:
+                wx = float(device.white[0])
+                wy = float(device.white[1])
+            except Exception:
+                wx, wy = 0.0, 0.0
+
+            return json.dumps({"primaries": primaries, "results": results, "white_xy": [round(wx, 4), round(wy, 4)]})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
         finally:

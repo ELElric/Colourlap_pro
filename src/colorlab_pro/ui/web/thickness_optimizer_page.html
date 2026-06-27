@@ -363,6 +363,7 @@ function getInputs() {
         var x = parseFloat(document.getElementById('coord-x').value);
         var y = parseFloat(document.getElementById('coord-y').value);
         if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
+        target_standard = 'BT2020';  // Default gamut standard for white-point target mode
     } else {
         target_standard = target_standard === 'dci-p3' ? 'DCI-P3' : (target_standard === 'bt2020' ? 'BT2020' : 'sRGB');
     }
@@ -392,6 +393,7 @@ function updateProgress(percent, summary) {
     if (sum && summary) sum.textContent = summary;
 }
 
+var _progressHandler = null;
 function startOptimization() {
     var data = getInputs();
     if (data.source_ids.length !== 3 || data.cf_ids.length !== 3) {
@@ -403,7 +405,10 @@ function startOptimization() {
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); setLoading(false); return; }
     new QWebChannel(qt.webChannelTransport, function(channel) {
         var backend = channel.objects.backend;
-        backend.progress.connect(function(value) { updateProgress(value); });
+        // Disconnect previous handler to avoid accumulation
+        if (_progressHandler) { backend.progress.disconnect(_progressHandler); }
+        _progressHandler = function(value) { updateProgress(value); };
+        backend.progress.connect(_progressHandler);
         backend.optimize(JSON.stringify(data), function(json) {
             var res = JSON.parse(json);
             setLoading(false);
@@ -557,6 +562,8 @@ function renderSensitivityChart(points, metric) {
 }
 
 function runSensitivityPanel() {
+    // Clear cached data to force re-run
+    sensitivityData = { whitex: [], whitey: [] };
     var tab = (currentTab === 'coverage' || currentTab === 'whitex' || currentTab === 'whitey') ? currentTab : 'whitey';
     switchScanTab(tab, null);
 }
@@ -565,12 +572,24 @@ function pasteSpectrumToSelect(btn) {
     var text = prompt('Paste wavelength/value pairs (nm a.u.) for a new spectrum:');
     if (!text) return;
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
+    // Find the select element next to this button
+    var selectEl = btn.parentElement.querySelector('select');
+    var selectId = selectEl ? selectEl.id : null;
     new QWebChannel(qt.webChannelTransport, function(channel) {
         channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: 'Pasted CF' }), function(json) {
             var res = JSON.parse(json);
             if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
             logStatus('Pasted spectrum ' + res.id);
-            refreshData();
+            // Refresh and auto-select the new spectrum
+            channel.objects.backend.get_initial_data(function(json2) {
+                var data = JSON.parse(json2);
+                if (data.error) return;
+                populateSelectors(data.spectra);
+                if (selectId && res.id) {
+                    var sel = document.getElementById(selectId);
+                    if (sel) sel.value = String(res.id);
+                }
+            });
         });
     });
 }
