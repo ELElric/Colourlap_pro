@@ -7,6 +7,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
@@ -41,6 +42,11 @@ class WebViewPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self._view = QWebEngineView(self)
+        # Allow local file access so that JS/CSS assets in the web/ directory
+        # can be loaded when the page origin is file://.
+        settings = self._view.settings()
+        settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
+        settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
         self._view.loadFinished.connect(self._on_load_finished)
         layout.addWidget(self._view)
 
@@ -73,10 +79,11 @@ class WebViewPage(QWidget):
             self._view.setHtml(f"<html><body><h1>Missing page: {html.name}</h1></body></html>")
             return
 
-        # setHtml makes the Qt WebChannel transport available; loading a
-        # plain local file does not. The actual script injection is deferred
-        # to loadFinished to avoid a hard-coded timeout.
-        self._view.setHtml(html.read_text(encoding="utf-8"), QUrl.fromLocalFile(str(html.parent)))
+        # Load via setUrl (file://) so that relative JS/CSS assets in the
+        # same directory are resolved correctly by the browser engine.
+        # The WebChannel transport is still available because setWebChannel()
+        # was called in __init__ before the page loads.
+        self._view.setUrl(QUrl.fromLocalFile(str(html)))
 
     def _on_load_finished(self, ok: bool) -> None:  # noqa: FBT001
         """Run the page script once the page is fully loaded."""

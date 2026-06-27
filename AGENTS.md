@@ -22,13 +22,15 @@ colorlab-pro --help              # CLI
 run.bat                          # Windows convenience (activates venv + runs script)
 
 # Verify code quality (run in order)
-ruff check .                     # Lint
-ruff format --check .            # Format check
+ruff check .                     # Lint — E501/B008 ignored; see ruff.toml
+ruff format --check .            # Format check — 25 files currently non-compliant
 pytest                           # All tests (fail_under=90 via pyproject.toml)
 pytest -m unit                   # Unit only (fast, isolated)
 pytest --cov                     # Coverage report
-mypy src/                        # Type check (has ~77 historical issues — non-blocking)
+mypy src/                        # Type check (~77 historical issues — non-blocking)
 ```
+
+⚠️ **ruff.toml is the source of truth for ruff config**, not the stale `[tool.ruff]` section in `pyproject.toml`. The `pyproject.toml` per-file-ignores are a legacy duplicate — always edit `ruff.toml`.
 
 ## Architecture (6 layers)
 
@@ -41,12 +43,13 @@ Key packages under `src/colorlab_pro/`:
 - `services/` — Business use-case orchestration, transaction boundaries.
 - `controllers/` — UI ↔ Service bridge.
 - `ui/` — PySide6 widgets, pages, dialogs, viewmodels, resources.
-- `database/` — SQLAlchemy ORM models, session factory, migrations.
+- `ui/webview_page.py` — Base class for pages backed by QWebEngineView + QWebChannel. Most workspace pages (spectrum, gamut, optimizer, white point) extend this.
+- `database/` — SQLAlchemy ORM models, session factory, lightweight schema-version migration system (auto-backup before migration).
 - `dto/` — Data transfer objects (dataclasses).
 - `repositories/` — Data access abstraction.
 - `importers/`, `exporters/` — CSV, XLSX, JSON formats.
 - `config/` — `AppConfig` dataclass, loads from `~/.colorlab_pro/config.yaml` if present.
-- `utils/` — `errors.py` (exception hierarchy), `logging.py` (loguru setup), `paths.py`, `validation.py`.
+- `utils/` — `errors.py` (exception hierarchy: `ColorLabError` → `ValidationError` / `SpectrumImportError` / `ComputationError`), `logging.py` (loguru setup), `paths.py`, `validation.py`.
 
 Entry points (`pyproject.toml [project.scripts]`):
 - `colorlab-pro` → `colorlab_pro.cli:main`
@@ -63,7 +66,7 @@ Entry points (`pyproject.toml [project.scripts]`):
 
 ## Code Style
 
-- **ruff**: line-length 100, target py310, select `E/F/W/I/N/UP/B/A/C4/DTZ/PT/Q`
+- **ruff**: line-length 100, target py310, select `E/F/W/I/N/UP/B/A/C4/DTZ/PT/Q`; ignore `E501` (line length, handled by formatter) and `B008` (function call in default arg)
 - **mypy**: non-strict, `no_implicit_optional` + `check_untyped_defs` enabled, several third-party stubs ignored (colour, shapely, PySide6, scipy, openpyxl, sqlalchemy)
 - Naming: snake_case functions/vars, PascalCase classes, UPPER_SNAKE constants
 - Docstrings: Google style, public functions require type annotations + Args/Returns

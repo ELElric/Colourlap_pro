@@ -17,7 +17,7 @@ from colorlab_pro.database.models import Base
 SessionMaker = sessionmaker
 
 # Bump this when a new migration step is added to ``_MIGRATIONS``.
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 # Name of the metadata table that records the applied schema version.
 _VERSION_TABLE = "schema_version"
@@ -127,11 +127,29 @@ def _migration_v2_to_v3(engine: Engine) -> None:
                 )
 
 
+def _migration_v3_to_v4(engine: Engine) -> None:
+    """v3 → v4: add chromaticity columns to ``spectra`` if missing.
+
+    Adds ``xy_x``, ``xy_y``, ``uv_u``, ``uv_v``, ``dominant_wavelength``,
+    ``purity`` — pre-computed CIE 1931 xy and 1976 u'v' chromaticity
+    coordinates stored at import time.
+    """
+    inspector = inspect(engine)
+    if "spectra" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("spectra")}
+    for col_name in ("xy_x", "xy_y", "uv_u", "uv_v", "dominant_wavelength", "purity"):
+        if col_name not in columns:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE spectra ADD COLUMN {col_name} FLOAT"))
+
+
 # Ordered list of migrations; ``_MIGRATIONS[i]`` upgrades from version
 # ``i+1`` to version ``i+2``.
 _MIGRATIONS = [
     _migration_v1_to_v2,  # v1 → v2
     _migration_v2_to_v3,  # v2 → v3
+    _migration_v3_to_v4,  # v3 → v4
 ]
 
 

@@ -531,6 +531,9 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 var chart1931 = null;
 var chart1976 = null;
+var _wpBgRendered = { xy: false, uv: false };
+var _wpBaseSeriesXY = null;
+var _wpBaseSeriesUV = null;
 
 function xyToUV(x, y) {
     var denom = -2 * x + 12 * y + 3;
@@ -552,9 +555,12 @@ function getRefGamuts() {
 }
 
 function updateReferenceGamuts() {
+    // Reference gamut toggled → rebuild background & refresh chart
+    invalidateWpBaseSeries();
     if (chart1931 && chart1976) {
-        chart1931.setOption({ series: buildBaseSeriesXY() }, false);
-        chart1976.setOption({ series: buildBaseSeriesUV() }, false);
+        renderCIEBackground();
+        var lastData = window.lastWhitePointData;
+        if (lastData) renderCIECharts(lastData);
     }
     // Update results table to show only selected standards
     var lastData = window.lastWhitePointData;
@@ -646,6 +652,20 @@ function buildBaseSeriesUV() {
     return series;
 }
 
+function getWpBaseSeriesXY() {
+    if (!_wpBaseSeriesXY) _wpBaseSeriesXY = buildBaseSeriesXY();
+    return _wpBaseSeriesXY;
+}
+function getWpBaseSeriesUV() {
+    if (!_wpBaseSeriesUV) _wpBaseSeriesUV = buildBaseSeriesUV();
+    return _wpBaseSeriesUV;
+}
+function invalidateWpBaseSeries() {
+    _wpBaseSeriesXY = null;
+    _wpBaseSeriesUV = null;
+    _wpBgRendered = { xy: false, uv: false };
+}
+
 function renderCIEBackground() {
     var c1931 = document.getElementById('cie-1931-chart');
     var c1976 = document.getElementById('cie-1976-chart');
@@ -653,30 +673,36 @@ function renderCIEBackground() {
     if (!chart1931) chart1931 = echarts.init(c1931, 'dark');
     if (!chart1976) chart1976 = echarts.init(c1976, 'dark');
 
-    chart1931.setOption({
-        backgroundColor: 'transparent',
-        title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 30, right: 20, bottom: 40, left: 45 },
-        tooltip: { trigger: 'item' },
-        xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        series: buildBaseSeriesXY()
-    }, true);
+    if (!_wpBgRendered.xy) {
+        chart1931.setOption({
+            backgroundColor: 'transparent',
+            title: { text: 'CIE 1931 xy', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+            grid: { top: 30, right: 20, bottom: 40, left: 45 },
+            tooltip: { trigger: 'item' },
+            xAxis: { type: 'value', min: 0, max: 0.85, name: 'x', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            yAxis: { type: 'value', min: 0, max: 0.95, name: 'y', nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            series: getWpBaseSeriesXY()
+        }, true);
+        _wpBgRendered.xy = true;
+    }
 
-    chart1976.setOption({
-        backgroundColor: 'transparent',
-        title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 30, right: 20, bottom: 40, left: 45 },
-        tooltip: { trigger: 'item' },
-        xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        series: buildBaseSeriesUV()
-    }, true);
+    if (!_wpBgRendered.uv) {
+        chart1976.setOption({
+            backgroundColor: 'transparent',
+            title: { text: "CIE 1976 u'v'", left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
+            grid: { top: 30, right: 20, bottom: 40, left: 45 },
+            tooltip: { trigger: 'item' },
+            xAxis: { type: 'value', min: 0, max: 0.70, name: "u'", nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            yAxis: { type: 'value', min: 0, max: 0.65, name: "v'", nameLocation: 'middle', nameGap: 30, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            series: getWpBaseSeriesUV()
+        }, true);
+        _wpBgRendered.uv = true;
+    }
 }
 
 function renderCIECharts(data) {
     if (!data) return;
-    if (!chart1931 || !chart1976) renderCIEBackground();
+    renderCIEBackground();
 
     var r = data.red_xy || [0.64, 0.33];
     var g = data.green_xy || [0.30, 0.60];
@@ -702,8 +728,9 @@ function renderCIECharts(data) {
         { name: 'White', type: 'scatter', data: [[wuv.u, wuv.v]], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 }
     ];
 
-    chart1931.setOption({ series: buildBaseSeriesXY().concat(dynamicXY) }, false);
-    chart1976.setOption({ series: buildBaseSeriesUV().concat(dynamicUV) }, false);
+    // Only update dynamic series; background is already rendered once
+    chart1931.setOption({ series: getWpBaseSeriesXY().concat(dynamicXY) }, false);
+    chart1976.setOption({ series: getWpBaseSeriesUV().concat(dynamicUV) }, false);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
