@@ -130,13 +130,19 @@
 
     <div class="divider"></div>
 
-    <div class="controls-section">
-      <span class="section-label">Reference Gamuts:</span>
-      <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults()"> sRGB</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults()"> NTSC</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults()"> DCI-P3</label>
-        <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults()"> BT2020</label>
+    <div class="controls-section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="section-label">Reference Gamuts:</span>
+        <div class="checkbox-group">
+          <label class="checkbox-label"><input type="checkbox" id="ref-srgb" value="sRGB" checked onchange="filterReferenceResults()"> sRGB</label>
+          <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults()"> NTSC</label>
+          <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults()"> DCI-P3</label>
+          <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults()"> BT2020</label>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button id="calculate-btn" style="background:#0078d4;color:#fff;border:none;border-radius:4px;padding:6px 18px;font-size:12px;cursor:pointer;">Calculate Gamut</button>
+        <button id="export-report-btn" disabled title="Calculate gamut first to enable export" style="background:#3c3c3c;color:#888;border:1px solid #555;border-radius:4px;padding:6px 18px;font-size:12px;cursor:not-allowed;">Export Report</button>
       </div>
     </div>
   </div>
@@ -255,16 +261,24 @@
 
   <!-- Spectrum Preview -->
   <div class="panel">
-    <div class="panel-header">
+    <div class="panel-header" style="flex-wrap: wrap;">
       <div class="panel-title">Spectrum Preview</div>
+      <div class="checkbox-group" style="gap:10px;">
+        <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateSpectrumPreview()"> Original</label>
+        <label class="checkbox-label"><input type="checkbox" id="disp-filtered" checked onchange="updateSpectrumPreview()"> Filtered</label>
+      </div>
     </div>
-    <div id="spectrum-preview-chart" style="width:100%;height:240px;"></div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
+      <div class="tab" onclick="switchPreviewTab('filtered', this)">Filtered</div>
+    </div>
+    <div id="spectrum-preview-chart" style="width:100%;height:220px;"></div>
     <div id="spectrum-empty" class="chart-area" style="display:none;">Select R/G/B spectra to preview</div>
-    <div id="spectrum-legend-table" style="margin-top:8px;">
+    <div style="margin-top:6px; max-height:120px; overflow-y:auto;">
       <table class="data-table" style="font-size:11px;">
-        <thead><tr><th>Show</th><th>Ch</th><th>Name</th><th>Type</th></tr></thead>
+        <thead><tr><th style="width:32px;">Show</th><th style="width:32px;">Ch</th><th>Name</th><th style="width:80px;">Type</th></tr></thead>
         <tbody id="spectrum-legend-body">
-          <tr><td colspan="4" style="text-align:center;color:#666;padding:8px;">Select spectra first</td></tr>
+          <tr><td colspan="4" style="text-align:center;color:#666;padding:6px;">Select spectra first</td></tr>
         </tbody>
       </table>
     </div>
@@ -313,12 +327,6 @@
 </div>
 
 
-
-<!-- Calculate Button -->
-<div style="margin: 12px 0; text-align: center;">
-  <button id="calculate-btn" style="background: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: pointer;">Calculate Gamut</button>
-  <button id="export-report-btn" disabled title="Calculate gamut first to enable export" style="background: #3c3c3c; color: #888; border: 1px solid #555; border-radius: 4px; padding: 8px 24px; font-size: 13px; cursor: not-allowed; margin-left: 8px;">Export Report</button>
-</div>
 
 <!-- Status Bar -->
 <div class="status-bar">
@@ -566,6 +574,20 @@ function escapeHtml(s) {
 function updateSpectrumPreview() {
     renderSpectrumPreview();
 }
+var currentPreviewTab = 'original';
+function switchPreviewTab(tab, el) {
+    currentPreviewTab = tab;
+    var panel = document.getElementById('spectrum-preview-chart').parentElement;
+    if (panel) {
+        panel.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    }
+    if (el) el.classList.add('active');
+    var originalCb = document.getElementById('disp-original');
+    var filteredCb = document.getElementById('disp-filtered');
+    if (originalCb) originalCb.checked = (tab === 'original');
+    if (filteredCb) filteredCb.checked = (tab === 'filtered');
+    renderSpectrumPreview();
+}
 function applyFilter(data, filterData, thickness) {
     if (!data || !filterData || !thickness) return data;
     var filtered = [];
@@ -620,6 +642,8 @@ function renderSpectrumPreview() {
         return el ? parseFloat(el.value) || 0 : 0;
     });
 
+    var showOriginal = document.getElementById('disp-original') ? document.getElementById('disp-original').checked : true;
+    var showFiltered = document.getElementById('disp-filtered') ? document.getElementById('disp-filtered').checked : true;
     var dom = document.getElementById('spectrum-preview-chart');
     var empty = document.getElementById('spectrum-empty');
 
@@ -632,15 +656,15 @@ function renderSpectrumPreview() {
     // Build legend table entries
     var channelColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff', 'W': '#ffffff' };
     var legendTbody = document.getElementById('spectrum-legend-body');
-    var legendEntries = []; // { key, name, channel, type, color, checked }
+    var legendEntries = [];
 
     selected.forEach(function(s, idx) {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
-        // Emission spectrum
-        legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: true });
-        // CF filtered spectrum
-        if (cfSelected[idx] && thicknesses[idx] > 0) {
+        if (showOriginal) {
+            legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: true });
+        }
+        if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
             legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF (t=' + thicknesses[idx] + 'μm)', color: color, checked: true });
         }
     });
@@ -649,14 +673,14 @@ function renderSpectrumPreview() {
     if (legendTbody) {
         var lhtml = '';
         if (legendEntries.length === 0) {
-            lhtml = '<tr><td colspan="4" style="text-align:center;color:#666;padding:8px;">Select spectra first</td></tr>';
+            lhtml = '<tr><td colspan="4" style="text-align:center;color:#666;padding:6px;">Select spectra first</td></tr>';
         } else {
             legendEntries.forEach(function(e) {
                 lhtml += '<tr>' +
-                    '<td style="text-align:center;"><input type="checkbox" class="spectrum-vis-cb" data-key="' + e.key + '" ' + (e.checked ? 'checked' : '') + ' onchange="updateSpectrumPreview()"></td>' +
+                    '<td style="text-align:center;"><input type="checkbox" class="spectrum-vis-cb" data-key="' + e.key + '" ' + (e.checked ? 'checked' : '') + ' onchange="renderSpectrumPreview()"></td>' +
                     '<td><span class="channel-tag channel-' + e.channel.toLowerCase() + '">' + e.channel + '</span></td>' +
                     '<td class="data-value">' + escapeHtml(e.name) + '</td>' +
-                    '<td style="color:' + e.color + ';">' + e.type + '</td>' +
+                    '<td style="color:' + e.color + ';font-size:10px;">' + e.type + '</td>' +
                     '</tr>';
             });
         }
@@ -671,7 +695,7 @@ function renderSpectrumPreview() {
     if (empty) empty.style.display = 'none';
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
 
-    // Read checkbox states
+    // Read per-spectrum checkbox states from the PREVIOUS render
     var visMap = {};
     if (legendTbody) {
         legendTbody.querySelectorAll('.spectrum-vis-cb').forEach(function(cb) {
@@ -684,10 +708,10 @@ function renderSpectrumPreview() {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
         var rawData = (s.data || []).map(function(p) { return [p[0], p[1]]; });
-        if (visMap['em_' + idx] !== false) {
+        if (showOriginal && visMap['em_' + idx] !== false) {
             series.push({ name: s.name, type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: color, width: 2 }, itemStyle: { color: color } });
         }
-        if (cfSelected[idx] && thicknesses[idx] > 0 && visMap['cf_' + idx] !== false) {
+        if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0 && visMap['cf_' + idx] !== false) {
             var cf = cfSelected[idx];
             var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
             var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
@@ -703,8 +727,8 @@ function renderSpectrumPreview() {
     previewChart.setOption({
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
-        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 10 }, bottom: 0, itemWidth: 14, itemHeight: 8 },
-        grid: { top: 20, right: 20, bottom: 30, left: 50 },
+        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 10 }, bottom: 0, itemWidth: 14, itemHeight: 8, padding: [0, 5] },
+        grid: { top: 20, right: 15, bottom: 25, left: 45 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series

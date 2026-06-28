@@ -16,6 +16,9 @@ from colorlab_pro.engines.spectrum_analyzer import (
     uprime_vprime,
     xy,
 )
+from colorlab_pro.engines.spectrum_analyzer import (
+    dominant_wavelength as _compute_dwl,
+)
 
 
 def _meta_from_dto(spectrum: Spectrum) -> str | None:
@@ -109,7 +112,7 @@ def save(
         wavelength_min = wavelength_max = wavelength_step = None
         fwhm = None
         peak_wavelength = None
-        xy_x = xy_y = uv_u = uv_v = dominant_wavelength = purity = None
+        xy_x = xy_y = uv_u = uv_v = dwl_val = purity = None
     else:
         wavelength_min = float(wavelengths.min())
         wavelength_max = float(wavelengths.max())
@@ -121,13 +124,13 @@ def save(
         try:
             xy_val = xy(spectrum, illuminant="E")
             uv_val = uprime_vprime(spectrum, illuminant="E")
-            dom_wl = dominant_wavelength(spectrum, illuminant="E")
+            dom_wl = _compute_dwl(spectrum, illuminant="E")
             xy_x, xy_y = xy_val.x, xy_val.y
             uv_u, uv_v = uv_val
-            dominant_wavelength = float(dom_wl) if dom_wl is not None else None
+            dwl_val = float(dom_wl) if dom_wl is not None else None
             purity = _compute_purity(spectrum, dom_wl, illuminant="E")
         except Exception:
-            xy_x = xy_y = uv_u = uv_v = dominant_wavelength = purity = None
+            xy_x = xy_y = uv_u = uv_v = dwl_val = purity = None
 
     orm = SpectrumORM(
         project_id=project_id,
@@ -146,7 +149,7 @@ def save(
         xy_y=xy_y,
         uv_u=uv_u,
         uv_v=uv_v,
-        dominant_wavelength=dominant_wavelength,
+        dominant_wavelength=dwl_val,
         purity=purity,
         meta_json=_meta_from_dto(spectrum),
     )

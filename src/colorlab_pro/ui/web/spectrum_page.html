@@ -543,12 +543,23 @@ function updateInfoCards() {
     if (ids.length === 1) {
         var s = allSpectra.find(function(x) { return x.id === ids[0]; });
         if (!s) return;
+        var cat = (s.category || '').toUpperCase();
+        var isCF = cat === 'CF';
         elXY.textContent = s.xy || '-';
         elUV.textContent = s.uv || '-';
-        elDom.innerHTML = (s.dominant_nm && s.dominant_nm !== '-' ? Math.round(Number(s.dominant_nm)) : '-') + '<span class="info-card-unit">nm</span>';
-        elPurity.innerHTML = (s.purity && s.purity !== '-' ? Number(s.purity).toFixed(2) : '-') + '<span class="info-card-unit">%</span>';
-        elPeak.innerHTML = (s.peak_nm != null ? Math.round(s.peak_nm) : '-') + '<span class="info-card-unit">nm</span>';
-        elFwhm.innerHTML = (s.fwhm_nm != null ? Math.round(s.fwhm_nm) : '-') + '<span class="info-card-unit">nm</span>';
+        // CF spectra: only show xy coordinates
+        if (isCF) {
+            elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
+            elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
+            elPeak.innerHTML = '-<span class="info-card-unit">nm</span>';
+            elFwhm.innerHTML = '-<span class="info-card-unit">nm</span>';
+        } else {
+            // QD/LED/White: show all fields
+            elDom.innerHTML = (s.dominant_nm && s.dominant_nm !== '-' ? Math.round(Number(s.dominant_nm)) : '-') + '<span class="info-card-unit">nm</span>';
+            elPurity.innerHTML = (s.purity && s.purity !== '-' ? Number(s.purity).toFixed(2) : '-') + '<span class="info-card-unit">%</span>';
+            elPeak.innerHTML = (s.peak_nm != null ? Math.round(s.peak_nm) : '-') + '<span class="info-card-unit">nm</span>';
+            elFwhm.innerHTML = (s.fwhm_nm != null ? Math.round(s.fwhm_nm) : '-') + '<span class="info-card-unit">nm</span>';
+        }
         return;
     }
 

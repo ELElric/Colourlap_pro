@@ -315,6 +315,91 @@ class SpectrumController(QObject):
 
         return peak_wl, fwhm
 
+    def _compute_chromaticity(self, orm) -> tuple[float | None, float | None, float | None, float | None, float | None, float | None]:
+        """Compute chromaticity data from spectrum points if not pre-computed."""
+        if orm.xy_x is not None and orm.xy_y is not None:
+            return orm.xy_x, orm.xy_y, orm.uv_u, orm.uv_v, orm.dominant_wavelength, orm.purity
+        if not orm.points:
+            return None, None, None, None, None, None
+
+        import numpy as np
+
+        from colorlab_pro.engines.spectrum_analyzer import (
+            dominant_wavelength as _compute_dwl,
+        )
+        from colorlab_pro.engines.spectrum_analyzer import (
+            uprime_vprime,
+            xy,
+        )
+
+        wavelengths = np.array([p.wavelength for p in orm.points], dtype=np.float64)
+        values = np.array([p.value for p in orm.points], dtype=np.float64)
+        if values.size == 0:
+            return None, None, None, None, None, None
+
+        spectrum = Spectrum(wavelengths=wavelengths, values=values)
+        try:
+            xy_val = xy(spectrum, illuminant="E")
+            uv_val = uprime_vprime(spectrum, illuminant="E")
+            dom_wl = _compute_dwl(spectrum, illuminant="E")
+            xy_x, xy_y = float(xy_val.x), float(xy_val.y)
+            uv_u, uv_v = float(uv_val[0]), float(uv_val[1])
+            dwl = float(dom_wl) if dom_wl is not None else None
+
+            # QD multi-peak: if dominant wavelength is in blue region (380-500nm)
+            # and spectrum has another peak outside blue region, recompute from non-blue peak
+            category = getattr(orm, "category", None) or ""
+            if category.upper() == "QD" and dwl is not None and dwl < 500:
+                try:
+                    peak_idx = int(np.argmax(values))
+                    peak_wl = float(wavelengths[peak_idx])
+                    if peak_wl < 500:
+                        # Find the highest peak outside blue region
+                        non_blue_mask = wavelengths >= 500
+                        if np.any(non_blue_mask):
+                            non_blue_vals = values.copy()
+                            non_blue_vals[~non_blue_mask] = 0
+                            alt_peak_idx = int(np.argmax(non_blue_vals))
+                            if values[alt_peak_idx] > 0:
+                                # Recompute using only non-blue region
+                                non_blue_spectrum = Spectrum(
+                                    wavelengths=wavelengths,
+                                    values=non_blue_vals,
+                                )
+                                alt_dwl = _compute_dwl(non_blue_spectrum, illuminant="E")
+                                if alt_dwl is not None:
+                                    dwl = float(alt_dwl)
+                                    # Recompute purity for the non-blue peak
+                                    dom_wl = alt_dwl
+                except Exception:
+                    pass
+            # Compute excitation purity
+            purity = None
+            if dom_wl is not None:
+                try:
+                    from colorlab_pro.engines.spectrum_analyzer import (
+                        _get_illuminant_xy as _ill_xy,
+                    )
+
+                    ill = _ill_xy("E")
+                    import colour
+
+                    cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"]
+                    cmf = cmfs[np.float64(dom_wl)]
+                    lx = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2]))
+                    ly = float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
+                    import math
+
+                    dist_cw = math.sqrt((xy_x - ill.x) ** 2 + (xy_y - ill.y) ** 2)
+                    dist_lw = math.sqrt((lx - ill.x) ** 2 + (ly - ill.y) ** 2)
+                    if dist_lw > 1e-6:
+                        purity = round(dist_cw / dist_lw * 100, 1)
+                except Exception:
+                    pass
+            return xy_x, xy_y, uv_u, uv_v, dwl, purity
+        except Exception:
+            return None, None, None, None, None, None
+
     def _parse_thickness(self, orm) -> tuple[float | None, bool]:
         """Extract thickness info from meta_json."""
         thickness: float | None = None
@@ -353,6 +438,7 @@ class SpectrumController(QObject):
                     category = self._resolve_category(orm)
                     peak_wl, fwhm = self._compute_fwhm_and_peak(orm)
                     thickness, thickness_missing = self._parse_thickness(orm)
+                    xy_x, xy_y, uv_u, uv_v, dom_wl, purity = self._compute_chromaticity(orm)
 
                     created_at_str = None
                     if orm.created_at is not None:
@@ -373,12 +459,12 @@ class SpectrumController(QObject):
                             thickness_um=thickness,
                             thickness_missing=thickness_missing,
                             fwhm=fwhm,
-                            xy_x=orm.xy_x,
-                            xy_y=orm.xy_y,
-                            uv_u=orm.uv_u,
-                            uv_v=orm.uv_v,
-                            dominant_wavelength=orm.dominant_wavelength,
-                            purity=orm.purity,
+                            xy_x=xy_x,
+                            xy_y=xy_y,
+                            uv_u=uv_u,
+                            uv_v=uv_v,
+                            dominant_wavelength=dom_wl,
+                            purity=purity,
                         )
                     )
                 return result
