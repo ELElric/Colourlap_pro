@@ -644,8 +644,16 @@ function renderSpectrumPreview() {
         selected = [white, white, white];
     }
 
-    var channelColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff', 'W': '#ffffff' };
+    // Read per-spectrum checkbox states BEFORE re-rendering the table
     var legendTbody = document.getElementById('spectrum-legend-body');
+    var visMap = {};
+    if (legendTbody) {
+        legendTbody.querySelectorAll('.spectrum-vis-cb').forEach(function(cb) {
+            visMap[cb.getAttribute('data-key')] = cb.checked;
+        });
+    }
+
+    var channelColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff', 'W': '#ffffff' };
     var tab = currentPreviewTab || 'original';
     var showOriginal = (tab === 'original' || tab === 'both');
     var showFiltered = (tab === 'filtered' || tab === 'both');
@@ -656,10 +664,12 @@ function renderSpectrumPreview() {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
         if (showOriginal) {
-            legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: true });
+            var emChecked = visMap['em_' + idx] !== undefined ? visMap['em_' + idx] : true;
+            legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: emChecked });
         }
         if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
-            legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF', color: color, checked: true });
+            var cfChecked = visMap['cf_' + idx] !== undefined ? visMap['cf_' + idx] : true;
+            legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF', color: color, checked: cfChecked });
         }
     });
 
@@ -688,14 +698,6 @@ function renderSpectrumPreview() {
     }
     if (empty) empty.style.display = 'none';
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
-
-    // Read per-spectrum checkbox states from the PREVIOUS render
-    var visMap = {};
-    if (legendTbody) {
-        legendTbody.querySelectorAll('.spectrum-vis-cb').forEach(function(cb) {
-            visMap[cb.getAttribute('data-key')] = cb.checked;
-        });
-    }
 
     var series = [];
     selected.forEach(function(s, idx) {

@@ -453,27 +453,32 @@ function calculate() {
         return;
     }
     setLoading(true);
+    // Safety timeout: auto-hide loading overlay after 10 seconds
+    var safetyTimer = setTimeout(function() { setLoading(false); logStatus('Calculation timed out'); }, 10000);
     if (currentMode === 'forward') {
         logStatus('Calculating white point...');
         try {
             new QWebChannel(qt.webChannelTransport, function(channel) {
-                if (!channel.objects.backend) { setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
+                if (!channel.objects.backend) { clearTimeout(safetyTimer); setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
                 channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
+                    clearTimeout(safetyTimer);
                     setLoading(false);
-                    var data = JSON.parse(json);
-                    if (data.error) { logStatus('Error: ' + data.error); return; }
-                    firstSuccess = true;
-                    updateIndicator();
-                    renderWhitePoint(data);
-                    logStatus('Calculation complete');
+                    try {
+                        var data = JSON.parse(json);
+                        if (data.error) { logStatus('Error: ' + data.error); return; }
+                        firstSuccess = true;
+                        updateIndicator();
+                        renderWhitePoint(data);
+                        logStatus('Calculation complete');
+                    } catch (e) { logStatus('Render error: ' + e.message); }
                 });
             });
-        } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
+        } catch (e) { clearTimeout(safetyTimer); setLoading(false); logStatus('JS error: ' + e.message); }
     } else {
         logStatus('Solving RGB ratios...');
         try {
             new QWebChannel(qt.webChannelTransport, function(channel) {
-                if (!channel.objects.backend) { setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
+                if (!channel.objects.backend) { clearTimeout(safetyTimer); setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
                 var vals = getInputValues();
                 var payload = JSON.stringify({
                     red_xy: vals.red_xy,
@@ -482,16 +487,19 @@ function calculate() {
                     target_xy: vals.white_xy
                 });
                 channel.objects.backend.calculate_rgb_ratios(payload, function(json) {
+                    clearTimeout(safetyTimer);
                     setLoading(false);
-                    var data = JSON.parse(json);
-                    if (data.error) { logStatus('Error: ' + data.error); return; }
-                    firstSuccess = true;
-                    updateIndicator();
-                    renderWhitePoint(data);
-                    logStatus('RGB ratios solved');
+                    try {
+                        var data = JSON.parse(json);
+                        if (data.error) { logStatus('Error: ' + data.error); return; }
+                        firstSuccess = true;
+                        updateIndicator();
+                        renderWhitePoint(data);
+                        logStatus('RGB ratios solved');
+                    } catch (e) { logStatus('Render error: ' + e.message); }
                 });
             });
-        } catch (e) { setLoading(false); logStatus('JS error: ' + e.message); }
+        } catch (e) { clearTimeout(safetyTimer); setLoading(false); logStatus('JS error: ' + e.message); }
     }
 }
 function renderWhitePoint(data) {

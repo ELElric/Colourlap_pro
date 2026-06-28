@@ -229,10 +229,12 @@ class WhitePointPage(WebViewPage):
             "try {"
             "  new QWebChannel(qt.webChannelTransport, function(channel) {"
             "    channel.objects.backend.get_initial_data(function(json) {"
-            "      var data = JSON.parse(json);"
-            "      if (data.error) { logStatus('Backend error: ' + data.error); return; }"
-            "      if (typeof renderWhitePoint === 'function') renderWhitePoint(data);"
-            "      logStatus('Loaded white point data');"
+            "      try {"
+            "        var data = JSON.parse(json);"
+            "        if (data.error) { logStatus('Backend error: ' + data.error); return; }"
+            "        if (typeof renderWhitePoint === 'function') renderWhitePoint(data);"
+            "        logStatus('Loaded white point data');"
+            "      } catch (e) { logStatus('Render error: ' + e.message); }"
             "    });"
             "  });"
             "} catch (e) { logStatus('JS error: ' + e.message); }"
@@ -246,13 +248,17 @@ class WhitePointPage(WebViewPage):
         if index == self._page_index and self._first_show:
             self._first_show = False
             self.run_javascript("""
-                if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-                    new QWebChannel(qt.webChannelTransport, function(channel) {
-                        channel.objects.backend.get_initial_data(function(json) {
-                            if (typeof renderWhitePoint === 'function') renderWhitePoint(JSON.parse(json));
+                try {
+                    if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                        new QWebChannel(qt.webChannelTransport, function(channel) {
+                            channel.objects.backend.get_initial_data(function(json) {
+                                try {
+                                    if (typeof renderWhitePoint === 'function') renderWhitePoint(JSON.parse(json));
+                                } catch (e) { logStatus('Render error: ' + e.message); }
+                            });
                         });
-                    });
-                }
+                    }
+                } catch (e) { logStatus('Init error: ' + e.message); }
             """)
 
     def set_rgb_coordinates(self, r_xy, g_xy, b_xy) -> None:
