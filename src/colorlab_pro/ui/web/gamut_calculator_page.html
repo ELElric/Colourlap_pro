@@ -406,6 +406,9 @@ function adjustThickness(ch, delta) {
 function onThicknessChange() {
     if (lastPrimaries) renderCIECharts(lastPrimaries);
     if (typeof updateSpectrumPreview === 'function') updateSpectrumPreview();
+    // Auto-recalculate after 500ms debounce
+    if (_thicknessTimer) clearTimeout(_thicknessTimer);
+    _thicknessTimer = setTimeout(function() { calculateGamut(); }, 500);
 }
 
 function renderResults(results) {
@@ -553,6 +556,7 @@ function xyToUV(x, y) {
     if (denom === 0) return { u: 0, v: 0 };
     return { u: 4 * x / denom, v: 9 * y / denom };
 }
+var _thicknessTimer = null;
 var previewChart = null;
 
 function escapeHtml(s) {
