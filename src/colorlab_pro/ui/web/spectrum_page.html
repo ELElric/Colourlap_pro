@@ -620,20 +620,23 @@ function renderSpectrumChart(spectra, selectedIds) {
         spectrumChart.clear();
         return;
     }
+    var channelColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff', 'W': '#ffffff' };
     var series = toPlot.map(function(s) {
         var norm = 1;
         if (currentSpectrumChartTab === 'normalized' && s.data && s.data.length) {
             var maxVal = Math.max.apply(null, s.data.map(function(p){ return p[1]; }));
             if (maxVal > 0) norm = maxVal;
         }
-        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: (s.data || []).map(function(p){ return [p[0], p[1] / norm]; }) };
+        var ch = (s.channel || '').toUpperCase();
+        var color = channelColors[ch] || '#cccccc';
+        return { name: s.name, type: 'line', smooth: true, showSymbol: false, data: (s.data || []).map(function(p){ return [p[0], p[1] / norm]; }), lineStyle: { color: color, width: 2 }, itemStyle: { color: color } };
     });
     var option = {
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
         legend: { data: toPlot.map(function(s) { return s.name; }), textStyle: { color: '#ccc' }, bottom: 0 },
         grid: { top: 30, right: 20, bottom: 40, left: 50 },
-        xAxis: { type: 'value', name: 'Wavelength (nm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: currentSpectrumChartTab === 'normalized' ? 'Normalized' : 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
     };

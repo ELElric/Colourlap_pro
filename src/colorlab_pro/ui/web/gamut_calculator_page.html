@@ -663,7 +663,7 @@ function renderSpectrumPreview() {
         tooltip: { trigger: 'axis' },
         legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc' }, bottom: 0 },
         grid: { top: 30, right: 20, bottom: 40, left: 50 },
-        xAxis: { type: 'value', name: 'Wavelength (nm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
     }, true);
