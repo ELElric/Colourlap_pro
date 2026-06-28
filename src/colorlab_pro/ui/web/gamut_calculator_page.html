@@ -408,6 +408,14 @@ function onThicknessChange() {
 
 function renderResults(results) {
     lastResults = results || [];
+    if (!lastResults.length) {
+        // Full clear: reset all state
+        lastPrimaries = null;
+        lastWhiteXY = null;
+        var sdBody = document.getElementById('spectrum-data-body');
+        if (sdBody) sdBody.innerHTML = '';
+        setExportEnabled(false);
+    }
     filterReferenceResults();
 }
 
@@ -588,10 +596,10 @@ function renderSpectrumDataTable(primaries) {
     primaries.forEach(function(p) {
         html += '<tr>' +
             '<td><span class="channel-tag channel-' + p.ch.toLowerCase() + '">' + p.ch + '</span></td>' +
-            '<td class="result-value">' + (p.peak_nm != null ? Math.round(p.peak_nm) : '-') + '</td>' +
-            '<td class="result-value">' + (p.fwhm_nm != null ? Math.round(p.fwhm_nm) : '-') + '</td>' +
-            '<td class="result-value">' + (p.dominant_nm != null ? Math.round(p.dominant_nm) : '-') + '</td>' +
-            '<td class="result-value">' + (p.purity != null ? Number(p.purity).toFixed(1) + '%' : '-') + '</td>' +
+            '<td class="data-value">' + (p.peak_nm != null ? Math.round(p.peak_nm) : '-') + '</td>' +
+            '<td class="data-value">' + (p.fwhm_nm != null ? Math.round(p.fwhm_nm) : '-') + '</td>' +
+            '<td class="data-value">' + (p.dominant_nm != null ? Math.round(p.dominant_nm) : '-') + '</td>' +
+            '<td class="data-value">' + (p.purity != null ? Number(p.purity).toFixed(1) + '%' : '-') + '</td>' +
             '</tr>';
     });
     tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#666;padding:12px;">No data</td></tr>';
@@ -629,16 +637,21 @@ function renderSpectrumPreview() {
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
     var colors = ['#FF4444', '#44FF44', '#4488FF'];
     var series = [];
+    // In White+CF mode, replicate the white spectrum for each CF channel
+    if (mode === 'whitecf' && selected.length === 1) {
+        var white = selected[0];
+        selected = [white, white, white];
+    }
     selected.forEach(function(s, idx) {
         var rawData = (s.data || []).map(function(p) { return [p[0], p[1]]; });
-        if (showOriginal) {
-            series.push({ name: s.name + ' (Original)', type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: colors[idx] || '#ccc', width: 2 } });
+        if (showOriginal && idx === 0) {
+            series.push({ name: s.name + ' (Original)', type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: colors[0] || '#ccc', width: 2 } });
         }
         if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
             var cf = cfSelected[idx];
             var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
             var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
-            series.push({ name: s.name + ' (Filtered)', type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: colors[idx] || '#ccc', width: 2, type: 'dashed' } });
+            series.push({ name: s.name + ' + ' + cf.name, type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: colors[idx] || '#ccc', width: 2, type: 'dashed' } });
         }
     });
     previewChart.setOption({

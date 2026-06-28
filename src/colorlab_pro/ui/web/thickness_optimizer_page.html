@@ -400,6 +400,13 @@ function startOptimization() {
         logStatus('Please select R/G/B source and CF spectra');
         return;
     }
+    // Validate bounds are valid numbers
+    for (var i = 0; i < data.bounds.length; i++) {
+        if (isNaN(data.bounds[i][0]) || isNaN(data.bounds[i][1])) {
+            logStatus('Invalid thickness range for channel ' + (i + 1) + '. Please enter valid numbers.');
+            return;
+        }
+    }
     setLoading(true);
     updateProgress(0, 'Running grid search...');
     if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); setLoading(false); return; }
@@ -435,7 +442,11 @@ function renderResults(results, best) {
     if (countEl) countEl.textContent = lastResults.length ? ('Top ' + lastResults.length + ' / ' + lastResults.length + ' results') : 'Top 0 / 0 results';
     var tbody = document.getElementById('result-tbody');
     if (!tbody) return;
-    if (!lastResults.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No results</td></tr>'; return; }
+    if (!lastResults.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;padding:12px;">No results</td></tr>';
+        if (scanChart) { scanChart.clear(); }
+        return;
+    }
     var html = '';
     lastResults.forEach(function(r, idx) {
         var bestClass = idx === 0 ? 'result-best' : '';
@@ -526,6 +537,7 @@ function switchScanTab(tab, el) {
 
 function runSensitivity(metric) {
     if (!lastBest) { logStatus('Run optimization first'); return; }
+    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     var data = getInputs();
     data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
     data.vary_channel = document.getElementById('sens-channel').value || 'R';
@@ -618,6 +630,7 @@ function refreshData() {
             var data = JSON.parse(json);
             if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
             populateSelectors(data.spectra);
+            if (typeof renderResults === 'function') renderResults(data.results, data.best);
         });
     });
 }

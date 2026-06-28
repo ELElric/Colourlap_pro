@@ -239,10 +239,12 @@ class WhitePointPage(WebViewPage):
         )
 
     def connect_auto_refresh(self, window: QWidget) -> None:
+        self._first_show = True
         window.page_about_to_show.connect(self._on_page_about_to_show)
 
     def _on_page_about_to_show(self, index: int) -> None:
-        if index == self._page_index:
+        if index == self._page_index and self._first_show:
+            self._first_show = False
             self.run_javascript("""
                 if (typeof qt !== 'undefined' && qt.webChannelTransport) {
                     new QWebChannel(qt.webChannelTransport, function(channel) {

@@ -293,7 +293,7 @@ class ThicknessOptimizerPage(WebViewPage):
         return Path(__file__).resolve().parent.parent / "web" / "thickness_optimizer_page.html"
 
     def create_backend(self) -> QObject:
-        return OptimizerPageBackend(self._spectrum_controller, self._color_controller, self)
+        return OptimizerPageBackend(self._spectrum_controller, self._color_controller, parent=self)
 
     def page_script(self) -> str:
         return (

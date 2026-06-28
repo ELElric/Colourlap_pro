@@ -95,7 +95,7 @@ class GamutPageBackend(QObject):
         filtered = spectrum.values * attenuation
         return Spectrum(wavelengths=wl, values=filtered, unit=spectrum.unit, meta=spectrum.meta)
 
-    @Slot(str, str, str, result=str)
+    @Slot(str, result=str)
     def calculate_gamut(self, red_id: str, green_id: str = "", blue_id: str = "") -> str:
         """Calculate gamut coverage/match for the selected RGB spectra.
 
