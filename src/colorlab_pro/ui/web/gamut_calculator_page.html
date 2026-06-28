@@ -255,19 +255,19 @@
 
   <!-- Spectrum Preview -->
   <div class="panel">
-    <div class="panel-header" style="flex-wrap: wrap;">
+    <div class="panel-header">
       <div class="panel-title">Spectrum Preview</div>
-      <div class="checkbox-group" style="gap:10px;">
-        <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateSpectrumPreview()"> Original</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-filtered" checked onchange="updateSpectrumPreview()"> Filtered</label>
-      </div>
-    </div>
-    <div class="tabs">
-      <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
-      <div class="tab" onclick="switchPreviewTab('filtered', this)">Filtered</div>
     </div>
     <div id="spectrum-preview-chart" style="width:100%;height:240px;"></div>
     <div id="spectrum-empty" class="chart-area" style="display:none;">Select R/G/B spectra to preview</div>
+    <div id="spectrum-legend-table" style="margin-top:8px;">
+      <table class="data-table" style="font-size:11px;">
+        <thead><tr><th>Show</th><th>Ch</th><th>Name</th><th>Type</th></tr></thead>
+        <tbody id="spectrum-legend-body">
+          <tr><td colspan="4" style="text-align:center;color:#666;padding:8px;">Select spectra first</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Gamut Result -->
@@ -405,6 +405,7 @@ function adjustThickness(ch, delta) {
 
 function onThicknessChange() {
     if (lastPrimaries) renderCIECharts(lastPrimaries);
+    if (typeof updateSpectrumPreview === 'function') updateSpectrumPreview();
 }
 
 function renderResults(results) {
@@ -553,23 +554,12 @@ function xyToUV(x, y) {
     return { u: 4 * x / denom, v: 9 * y / denom };
 }
 var previewChart = null;
-var currentPreviewTab = 'original';
 
-function updateSpectrumPreview() {
-    renderSpectrumPreview();
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function switchPreviewTab(tab, el) {
-    currentPreviewTab = tab;
-    var panel = document.getElementById('spectrum-preview-chart').parentElement;
-    if (panel) {
-        panel.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-    }
-    if (el) el.classList.add('active');
-    var originalCb = document.getElementById('disp-original');
-    var filteredCb = document.getElementById('disp-filtered');
-    if (originalCb) originalCb.checked = (tab === 'original');
-    if (filteredCb) filteredCb.checked = (tab === 'filtered');
+function updateSpectrumPreview() {
     renderSpectrumPreview();
 }
 function applyFilter(data, filterData, thickness) {
@@ -625,44 +615,92 @@ function renderSpectrumPreview() {
         var el = document.getElementById(id);
         return el ? parseFloat(el.value) || 0 : 0;
     });
-    var showOriginal = document.getElementById('disp-original') ? document.getElementById('disp-original').checked : true;
-    var showFiltered = document.getElementById('disp-filtered') ? document.getElementById('disp-filtered').checked : true;
+
     var dom = document.getElementById('spectrum-preview-chart');
     var empty = document.getElementById('spectrum-empty');
-    if (selected.length === 0 || (!showOriginal && !showFiltered)) {
+
+    // In White+CF mode, replicate the white spectrum for each CF channel
+    if (mode === 'whitecf' && selected.length === 1) {
+        var white = selected[0];
+        selected = [white, white, white];
+    }
+
+    // Build legend table entries
+    var channelColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff', 'W': '#ffffff' };
+    var legendTbody = document.getElementById('spectrum-legend-body');
+    var legendEntries = []; // { key, name, channel, type, color, checked }
+
+    selected.forEach(function(s, idx) {
+        var ch = (s.channel || '').toUpperCase();
+        var color = channelColors[ch] || '#cccccc';
+        // Emission spectrum
+        legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: true });
+        // CF filtered spectrum
+        if (cfSelected[idx] && thicknesses[idx] > 0) {
+            legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF (t=' + thicknesses[idx] + 'μm)', color: color, checked: true });
+        }
+    });
+
+    // Render legend table
+    if (legendTbody) {
+        var lhtml = '';
+        if (legendEntries.length === 0) {
+            lhtml = '<tr><td colspan="4" style="text-align:center;color:#666;padding:8px;">Select spectra first</td></tr>';
+        } else {
+            legendEntries.forEach(function(e) {
+                lhtml += '<tr>' +
+                    '<td style="text-align:center;"><input type="checkbox" class="spectrum-vis-cb" data-key="' + e.key + '" ' + (e.checked ? 'checked' : '') + ' onchange="updateSpectrumPreview()"></td>' +
+                    '<td><span class="channel-tag channel-' + e.channel.toLowerCase() + '">' + e.channel + '</span></td>' +
+                    '<td class="data-value">' + escapeHtml(e.name) + '</td>' +
+                    '<td style="color:' + e.color + ';">' + e.type + '</td>' +
+                    '</tr>';
+            });
+        }
+        legendTbody.innerHTML = lhtml;
+    }
+
+    if (selected.length === 0) {
         if (previewChart) previewChart.clear();
         if (empty) empty.style.display = 'flex';
         return;
     }
     if (empty) empty.style.display = 'none';
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
-    var colors = ['#FF4444', '#44FF44', '#4488FF'];
-    var series = [];
-    // In White+CF mode, replicate the white spectrum for each CF channel
-    if (mode === 'whitecf' && selected.length === 1) {
-        var white = selected[0];
-        selected = [white, white, white];
+
+    // Read checkbox states
+    var visMap = {};
+    if (legendTbody) {
+        legendTbody.querySelectorAll('.spectrum-vis-cb').forEach(function(cb) {
+            visMap[cb.getAttribute('data-key')] = cb.checked;
+        });
     }
+
+    var series = [];
     selected.forEach(function(s, idx) {
+        var ch = (s.channel || '').toUpperCase();
+        var color = channelColors[ch] || '#cccccc';
         var rawData = (s.data || []).map(function(p) { return [p[0], p[1]]; });
-        if (showOriginal) {
-            // In whitecf mode only show white once; in rgbcf mode show all 3 channels
-            if (mode !== 'whitecf' || idx === 0) {
-                series.push({ name: s.name + ' (Original)', type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: colors[idx] || '#ccc', width: 2 } });
-            }
+        if (visMap['em_' + idx] !== false) {
+            series.push({ name: s.name, type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: color, width: 2 }, itemStyle: { color: color } });
         }
-        if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
+        if (cfSelected[idx] && thicknesses[idx] > 0 && visMap['cf_' + idx] !== false) {
             var cf = cfSelected[idx];
             var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
             var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
-            series.push({ name: s.name + ' + ' + cf.name, type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: colors[idx] || '#ccc', width: 2, type: 'dashed' } });
+            series.push({ name: cf.name, type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: color, width: 1.5, type: 'dashed' }, itemStyle: { color: color } });
         }
     });
+
+    if (series.length === 0) {
+        if (previewChart) previewChart.clear();
+        return;
+    }
+
     previewChart.setOption({
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
-        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc' }, bottom: 0 },
-        grid: { top: 30, right: 20, bottom: 40, left: 50 },
+        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 10 }, bottom: 0, itemWidth: 14, itemHeight: 8 },
+        grid: { top: 20, right: 20, bottom: 30, left: 50 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
