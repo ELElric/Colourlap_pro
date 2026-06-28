@@ -582,18 +582,28 @@ function switchPreviewTab(tab, el) {
     renderSpectrumPreview();
 }
 function applyFilter(data, filterData, thickness) {
-    if (!data || !filterData || !thickness) return data;
+    if (!data || !filterData) return data;
     var filtered = [];
-    var fMap = {};
-    filterData.forEach(function(p) { fMap[p[0]] = p[1]; });
+    // Build sorted arrays for interpolation
+    var cfWL = [], cfVal = [];
+    filterData.forEach(function(p) { cfWL.push(p[0]); cfVal.push(p[1]); });
+    function interpCF(wl) {
+        // Binary search for interpolation
+        if (wl <= cfWL[0]) return cfVal[0];
+        if (wl >= cfWL[cfWL.length - 1]) return cfVal[cfWL.length - 1];
+        var lo = 0, hi = cfWL.length - 1;
+        while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (cfWL[mid] <= wl) lo = mid; else hi = mid; }
+        var frac = (wl - cfWL[lo]) / (cfWL[hi] - cfWL[lo]);
+        return cfVal[lo] + frac * (cfVal[hi] - cfVal[lo]);
+    }
     data.forEach(function(p) {
         var wl = p[0];
-        var ft = fMap[wl] !== undefined ? fMap[wl] : 1;
+        var ft = interpCF(wl);
         var t = ft;
-        if (t > 1.5) t = t / 100;
+        if (t > 1.5) t = t / 100;  // Handle percentage format
         t = Math.max(1e-6, Math.min(1, t));
-        var alpha = -Math.log10(t);
-        var attenuation = Math.exp(-alpha * thickness);
+        // Lambert-Beer: filtered = emission * T^d
+        var attenuation = Math.pow(t, thickness || 0);
         filtered.push([wl, p[1] * attenuation]);
     });
     return filtered;
@@ -667,7 +677,7 @@ function renderSpectrumPreview() {
             var emChecked = visMap['em_' + idx] !== undefined ? visMap['em_' + idx] : true;
             legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: emChecked });
         }
-        if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
+        if (showFiltered && cfSelected[idx]) {
             var cfChecked = visMap['cf_' + idx] !== undefined ? visMap['cf_' + idx] : true;
             legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF', color: color, checked: cfChecked });
         }
@@ -707,7 +717,7 @@ function renderSpectrumPreview() {
         if (showOriginal && visMap['em_' + idx] !== false) {
             series.push({ name: s.name, type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: color, width: 2 }, itemStyle: { color: color } });
         }
-        if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0 && visMap['cf_' + idx] !== false) {
+        if (showFiltered && cfSelected[idx] && visMap['cf_' + idx] !== false) {
             var cf = cfSelected[idx];
             var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
             var plotData = applyFilter(rawData, cfData, thicknesses[idx]);

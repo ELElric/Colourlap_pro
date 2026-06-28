@@ -80,9 +80,10 @@ class GamutPageBackend(QObject):
     ) -> Spectrum:
         """Apply Color Filter + thickness (Lambert-Beer) to a spectrum.
 
-        If cf_spectrum is None or thickness <= 0, returns the original spectrum.
+        If cf_spectrum is None, returns the original spectrum.
+        At thickness=0, returns the original spectrum (T^0 = 1).
         """
-        if cf_spectrum is None or thickness <= 0:
+        if cf_spectrum is None:
             return spectrum
         wl = spectrum.wavelengths
         cf_wl = cf_spectrum.wavelengths
@@ -90,8 +91,8 @@ class GamutPageBackend(QObject):
         t = np.interp(wl, cf_wl, cf_val, left=1.0, right=1.0)
         t = np.where(t > 1.5, t / 100.0, t)
         t = np.clip(t, 1e-6, 1.0)
-        alpha = -np.log10(t)
-        attenuation = np.exp(-alpha * thickness)
+        # Lambert-Beer: attenuation = T^d
+        attenuation = np.power(t, max(thickness, 0.0))
         filtered = spectrum.values * attenuation
         return Spectrum(wavelengths=wl, values=filtered, unit=spectrum.unit, meta=spectrum.meta)
 
@@ -150,11 +151,7 @@ class GamutPageBackend(QObject):
                 for i in range(3):
                     cf = cf_specs[i]
                     thickness = thicknesses[i]
-                    if cf is None or thickness <= 0:
-                        filtered_specs.append(white_spec)
-                        continue
-                    cf_filtered = self._apply_cf_filter(white_spec, cf, thickness)
-                    filtered_specs.append(cf_filtered)
+                    filtered_specs.append(self._apply_cf_filter(white_spec, cf, thickness))
 
                 device = gs.build_from_primaries(
                     filtered_specs[0], filtered_specs[1], filtered_specs[2],
