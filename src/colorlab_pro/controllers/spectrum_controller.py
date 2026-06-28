@@ -393,7 +393,7 @@ class SpectrumController(QObject):
                     dist_cw = math.sqrt((xy_x - ill.x) ** 2 + (xy_y - ill.y) ** 2)
                     dist_lw = math.sqrt((lx - ill.x) ** 2 + (ly - ill.y) ** 2)
                     if dist_lw > 1e-6:
-                        purity = round(dist_cw / dist_lw * 100, 1)
+                        purity = round(dist_cw / dist_lw, 4)
                 except Exception:
                     pass
             return xy_x, xy_y, uv_u, uv_v, dwl, purity

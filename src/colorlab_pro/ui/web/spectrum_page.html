@@ -546,9 +546,9 @@ function updateInfoCards() {
         var cat = (s.category || '').toUpperCase();
         var isCF = cat === 'CF';
         elXY.textContent = s.xy || '-';
-        elUV.textContent = s.uv || '-';
         // CF spectra: only show xy coordinates
         if (isCF) {
+            elUV.textContent = '-';
             elDom.innerHTML = '-<span class="info-card-unit">nm</span>';
             elPurity.innerHTML = '-<span class="info-card-unit">%</span>';
             elPeak.innerHTML = '-<span class="info-card-unit">nm</span>';

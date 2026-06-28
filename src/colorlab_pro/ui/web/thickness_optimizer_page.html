@@ -329,17 +329,19 @@ function getCurrentSensTab() {
 
 function onSensChannelChange() {
     var ch = document.getElementById('sens-channel').value || 'R';
-    var sensDom = document.getElementById('sensitivity-chart');
-    var placeholder = document.getElementById('sensitivity-placeholder');
-    if (sensitivityChart) sensitivityChart.clear();
-    if (sensDom) sensDom.style.display = 'none';
-    if (placeholder) placeholder.style.display = 'flex';
     var tab = getCurrentSensTab();
     var cached = sensitivityData[ch] && sensitivityData[ch][tab] && sensitivityData[ch][tab].length;
+    var sensDom = document.getElementById('sensitivity-chart');
+    var placeholder = document.getElementById('sensitivity-placeholder');
     if (cached) {
+        if (sensitivityChart) sensitivityChart.clear();
         if (sensDom) sensDom.style.display = 'block';
         if (placeholder) placeholder.style.display = 'none';
         renderSensitivityChart(sensitivityData[ch][tab], tab);
+    } else {
+        if (sensitivityChart) sensitivityChart.clear();
+        if (sensDom) sensDom.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
     }
 }
 
@@ -514,14 +516,14 @@ function renderScanCharts(results, best) {
         backgroundColor: 'transparent',
         title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
         grid: { top: 40, right: 20, bottom: 50, left: 50 },
-        tooltip: { trigger: 'axis' },
+        tooltip: { trigger: 'item' },
         legend: { data: ['RCF', 'GCF', 'BCF'], textStyle: { color: '#ccc' }, bottom: 0 },
         xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: yName, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: [
-            { name: 'RCF', type: 'line', smooth: true, showSymbol: false, data: rData, itemStyle: { color: '#FF4444' }, lineStyle: { width: 2 }, markPoint: { data: rBest ? [rBest] : [], symbolSize: 48, itemStyle: { color: '#FF4444' } } },
-            { name: 'GCF', type: 'line', smooth: true, showSymbol: false, data: gData, itemStyle: { color: '#44FF44' }, lineStyle: { width: 2 }, markPoint: { data: gBest ? [gBest] : [], symbolSize: 48, itemStyle: { color: '#44FF44' } } },
-            { name: 'BCF', type: 'line', smooth: true, showSymbol: false, data: bData, itemStyle: { color: '#4488FF' }, lineStyle: { width: 2 }, markPoint: { data: bBest ? [bBest] : [], symbolSize: 48, itemStyle: { color: '#4488FF' } } }
+            { name: 'RCF', type: 'scatter', symbolSize: 10, data: rData, itemStyle: { color: '#FF4444' }, markPoint: { data: rBest ? [rBest] : [], symbolSize: 48, itemStyle: { color: '#FF4444' } } },
+            { name: 'GCF', type: 'scatter', symbolSize: 10, data: gData, itemStyle: { color: '#44FF44' }, markPoint: { data: gBest ? [gBest] : [], symbolSize: 48, itemStyle: { color: '#44FF44' } } },
+            { name: 'BCF', type: 'scatter', symbolSize: 10, data: bData, itemStyle: { color: '#4488FF' }, markPoint: { data: bBest ? [bBest] : [], symbolSize: 48, itemStyle: { color: '#4488FF' } } }
         ]
     };
     scanChart.setOption(option, true);

@@ -34,7 +34,7 @@ class WhitePointPageBackend(QObject):
 
         return json.dumps(
             {
-                "red_xy": [0.6407, 0.330],
+                "red_xy": [0.6400, 0.3300],
                 "green_xy": [0.300, 0.600],
                 "blue_xy": [0.150, 0.060],
                 "ratios": [0.3333, 0.3333, 0.3333],
@@ -228,11 +228,13 @@ class WhitePointPage(WebViewPage):
         return (
             "try {"
             "  new QWebChannel(qt.webChannelTransport, function(channel) {"
+            "    if (!channel.objects.backend) { logStatus('Backend not ready'); return; }"
             "    channel.objects.backend.get_initial_data(function(json) {"
             "      try {"
             "        var data = JSON.parse(json);"
             "        if (data.error) { logStatus('Backend error: ' + data.error); return; }"
             "        if (typeof renderWhitePoint === 'function') renderWhitePoint(data);"
+            "        setBackendReady(true);"
             "        logStatus('Loaded white point data');"
             "      } catch (e) { logStatus('Render error: ' + e.message); }"
             "    });"

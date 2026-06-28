@@ -278,6 +278,7 @@ var autoCalcEnabled = true;
 var backendReady = false;
 var backendError = false;
 var firstSuccess = false;
+var activeCalcId = 0;
 
 function toggleAutoCalculate(enabled) {
     autoCalcEnabled = enabled;
@@ -453,8 +454,10 @@ function calculate() {
         return;
     }
     setLoading(true);
+    activeCalcId++;
+    var myCalcId = activeCalcId;
     // Safety timeout: auto-hide loading overlay after 10 seconds
-    var safetyTimer = setTimeout(function() { setLoading(false); logStatus('Calculation timed out'); }, 10000);
+    var safetyTimer = setTimeout(function() { if (activeCalcId === myCalcId) { setLoading(false); logStatus('Calculation timed out'); } }, 10000);
     if (currentMode === 'forward') {
         logStatus('Calculating white point...');
         try {
@@ -462,6 +465,7 @@ function calculate() {
                 if (!channel.objects.backend) { clearTimeout(safetyTimer); setLoading(false); setBackendReady(false); logStatus('Backend disconnected'); return; }
                 channel.objects.backend.calculate_white_point(JSON.stringify(getInputValues()), function(json) {
                     clearTimeout(safetyTimer);
+                    if (activeCalcId !== myCalcId) return;  // stale callback, ignore
                     setLoading(false);
                     try {
                         var data = JSON.parse(json);
@@ -488,6 +492,7 @@ function calculate() {
                 });
                 channel.objects.backend.calculate_rgb_ratios(payload, function(json) {
                     clearTimeout(safetyTimer);
+                    if (activeCalcId !== myCalcId) return;  // stale callback, ignore
                     setLoading(false);
                     try {
                         var data = JSON.parse(json);

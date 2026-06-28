@@ -589,8 +589,8 @@ function applyFilter(data, filterData, thickness) {
     filterData.forEach(function(p) { cfWL.push(p[0]); cfVal.push(p[1]); });
     function interpCF(wl) {
         // Binary search for interpolation
-        if (wl <= cfWL[0]) return cfVal[0];
-        if (wl >= cfWL[cfWL.length - 1]) return cfVal[cfWL.length - 1];
+        if (wl <= cfWL[0]) return 1.0;
+        if (wl >= cfWL[cfWL.length - 1]) return 1.0;
         var lo = 0, hi = cfWL.length - 1;
         while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (cfWL[mid] <= wl) lo = mid; else hi = mid; }
         var frac = (wl - cfWL[lo]) / (cfWL[hi] - cfWL[lo]);
