@@ -261,16 +261,13 @@
 
   <!-- Spectrum Preview -->
   <div class="panel">
-    <div class="panel-header" style="flex-wrap: wrap;">
+    <div class="panel-header">
       <div class="panel-title">Spectrum Preview</div>
-      <div class="checkbox-group" style="gap:10px;">
-        <label class="checkbox-label"><input type="checkbox" id="disp-original" checked onchange="updateSpectrumPreview()"> Original</label>
-        <label class="checkbox-label"><input type="checkbox" id="disp-filtered" checked onchange="updateSpectrumPreview()"> Filtered</label>
-      </div>
     </div>
     <div class="tabs">
       <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
       <div class="tab" onclick="switchPreviewTab('filtered', this)">Filtered</div>
+      <div class="tab" onclick="switchPreviewTab('both', this)">Both</div>
     </div>
     <div id="spectrum-preview-chart" style="width:100%;height:220px;"></div>
     <div id="spectrum-empty" class="chart-area" style="display:none;">Select R/G/B spectra to preview</div>
@@ -582,10 +579,6 @@ function switchPreviewTab(tab, el) {
         panel.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
     }
     if (el) el.classList.add('active');
-    var originalCb = document.getElementById('disp-original');
-    var filteredCb = document.getElementById('disp-filtered');
-    if (originalCb) originalCb.checked = (tab === 'original');
-    if (filteredCb) filteredCb.checked = (tab === 'filtered');
     renderSpectrumPreview();
 }
 function applyFilter(data, filterData, thickness) {
@@ -642,8 +635,6 @@ function renderSpectrumPreview() {
         return el ? parseFloat(el.value) || 0 : 0;
     });
 
-    var showOriginal = document.getElementById('disp-original') ? document.getElementById('disp-original').checked : true;
-    var showFiltered = document.getElementById('disp-filtered') ? document.getElementById('disp-filtered').checked : true;
     var dom = document.getElementById('spectrum-preview-chart');
     var empty = document.getElementById('spectrum-empty');
 
@@ -653,11 +644,14 @@ function renderSpectrumPreview() {
         selected = [white, white, white];
     }
 
-    // Build legend table entries
     var channelColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff', 'W': '#ffffff' };
     var legendTbody = document.getElementById('spectrum-legend-body');
-    var legendEntries = [];
+    var tab = currentPreviewTab || 'original';
+    var showOriginal = (tab === 'original' || tab === 'both');
+    var showFiltered = (tab === 'filtered' || tab === 'both');
 
+    // Build legend table entries
+    var legendEntries = [];
     selected.forEach(function(s, idx) {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
@@ -665,7 +659,7 @@ function renderSpectrumPreview() {
             legendEntries.push({ key: 'em_' + idx, name: s.name, channel: ch, type: 'Emission', color: color, checked: true });
         }
         if (showFiltered && cfSelected[idx] && thicknesses[idx] > 0) {
-            legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF (t=' + thicknesses[idx] + 'μm)', color: color, checked: true });
+            legendEntries.push({ key: 'cf_' + idx, name: cfSelected[idx].name, channel: ch, type: 'CF', color: color, checked: true });
         }
     });
 
