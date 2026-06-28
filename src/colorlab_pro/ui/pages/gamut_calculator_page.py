@@ -193,7 +193,7 @@ class GamutPageBackend(QObject):
                         float(colour.temperature.xy_to_CCT([x, y], method="Hernandez 1999")), 0
                     )
                 except Exception:
-                    return 0
+                    return None
 
             primaries = []
             for idx, (ch, xy_pt) in enumerate([("R", device.red), ("G", device.green), ("B", device.blue)]):

@@ -374,7 +374,7 @@ function renderSpectraTable(spectra) {
             '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditCell(this,' + s.id + ',\'name\',\'' + escapeHtml(s.name).replace(/'/g,"\\'") + '\')"><span class="row-name">' + escapeHtml(s.name) + '</span></td>' +
             '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditSelect(this,' + s.id + ',\'category\',\'' + escapeHtml(s.category || '') + '\',\'LED|CF|QD|W\')"><span class="row-badge ' + catClass + '">' + escapeHtml(s.category || '-') + '</span></td>' +
             '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditSelect(this,' + s.id + ',\'channel\',\'' + escapeHtml(s.channel || '') + '\',\'R|G|B|W\')"><span class="channel-tag ' + chClass + '">' + escapeHtml(s.channel || '-') + '</span></td>' +
-            '<td class="row-value">' + Math.round(s.peak_nm || 0) + '</td>' +
+            '<td class="row-value">' + (s.peak_nm != null ? Math.round(s.peak_nm) : '-') + '</td>' +
             '<td class="row-value">' + (s.fwhm_nm != null ? Math.round(s.fwhm_nm) : '-') + '</td>' +
             '<td class="editable row-value" onclick="event.stopPropagation()" ondblclick="startEditCell(this,' + s.id + ',\'thickness_um\',\'' + (s.thickness_um != null ? s.thickness_um : '') + '\')">' + (s.thickness_um != null ? Number(s.thickness_um).toFixed(1) : '-') + '</td>' +
             '</tr>';
@@ -545,9 +545,9 @@ function updateInfoCards() {
         if (!s) return;
         elXY.textContent = s.xy || '-';
         elUV.textContent = s.uv || '-';
-        elDom.innerHTML = (s.dominant_nm != null ? Math.round(s.dominant_nm) : '-') + '<span class="info-card-unit">nm</span>';
-        elPurity.innerHTML = (s.purity != null ? Number(s.purity).toFixed(2) : '-') + '<span class="info-card-unit">%</span>';
-        elPeak.innerHTML = Math.round(s.peak_nm || 0) + '<span class="info-card-unit">nm</span>';
+        elDom.innerHTML = (s.dominant_nm && s.dominant_nm !== '-' ? Math.round(Number(s.dominant_nm)) : '-') + '<span class="info-card-unit">nm</span>';
+        elPurity.innerHTML = (s.purity && s.purity !== '-' ? Number(s.purity).toFixed(2) : '-') + '<span class="info-card-unit">%</span>';
+        elPeak.innerHTML = (s.peak_nm != null ? Math.round(s.peak_nm) : '-') + '<span class="info-card-unit">nm</span>';
         elFwhm.innerHTML = (s.fwhm_nm != null ? Math.round(s.fwhm_nm) : '-') + '<span class="info-card-unit">nm</span>';
         return;
     }

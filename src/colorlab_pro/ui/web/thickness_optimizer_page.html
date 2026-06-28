@@ -334,7 +334,7 @@ function populateSelectors(spectra) {
         var filtered = (spectra || []).filter(function(s) {
             var cat = (s.category || '').toUpperCase();
             var ch = (s.channel || '').toUpperCase();
-            if (cfg.catFilter && cat && cfg.catFilter.indexOf(cat) === -1) return false;
+            if (cfg.catFilter && cat && cat !== 'PASTED' && cfg.catFilter.indexOf(cat) === -1) return false;
             if (cfg.chFilter && ch && ch !== cfg.chFilter) return false;
             return true;
         });

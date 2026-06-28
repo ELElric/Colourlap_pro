@@ -45,11 +45,11 @@ class SpectrumPageBackend(QObject):
                         "name": s.name,
                         "category": s.category or "",
                         "channel": s.channel or "",
-                        "peak_nm": s.peak_wavelength if s.peak_wavelength is not None else "-",
-                        "fwhm_nm": s.fwhm if s.fwhm is not None else "-",
-                        "thickness_um": (
-                            round(s.thickness_um, 3) if s.thickness_um is not None else "-"
-                        ),
+                        "peak_nm": s.peak_wavelength if s.peak_wavelength is not None else None,
+                    "fwhm_nm": s.fwhm if s.fwhm is not None else None,
+                    "thickness_um": (
+                        round(s.thickness_um, 3) if s.thickness_um is not None else None
+                    ),
                         "xy": s.xy_str or "-",
                         "uv": s.uv_str or "-",
                         "dominant_nm": s.dominant_wavelength_str or "-",
