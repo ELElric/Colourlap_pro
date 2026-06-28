@@ -114,17 +114,9 @@ class GamutPageBackend(QObject):
                     raise ValueError("Payload must be a JSON object")
             except (json.JSONDecodeError, ValueError):
                 data = {"red_id": red_id, "green_id": green_id, "blue_id": blue_id}
-            red_id = data["red_id"]
-            green_id = data["green_id"]
-            blue_id = data["blue_id"]
-            ids = [
-                validate_spectrum_id(red_id),
-                validate_spectrum_id(green_id),
-                validate_spectrum_id(blue_id),
-            ]
-            specs = [self._spectrum_controller.get_spectrum(sid) for sid in ids]
-            if any(s is None for s in specs):
-                raise ValueError("One or more selected spectra were not found")
+
+            mode = data.get("mode", "rgbcf")
+            gs = self._color_controller._gamut_service()
 
             def _load_cf(cf_id: str) -> Spectrum | None:
                 if not cf_id:
@@ -145,9 +137,6 @@ class GamutPageBackend(QObject):
                 float(data.get("thickness_g", 0)),
                 float(data.get("thickness_b", 0)),
             ]
-
-            mode = data.get("mode", "rgbcf")
-            gs = self._color_controller._gamut_service()
 
             if mode == "whitecf":
                 white_id = data.get("white_id", "")
@@ -172,6 +161,18 @@ class GamutPageBackend(QObject):
                     white=white_spec, name="Device"
                 )
             else:
+                # rgbcf mode: load and validate R/G/B spectra
+                red_id = data.get("red_id", "")
+                green_id = data.get("green_id", "")
+                blue_id = data.get("blue_id", "")
+                ids = [
+                    validate_spectrum_id(red_id),
+                    validate_spectrum_id(green_id),
+                    validate_spectrum_id(blue_id),
+                ]
+                specs = [self._spectrum_controller.get_spectrum(sid) for sid in ids]
+                if any(s is None for s in specs):
+                    raise ValueError("One or more selected spectra were not found")
                 filtered_specs = [
                     self._apply_cf_filter(cast(Spectrum, specs[i]), cf_specs[i], thicknesses[i])
                     for i in range(3)

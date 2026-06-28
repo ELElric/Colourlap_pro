@@ -124,6 +124,10 @@ class OptimizerPageBackend(QObject):
                         if self._stop_requested:
                             return json.dumps({"results": [], "best": None, "stopped": True})
                         self.progress.emit(int(100 * count / total))
+                        # Allow Qt event loop to process stop() and flush progress signals
+                        if count % 50 == 0:
+                            from PySide6.QtCore import QCoreApplication
+                            QCoreApplication.processEvents()
                         filtered = []
                         for src, alpha, d in zip(sources, alphas, [dr, dg, db], strict=False):
                             t = np.power(10.0, -alpha * d)

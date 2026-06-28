@@ -543,7 +543,7 @@ function renderChromaticityData(primaries) {
             '<td class="data-value">' + uv.v.toFixed(3) + '</td>' +
             '<td class="data-value">' + (p.X != null ? p.X.toFixed(3) : '-') + '</td>' +
             '<td class="data-value">' + (p.Y != null ? p.Y.toFixed(3) : '-') + '</td>' +
-            '<td class="data-value">' + (p.cct != null ? p.cct : '-') + '</td>';
+            '<td class="data-value">' + (p.cct != null ? Math.round(p.cct) : '-') + '</td>';
         tbody.appendChild(row);
     });
 }
