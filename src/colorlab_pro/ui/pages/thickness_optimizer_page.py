@@ -252,6 +252,92 @@ class OptimizerPageBackend(QObject):
             return json.dumps({"channel": vary_channel, "points": points})
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
+    @Slot(str, result=str)
+    def sensitivity_all(self, payload: str) -> str:
+        """Run sensitivity for all 3 channels: vary each independently, return coverage curves."""
+        try:
+            data = json.loads(payload)
+            base = data["base"]
+            source_ids = [int(x) for x in data["source_ids"]]
+            cf_ids = [int(x) for x in data["cf_ids"]]
+            bounds = data["bounds"]
+            target_standard = data.get("target_standard", "BT2020")
+
+            sources = [self._spectrum_controller.get_spectrum(sid) for sid in source_ids]
+            cfs = [self._spectrum_controller.get_spectrum(sid) for sid in cf_ids]
+
+            from colorlab_pro.dto.spectrum import Spectrum
+            from colorlab_pro.engines.gamut_calculator import (
+                build_gamut_from_primaries,
+                coverage,
+                standard_gamuts,
+            )
+            from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
+
+            wavelengths = sources[0].wavelengths.copy()
+            for s in sources[1:]:
+                wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+            for c in cfs:
+                wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+
+            def resample(spec):
+                vals = np.interp(wavelengths, spec.wavelengths, spec.values)
+                return Spectrum(wavelengths=wavelengths, values=vals, unit=spec.unit)
+
+            sources = [resample(s) for s in sources]
+            cfs = [resample(c) for c in cfs]
+
+            def transmittance_to_alpha(t):
+                t = np.asarray(t, dtype=float)
+                if np.max(t) > 1.5:
+                    t = t / 100.0
+                t = np.clip(t, 1e-6, 1.0)
+                return -np.log10(t)
+
+            alphas = [transmittance_to_alpha(c.values) for c in cfs]
+            try:
+                target = standard_gamuts(target_standard)
+            except (ValueError, KeyError):
+                target = standard_gamuts("BT2020")
+
+            steps = 21
+            self._stop_requested = False
+            total = steps * 3
+            count = 0
+            results = {}
+            for ch_name, ch_idx in [("R", 0), ("G", 1), ("B", 2)]:
+                lo, hi = bounds[ch_idx]
+                points = []
+                for _, d in enumerate(np.linspace(lo, hi, steps)):
+                    if self._stop_requested:
+                        break
+                    count += 1
+                    self.progress.emit(int(100 * count / total))
+                    if count % 30 == 0:
+                        from PySide6.QtCore import QCoreApplication
+                        QCoreApplication.processEvents()
+                    ds = [base[0], base[1], base[2]]
+                    ds[ch_idx] = d
+                    filtered = []
+                    for src, alpha, dd in zip(sources, alphas, ds, strict=False):
+                        t = np.power(10.0, -alpha * dd)
+                        filtered.append(src.values * t)
+                    primaries_xy = [spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit)) for v in filtered]
+                    white = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=sources[0].unit)
+                    white_xy = spectrum_xy(white)
+                    device = build_gamut_from_primaries("Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy)
+                    cov = coverage(target, device)
+                    points.append({
+                        "thickness": round(float(d), 3),
+                        "coverage": round(float(cov), 1),
+                    })
+                results[ch_name] = points
+
+            return json.dumps({"results": results, "base": base})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc), "trace": traceback.format_exc()})
+
     @Slot(str, result=str)
     def paste_spectrum(self, payload: str) -> str:
         """Parse clipboard text and save as a new spectrum."""

@@ -710,6 +710,7 @@ function renderSpectrumPreview() {
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
 
     var series = [];
+    var cfColors = { 'R': '#ff9999', 'G': '#99ff99', 'B': '#9999ff', 'W': '#cccccc' };
     selected.forEach(function(s, idx) {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
@@ -719,9 +720,17 @@ function renderSpectrumPreview() {
         }
         if (showFiltered && cfSelected[idx] && visMap['cf_' + idx] !== false) {
             var cf = cfSelected[idx];
-            var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
-            var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
-            series.push({ name: cf.name, type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: color, width: 1.5, type: 'dashed' }, itemStyle: { color: color } });
+            var cfColor = cfColors[ch] || '#aaaaaa';
+            if (tab === 'filtered') {
+                // Filtered tab: show emission × T^d (filtered emission)
+                var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
+                var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
+                series.push({ name: cf.name + ' (filtered)', type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: cfColor, width: 1.5, type: 'dashed' }, itemStyle: { color: cfColor } });
+            } else {
+                // Both tab: show raw CF transmittance spectrum
+                var rawCF = (cf.data || []).map(function(p) { return [p[0], p[1] > 1.5 ? p[1] / 100 : p[1]]; });
+                series.push({ name: cf.name + ' (T)', type: 'line', smooth: true, showSymbol: false, data: rawCF, yAxisIndex: 1, lineStyle: { color: cfColor, width: 1.5, type: 'dashed' }, itemStyle: { color: cfColor } });
+            }
         }
     });
 
@@ -730,13 +739,17 @@ function renderSpectrumPreview() {
         return;
     }
 
+    var hasCF = series.some(function(s) { return s.yAxisIndex === 1; });
     previewChart.setOption({
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
         legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 10 }, bottom: 0, itemWidth: 14, itemHeight: 8, padding: [0, 5] },
-        grid: { top: 20, right: 15, bottom: 25, left: 45 },
+        grid: { top: 20, right: hasCF ? 45 : 15, bottom: 25, left: 45 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: [
+            { type: 'value', name: 'Emission', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            hasCF ? { type: 'value', name: 'T', min: 0, max: 1, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#888' } }, splitLine: { show: false } } : undefined
+        ].filter(Boolean),
         series: series
     }, true);
 }
