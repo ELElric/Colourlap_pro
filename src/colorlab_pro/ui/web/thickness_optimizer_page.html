@@ -279,8 +279,8 @@
       <div class="chart-tab" onclick="switchScanTab('whitex', this)">White x vs Thickness</div>
       <div class="chart-tab" onclick="switchScanTab('whitey', this)">White y vs Thickness</div>
     </div>
-    <div id="scan-chart" style="width:100%;height:300px;"></div>
-    <div id="sensitivity-chart" style="width:100%;height:300px;"></div>
+    <div id="scan-chart" style="width:100%;height:340px;"></div>
+    <div id="sensitivity-chart" style="width:100%;height:340px;"></div>
     <div id="sensitivity-placeholder" class="chart-placeholder" style="display:none;">Run Sensitivity to see coverage trends for all channels</div>
   </div>
 </div>
@@ -515,12 +515,12 @@ function renderScanCharts(results, best) {
     var yName = currentTab === 'coverage' ? 'Coverage (%)' : (currentTab === 'whitex' ? "x" : "y");
     var option = {
         backgroundColor: 'transparent',
-        title: { text: title, left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 40, right: 20, bottom: 50, left: 50 },
+        title: { text: title, left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        grid: { top: 40, right: 20, bottom: 50, left: 55 },
         tooltip: { trigger: 'item' },
-        legend: { data: ['RCF', 'GCF', 'BCF'], textStyle: { color: '#ccc' }, bottom: 0 },
-        xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: yName, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        legend: { data: ['RCF', 'GCF', 'BCF'], textStyle: { color: '#ccc', fontSize: 11 }, bottom: 5, itemWidth: 20, itemHeight: 10 },
+        xAxis: { type: 'value', name: 'Thickness (μm)', nameLocation: 'middle', nameGap: 28, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: yName, nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: [
             { name: 'RCF', type: 'scatter', symbolSize: 10, data: rData, itemStyle: { color: '#FF4444' }, markPoint: { data: rBest ? [rBest] : [], symbolSize: 48, itemStyle: { color: '#FF4444' } } },
             { name: 'GCF', type: 'scatter', symbolSize: 10, data: gData, itemStyle: { color: '#44FF44' }, markPoint: { data: gBest ? [gBest] : [], symbolSize: 48, itemStyle: { color: '#44FF44' } } },
@@ -556,6 +556,8 @@ function switchScanTab(tab, el) {
         } else {
             renderScanCharts(lastResults, lastBest);
         }
+        if (sensitivityChart) setTimeout(function() { sensitivityChart.resize(); }, 50);
+        if (scanChart && scanDom && scanDom.style.display !== 'none') setTimeout(function() { scanChart.resize(); }, 50);
     } else if (tab === 'whitex' || tab === 'whitey') {
         if (scanDom) scanDom.style.display = 'none';
         var ch = document.getElementById('sens-channel').value || 'R';
@@ -613,14 +615,15 @@ function renderSensitivityChart(points, metric) {
     var ch = document.getElementById('sens-channel').value || 'R';
     var option = {
         backgroundColor: 'transparent',
-        title: { text: title + ' (' + ch + ' channel)', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 40, right: 20, bottom: 40, left: 50 },
+        title: { text: title + ' (' + ch + ' channel)', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        grid: { top: 40, right: 20, bottom: 50, left: 55 },
         tooltip: { trigger: 'axis' },
-        xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: metric === 'whitex' ? "x" : "y", nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        xAxis: { type: 'value', name: 'Thickness (μm)', nameLocation: 'middle', nameGap: 28, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: metric === 'whitex' ? "x" : "y", nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: [{ name: 'White point', type: 'line', smooth: true, showSymbol: false, data: data, itemStyle: { color: '#ffd700' }, lineStyle: { width: 2 } }]
     };
     sensitivityChart.setOption(option, true);
+    setTimeout(function() { sensitivityChart.resize(); }, 50);
 }
 
 function renderAllChannelChart(data) {
@@ -633,8 +636,9 @@ function renderAllChannelChart(data) {
     ['R', 'G', 'B'].forEach(function(ch) {
         var points = (data.results || {})[ch] || [];
         var lineData = points.map(function(p) { return [p.thickness, p.coverage]; });
+        var bv = (base[{R:0,G:1,B:2}[ch]] || 0).toFixed(1);
         series.push({
-            name: ch + 'CF (base=' + (base[{R:0,G:1,B:2}[ch]] || 0).toFixed(1) + 'μm)',
+            name: ch + 'CF (' + bv + 'μm)',
             type: 'line', smooth: true, showSymbol: false,
             data: lineData,
             lineStyle: { width: 2, color: chColors[ch] },
@@ -643,19 +647,20 @@ function renderAllChannelChart(data) {
     });
     var option = {
         backgroundColor: 'transparent',
-        title: { text: 'Coverage vs Thickness (all channels)', left: 'center', textStyle: { color: '#ccc', fontSize: 12 } },
-        grid: { top: 40, right: 20, bottom: 40, left: 50 },
+        title: { text: 'Coverage vs Thickness', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        grid: { top: 40, right: 20, bottom: 50, left: 55 },
         tooltip: { trigger: 'axis', formatter: function(params) {
             var s = '<b>' + params[0].axisValue.toFixed(1) + ' μm</b><br/>';
             params.forEach(function(p) { s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(1) + '%<br/>'; });
             return s;
         }},
-        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 10 }, bottom: 0 },
-        xAxis: { type: 'value', name: 'Thickness (μm)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: 'Coverage (%)', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 11 }, bottom: 5, itemWidth: 20, itemHeight: 10 },
+        xAxis: { type: 'value', name: 'Thickness (μm)', nameLocation: 'middle', nameGap: 28, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Coverage (%)', nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
     };
     sensitivityChart.setOption(option, true);
+    setTimeout(function() { sensitivityChart.resize(); }, 50);
 }
 
 function runSensitivityPanel() {
