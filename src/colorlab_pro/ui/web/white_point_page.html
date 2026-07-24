@@ -161,12 +161,6 @@
     </div>
     <div class="divider"></div>
     <div class="preset-section">
-      <span class="mode-label" style="margin-right:4px;">Presets:</span>
-      <button class="preset-btn" onclick="applyPreset(0.3127,0.3290)">D65</button>
-      <button class="preset-btn" onclick="applyPreset(0.3457,0.3585)">D50</button>
-      <button class="preset-btn" onclick="applyPreset(0.3140,0.3510)" title="DCI white point (0.314, 0.351)">DCI White</button>
-      <button class="preset-btn" onclick="applyPreset(0.3127,0.3290)" title="BT2020 uses D65 white point">BT2020 (D65)</button>
-      <div class="divider" style="margin:0 8px;"></div>
       <button id="recalc-btn" class="preset-btn" onclick="calculate()">Recalculate</button>
     </div>
   </div>
@@ -339,13 +333,6 @@ function checkBackend() {
         logStatus('Backend check error: ' + e.message);
     }
 }
-function applyPreset(x, y) {
-    document.getElementById('w-x').value = x.toFixed(4);
-    document.getElementById('w-y').value = y.toFixed(4);
-    if (inputsValid()) calculate();
-    else logStatus('Please fix invalid inputs');
-}
-
 function scheduleCalculate() {
     if (!autoCalcEnabled || !backendReady) return;
     if (calcTimer) clearTimeout(calcTimer);
