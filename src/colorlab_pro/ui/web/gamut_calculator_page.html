@@ -3,42 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <title>Gamut Calculator Page - Improved UI Mockup</title>
+<link rel="stylesheet" href="theme.css">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg-base); color: var(--text-primary); padding: 16px; font-size: 13px; }
   /* Loading overlay */
   .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.7); display: none; align-items: center; justify-content: center; z-index: 9999; }
   .loading-overlay.active { display: flex; }
-  .loading-spinner { width: 40px; height: 40px; border: 4px solid #444; border-top-color: #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; }
+  .loading-spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { 100% { transform: rotate(360deg); } }
   .input-error { border-color: #ff6666 !important; background: rgba(255,102,102,0.1) !important; }
 
 
   /* Page Header */
   .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .page-title { color: #4fc3f7; font-size: 18px; font-weight: bold; }
+  .page-title { color: var(--accent); font-size: 18px; font-weight: bold; }
 
   /* Mode & Controls Bar */
-  .controls-bar { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .controls-bar { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
   .controls-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .controls-section { display: flex; align-items: center; gap: 8px; }
-  .section-label { color: #999; font-size: 11px; margin-right: 4px; }
+  .section-label { color: var(--text-secondary); font-size: 11px; margin-right: 4px; }
 
-  .mode-select { background: #1e1e1e; border: 1px solid #555; border-radius: 4px; padding: 6px 12px; color: #e0e0e0; font-size: 12px; min-width: 180px; }
+  .mode-select { background: var(--bg-base); border: 1px solid var(--border-input); border-radius: 4px; padding: 6px 12px; color: var(--text-primary); font-size: 12px; min-width: 180px; }
 
   .checkbox-group { display: flex; align-items: center; gap: 12px; }
   .checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
-  .checkbox-label input { accent-color: #0078d4; }
+  .checkbox-label input { accent-color: var(--accent); }
 
-  .divider { width: 1px; height: 24px; background: #444; margin: 0 4px; }
+  .divider { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
 
   /* Input Parameters Section */
-  .input-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
-  .section-title { color: #4fc3f7; font-weight: bold; font-size: 13px; margin-bottom: 12px; }
+  .input-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .section-title { color: var(--accent); font-weight: bold; font-size: 13px; margin-bottom: 12px; }
   .input-grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 12px; }
 
   .input-panel { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; padding: 12px; }
-  .panel-label { color: #888; font-size: 11px; margin-bottom: 8px; font-weight: bold; }
+  .panel-label { color: var(--text-muted); font-size: 11px; margin-bottom: 8px; font-weight: bold; }
   .panel-label-spectrum { border-left: 3px solid #FF4444; padding-left: 8px; }
   .panel-label-filter { border-left: 3px solid #88FF88; padding-left: 8px; }
   .panel-label-thickness { border-left: 3px solid #8888FF; padding-left: 8px; }
@@ -52,58 +53,58 @@
   .channel-gcf { background: #204a20; color: #88ff88; }
   .channel-bcf { background: #20204a; color: #88aaff; }
 
-  .spectrum-select { background: #252526; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; flex: 1; min-width: 80px; }
-  .paste-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 8px; color: #e0e0e0; font-size: 10px; cursor: pointer; }
-  .paste-btn:hover { background: #4a4a4a; }
+  .spectrum-select { background: var(--bg-panel); border: 1px solid var(--border-input); border-radius: 4px; padding: 4px 8px; color: var(--text-primary); font-size: 11px; flex: 1; min-width: 80px; }
+  .paste-btn { background: var(--btn-secondary); border: 1px solid var(--border-input); border-radius: 4px; padding: 4px 8px; color: var(--text-primary); font-size: 10px; cursor: pointer; }
+  .paste-btn:hover { background: var(--btn-secondary-hover); }
 
   .thickness-control { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; min-width: 0; }
-  .spin-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 3px; width: 24px; height: 24px; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-  .spin-btn:hover { background: #4a4a4a; }
-  .spin-value { background: #252526; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; color: #e0e0e0; font-size: 11px; width: 60px; text-align: center; }
-  .step-label { color: #666; font-size: 10px; margin-left: 4px; }
-  .step-value { background: #252526; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; color: #888; font-size: 10px; width: 55px; text-align: center; }
+  .spin-btn { background: var(--btn-secondary); border: 1px solid var(--border-input); border-radius: 3px; width: 24px; height: 24px; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .spin-btn:hover { background: var(--btn-secondary-hover); }
+  .spin-value { background: var(--bg-panel); border: 1px solid var(--border-input); border-radius: 3px; padding: 4px 8px; color: var(--text-primary); font-size: 11px; width: 60px; text-align: center; }
+  .step-label { color: var(--text-faint); font-size: 10px; margin-left: 4px; }
+  .step-value { background: var(--bg-panel); border: 1px solid var(--border-input); border-radius: 3px; padding: 4px 6px; color: var(--text-muted); font-size: 10px; width: 55px; text-align: center; }
 
   /* Main 3-Column Grid */
   .main-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 
-  .panel { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
-  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #444; }
-  .panel-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
+  .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .panel-title { color: var(--accent); font-weight: bold; font-size: 13px; }
 
   /* Tabs */
-  .tabs { display: flex; border-bottom: 1px solid #444; }
-  .tab { padding: 8px 14px; color: #888; cursor: pointer; font-size: 11px; border-bottom: 2px solid transparent; }
-  .tab.active { color: #fff; border-bottom-color: #0078d4; }
-  .tab:hover { color: #e0e0e0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 14px; color: var(--text-muted); cursor: pointer; font-size: 11px; border-bottom: 2px solid transparent; }
+  .tab.active { color: #fff; border-bottom-color: var(--btn-primary); }
+  .tab:hover { color: var(--text-primary); }
 
   /* Chart Area */
   .chart-area { height: 240px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
 
   /* Gamut Results */
   .gamut-section { padding: 12px; }
-  .gamut-subtitle { color: #81d4fa; font-size: 11px; font-weight: bold; margin: 8px 0 6px; }
+  .gamut-subtitle { color: var(--accent-light); font-size: 11px; font-weight: bold; margin: 8px 0 6px; }
   .gamut-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px; }
-  .gamut-table th { background: #1e1e1e; color: #4fc3f7; padding: 6px 8px; text-align: center; font-weight: normal; }
-  .gamut-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #333; }
-  .gamut-value { color: #e0e0e0; font-family: 'Consolas', monospace; }
+  .gamut-table th { background: var(--bg-base); color: var(--accent); padding: 6px 8px; text-align: center; font-weight: normal; }
+  .gamut-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-light); }
+  .gamut-value { color: var(--text-primary); font-family: 'Consolas', monospace; }
   .gamut-high { color: #66bb6a; }
   .gamut-medium { color: #ffd700; }
   .gamut-low { color: #ff6666; }
 
   /* Data Tables */
-  .data-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 12px; }
+  .data-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
   .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .data-title { color: #81d4fa; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
+  .data-title { color: var(--accent-light); font-size: 11px; font-weight: bold; margin-bottom: 8px; }
   .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .data-table th { background: #1e1e1e; color: #4fc3f7; padding: 6px 8px; text-align: center; font-weight: normal; }
-  .data-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #333; }
+  .data-table th { background: var(--bg-base); color: var(--accent); padding: 6px 8px; text-align: center; font-weight: normal; }
+  .data-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-light); }
   .data-value { color: #b0b0b0; font-family: 'Consolas', monospace; }
 
   /* Status Bar */
-  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #252526; border: 1px solid #444; border-radius: 6px; margin-top: 12px; }
-  .status-left { color: #888; font-size: 11px; }
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; margin-top: 12px; }
+  .status-left { color: var(--text-muted); font-size: 11px; }
   .status-right { display: flex; gap: 12px; }
-  .status-item { color: #666; font-size: 11px; }
+  .status-item { color: var(--text-faint); font-size: 11px; }
 </style>
 <script src="cie_chromaticity_data.js?v=3"></script>
 <script src="echarts.min.js"></script>
@@ -141,7 +142,7 @@
         </div>
       </div>
       <div style="display:flex;gap:6px;">
-        <button id="calculate-btn" style="background:#0078d4;color:#fff;border:none;border-radius:4px;padding:6px 18px;font-size:12px;cursor:pointer;">Calculate Gamut</button>
+        <button id="calculate-btn" style="background:var(--btn-primary);color:#fff;border:none;border-radius:4px;padding:6px 18px;font-size:12px;cursor:pointer;">Calculate Gamut</button>
         <button id="export-report-btn" disabled title="Calculate gamut first to enable export" style="background:#3c3c3c;color:#888;border:1px solid #555;border-radius:4px;padding:6px 18px;font-size:12px;cursor:not-allowed;">Export Report</button>
       </div>
     </div>
@@ -353,7 +354,7 @@ function setExportEnabled(enabled) {
     btn.title = enabled ? 'Export gamut analysis report' : 'Calculate gamut first to enable export';
     btn.style.color = enabled ? '#e0e0e0' : '#888';
     btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
-    btn.style.background = enabled ? '#0078d4' : '#3c3c3c';
+    btn.style.background = enabled ? '#0a84ff' : '#3c3c3c';
 }
 
 function populateSelectors(spectra) {
@@ -622,7 +623,7 @@ function renderSpectrumDataTable(primaries) {
             '<td class="data-value">' + (p.purity != null ? Number(p.purity).toFixed(1) + '%' : '-') + '</td>' +
             '</tr>';
     });
-    tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:#666;padding:12px;">No data</td></tr>';
+    tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:12px;">No data</td></tr>';
 }
 
 function renderSpectrumPreview() {
@@ -687,7 +688,7 @@ function renderSpectrumPreview() {
     if (legendTbody) {
         var lhtml = '';
         if (legendEntries.length === 0) {
-            lhtml = '<tr><td colspan="4" style="text-align:center;color:#666;padding:6px;">Select spectra first</td></tr>';
+            lhtml = '<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:6px;">Select spectra first</td></tr>';
         } else {
             legendEntries.forEach(function(e) {
                 lhtml += '<tr>' +
@@ -873,8 +874,9 @@ function bindCoordTooltip(chart, dom, xLabel, yLabel) {
     function ensureTooltip() {
         if (!tooltipEl) {
             tooltipEl = document.createElement('div');
-            tooltipEl.style.cssText = 'position:absolute;pointer-events:none;background:rgba(30,30,30,0.92);'
-                + 'border:1px solid #555;border-radius:4px;padding:6px 10px;font-size:11px;color:#e0e0e0;'
+            var _tb = getComputedStyle(document.documentElement);
+            tooltipEl.style.cssText = 'position:absolute;pointer-events:none;background:' + _tb.getPropertyValue('--tooltip-bg').trim() + ';'
+                + 'border:1px solid ' + _tb.getPropertyValue('--tooltip-border').trim() + ';border-radius:4px;padding:6px 10px;font-size:11px;color:' + _tb.getPropertyValue('--tooltip-text').trim() + ';'
                 + 'font-family:Consolas,monospace;z-index:999;white-space:nowrap;';
             dom.style.position = 'relative';
             dom.appendChild(tooltipEl);
@@ -1052,7 +1054,7 @@ function renderCIECharts(primaries) {
 
     var dynamicXY = [];
     if (showTriangle) {
-        dynamicXY.push({ name: 'Device', type: 'line', data: devicePoly, lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 });
+        dynamicXY.push({ name: 'Device', type: 'line', data: devicePoly, lineStyle: { width: 2.5, color: '#0a84ff' }, areaStyle: { color: 'rgba(10,132,255,0.15)' }, z: 10 });
         dynamicXY.push({ name: 'Device R', type: 'scatter', data: [[primaries[0].x, primaries[0].y]], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 });
         dynamicXY.push({ name: 'Device G', type: 'scatter', data: [[primaries[1].x, primaries[1].y]], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 });
         dynamicXY.push({ name: 'Device B', type: 'scatter', data: [[primaries[2].x, primaries[2].y]], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 });
@@ -1063,7 +1065,7 @@ function renderCIECharts(primaries) {
 
     var dynamicUV = [];
     if (showTriangle) {
-        dynamicUV.push({ name: 'Device', type: 'line', data: deviceUVPoly.map(function(p){ return [p.u, p.v]; }), lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 });
+        dynamicUV.push({ name: 'Device', type: 'line', data: deviceUVPoly.map(function(p){ return [p.u, p.v]; }), lineStyle: { width: 2.5, color: '#0a84ff' }, areaStyle: { color: 'rgba(10,132,255,0.15)' }, z: 10 });
         dynamicUV.push({ name: 'Device R', type: 'scatter', data: [[xyToUV(primaries[0].x, primaries[0].y).u, xyToUV(primaries[0].x, primaries[0].y).v]], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 });
         dynamicUV.push({ name: 'Device G', type: 'scatter', data: [[xyToUV(primaries[1].x, primaries[1].y).u, xyToUV(primaries[1].x, primaries[1].y).v]], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 });
         dynamicUV.push({ name: 'Device B', type: 'scatter', data: [[xyToUV(primaries[2].x, primaries[2].y).u, xyToUV(primaries[2].x, primaries[2].y).v]], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 });

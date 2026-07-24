@@ -3,54 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <title>White Point Page - Improved UI Mockup</title>
+<link rel="stylesheet" href="theme.css">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #1e1e1e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg-base); color: var(--text-primary); padding: 16px; font-size: 13px; }
   /* Loading overlay */
   .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.7); display: none; align-items: center; justify-content: center; z-index: 9999; }
   .loading-overlay.active { display: flex; }
-  .loading-spinner { width: 40px; height: 40px; border: 4px solid #444; border-top-color: #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; }
+  .loading-spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { 100% { transform: rotate(360deg); } }
   .input-error { border-color: #ff6666 !important; background: rgba(255,102,102,0.1) !important; }
 
 
   /* Page Header */
   .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .page-title { color: #4fc3f7; font-size: 18px; font-weight: bold; }
+  .page-title { color: var(--accent); font-size: 18px; font-weight: bold; }
 
   /* Mode Selection Section */
-  .mode-section { background: #252526; border: 1px solid #444; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .mode-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
   .mode-row { display: flex; align-items: center; gap: 20px; }
   .mode-group { display: flex; align-items: center; gap: 12px; }
-  .mode-label { color: #999; font-size: 11px; }
+  .mode-label { color: var(--text-secondary); font-size: 11px; }
   .radio-group { display: flex; gap: 16px; }
   .radio-label { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
-  .radio-label input { accent-color: #0078d4; }
+  .radio-label input { accent-color: var(--accent); }
 
-  .divider { width: 1px; height: 24px; background: #444; }
+  .divider { width: 1px; height: 24px; background: var(--border); }
 
   .checkbox-group { display: flex; gap: 14px; }
   .checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
-  .checkbox-label input { accent-color: #0078d4; }
+  .checkbox-label input { accent-color: var(--accent); }
 
   /* Preset Buttons */
   .preset-section { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-  .preset-btn { background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; color: #e0e0e0; font-size: 11px; cursor: pointer; }
-  .preset-btn:hover { background: #4a4a4a; border-color: #4fc3f7; }
-  .preset-btn.active { background: #0078d4; border-color: #0078d4; color: white; }
+  .preset-btn { background: var(--btn-secondary); border: 1px solid var(--border-input); border-radius: 4px; padding: 4px 10px; color: var(--text-primary); font-size: 11px; cursor: pointer; }
+  .preset-btn:hover { background: var(--btn-secondary-hover); border-color: var(--accent); }
+  .preset-btn.active { background: var(--btn-primary); border-color: var(--btn-primary); color: white; }
 
   /* Main Content Grid */
   .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 
   /* Input Table Section */
-  .input-section { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
-  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #444; }
-  .section-title { color: #4fc3f7; font-weight: bold; font-size: 13px; }
+  .input-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .section-title { color: var(--accent); font-weight: bold; font-size: 13px; }
 
   .input-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .input-table thead { position: sticky; top: 0; }
-  .input-table th { background: #1e1e1e; color: #4fc3f7; padding: 10px 12px; text-align: center; font-weight: normal; border-bottom: 2px solid #444; }
-  .input-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid #333; }
+  .input-table th { background: var(--bg-base); color: var(--accent); padding: 10px 12px; text-align: center; font-weight: normal; border-bottom: 2px solid var(--border); }
+  .input-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--border-light); }
 
   .channel-cell { font-weight: bold; width: 40px; }
   .channel-r { color: #ff6666; }
@@ -58,54 +59,54 @@
   .channel-b { color: #6666ff; }
   .channel-w { color: #ffffff; font-size: 14px; }
 
-  .input-cell { background: #1e1e1e; }
-  .input-field { background: transparent; border: 1px solid #555; border-radius: 3px; padding: 6px 8px; color: #e0e0e0; font-size: 12px; width: 80px; text-align: center; font-family: 'Consolas', monospace; }
-  .input-field:focus { border-color: #4fc3f7; outline: none; }
-  .input-field[readonly] { background: #252526; color: #b0b0b0; cursor: default; border-color: #3a3a3a; }
+  .input-cell { background: var(--bg-base); }
+  .input-field { background: transparent; border: 1px solid var(--border-input); border-radius: 3px; padding: 6px 8px; color: var(--text-primary); font-size: 12px; width: 80px; text-align: center; font-family: 'Consolas', monospace; }
+  .input-field:focus { border-color: var(--accent); outline: none; }
+  .input-field[readonly] { background: var(--bg-panel); color: #b0b0b0; cursor: default; border-color: #3a3a3a; }
 
-  .output-cell { background: #252526; }
+  .output-cell { background: var(--bg-panel); }
   .output-value { color: #b0b0b0; font-family: 'Consolas', monospace; font-size: 12px; }
 
   .row-highlight { background: rgba(79, 195, 247, 0.05); }
 
   /* Gamut Results Section */
-  .gamut-section { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+  .gamut-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 
   .gamut-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .gamut-table th { background: #1e1e1e; color: #4fc3f7; padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid #444; }
-  .gamut-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #333; }
+  .gamut-table th { background: var(--bg-base); color: var(--accent); padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid var(--border); }
+  .gamut-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border-light); }
   .gamut-value { font-family: 'Consolas', monospace; }
   .gamut-high { color: #66bb6a; }
   .gamut-medium { color: #ffd700; }
   .gamut-low { color: #ff6666; }
 
   /* CIE Diagrams Section */
-  .cie-section { background: #252526; border: 1px solid #444; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  .cie-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
   .cie-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
   .cie-panel { border-right: 1px solid #444; }
   .cie-panel:last-child { border-right: none; }
-  .cie-header { padding: 10px 12px; border-bottom: 1px solid #444; display: flex; align-items: center; justify-content: space-between; }
-  .cie-title { color: #81d4fa; font-size: 12px; font-weight: bold; }
+  .cie-header { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .cie-title { color: var(--accent-light); font-size: 12px; font-weight: bold; }
   .cie-chart { height: 280px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
 
   /* Status Bar */
-  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #252526; border: 1px solid #444; border-radius: 6px; }
-  .status-left { color: #888; font-size: 11px; }
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; }
+  .status-left { color: var(--text-muted); font-size: 11px; }
   .status-right { display: flex; gap: 16px; }
-  .status-item { color: #666; font-size: 11px; }
+  .status-item { color: var(--text-faint); font-size: 11px; }
 
   /* Calculation Indicator */
-  .calc-indicator { display: inline-flex; align-items: center; gap: 6px; background: #3c3c3c; color: #999; padding: 4px 10px; border-radius: 4px; font-size: 11px; transition: background 0.2s, color 0.2s; }
-  .calc-indicator.ready { background: #264f78; color: #4fc3f7; }
+  .calc-indicator { display: inline-flex; align-items: center; gap: 6px; background: var(--btn-secondary); color: var(--text-secondary); padding: 4px 10px; border-radius: 4px; font-size: 11px; transition: background 0.2s, color 0.2s; }
+  .calc-indicator.ready { background: var(--accent-bg); color: var(--accent); }
   .calc-indicator.error { background: #5c2b2b; color: #ff6666; }
-  .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: #888; }
-  .calc-indicator.ready .calc-dot { background: #4fc3f7; }
+  .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+  .calc-indicator.ready .calc-dot { background: var(--accent); }
   .calc-indicator.error .calc-dot { background: #ff6666; }
   .calc-dot.pulse { animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-  .retry-btn { display: none; background: #3c3c3c; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; color: #e0e0e0; font-size: 11px; cursor: pointer; margin-left: 8px; }
+  .retry-btn { display: none; background: var(--btn-secondary); border: 1px solid var(--border-input); border-radius: 4px; padding: 4px 10px; color: var(--text-primary); font-size: 11px; cursor: pointer; margin-left: 8px; }
   .retry-btn.visible { display: inline-block; }
-  .retry-btn:hover { background: #4a4a4a; border-color: #4fc3f7; }
+  .retry-btn:hover { background: var(--btn-secondary-hover); border-color: var(--accent); }
 </style>
 <script src="cie_chromaticity_data.js?v=3"></script>
 <script src="echarts.min.js"></script>
@@ -368,7 +369,7 @@ function renderGamutResults(results) {
         var cov1976 = r.coverage_1976 || 0;
         var match1976 = r.match_1976 || 0;
         function cls(v) { return v >= 90 ? 'gamut-high' : (v >= 70 ? 'gamut-medium' : 'gamut-low'); }
-        var row = '<tr><td style="color:#888;">' + r.standard + '</td>' +
+        var row = '<tr><td style="color:var(--text-muted);">' + r.standard + '</td>' +
             '<td class="gamut-value ' + cls(cov1931) + '">' + cov1931.toFixed(2) + '</td>' +
             '<td class="gamut-value ' + cls(match1931) + '">' + match1931.toFixed(2) + '</td>' +
             '<td class="gamut-value ' + cls(cov1976) + '">' + cov1976.toFixed(2) + '</td>' +
@@ -615,8 +616,9 @@ function bindCoordTooltip(chart, dom, xLabel, yLabel) {
     function ensureTooltip() {
         if (!tooltipEl) {
             tooltipEl = document.createElement('div');
-            tooltipEl.style.cssText = 'position:absolute;pointer-events:none;background:rgba(30,30,30,0.92);'
-                + 'border:1px solid #555;border-radius:4px;padding:6px 10px;font-size:11px;color:#e0e0e0;'
+            var _tb = getComputedStyle(document.documentElement);
+            tooltipEl.style.cssText = 'position:absolute;pointer-events:none;background:' + _tb.getPropertyValue('--tooltip-bg').trim() + ';'
+                + 'border:1px solid ' + _tb.getPropertyValue('--tooltip-border').trim() + ';border-radius:4px;padding:6px 10px;font-size:11px;color:' + _tb.getPropertyValue('--tooltip-text').trim() + ';'
                 + 'font-family:Consolas,monospace;z-index:999;white-space:nowrap;';
             dom.style.position = 'relative';
             dom.appendChild(tooltipEl);
@@ -793,14 +795,14 @@ function renderCIECharts(data) {
     var wuv = data.white_uv || xyToUV(w[0], w[1]);
 
     var dynamicXY = [
-        { name: 'Device', type: 'line', data: [r, g, b, r], lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 },
+        { name: 'Device', type: 'line', data: [r, g, b, r], lineStyle: { width: 2.5, color: '#0a84ff' }, areaStyle: { color: 'rgba(10,132,255,0.15)' }, z: 10 },
         { name: 'Device R', type: 'scatter', data: [r], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 },
         { name: 'Device G', type: 'scatter', data: [g], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 },
         { name: 'Device B', type: 'scatter', data: [b], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 },
         { name: 'White', type: 'scatter', data: [w], symbolSize: 10, itemStyle: { color: '#ffd700' }, z: 11 }
     ];
     var dynamicUV = [
-        { name: 'Device', type: 'line', data: [[ruv.u, ruv.v], [guv.u, guv.v], [buv.u, buv.v], [ruv.u, ruv.v]], lineStyle: { width: 2.5, color: '#4fc3f7' }, areaStyle: { color: 'rgba(79,195,247,0.15)' }, z: 10 },
+        { name: 'Device', type: 'line', data: [[ruv.u, ruv.v], [guv.u, guv.v], [buv.u, buv.v], [ruv.u, ruv.v]], lineStyle: { width: 2.5, color: '#0a84ff' }, areaStyle: { color: 'rgba(10,132,255,0.15)' }, z: 10 },
         { name: 'Device R', type: 'scatter', data: [[ruv.u, ruv.v]], symbolSize: 8, itemStyle: { color: '#ff6666' }, label: { show: true, formatter: 'R', color: '#ff6666', fontSize: 10 }, z: 11 },
         { name: 'Device G', type: 'scatter', data: [[guv.u, guv.v]], symbolSize: 8, itemStyle: { color: '#66ff66' }, label: { show: true, formatter: 'G', color: '#66ff66', fontSize: 10 }, z: 11 },
         { name: 'Device B', type: 'scatter', data: [[buv.u, buv.v]], symbolSize: 8, itemStyle: { color: '#6666ff' }, label: { show: true, formatter: 'B', color: '#6666ff', fontSize: 10 }, z: 11 },
