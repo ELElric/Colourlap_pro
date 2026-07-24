@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSettings, QSize, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtCore import QPointF, QSettings, QSize, Qt, Signal
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QColor,
+    QIcon,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -19,13 +28,78 @@ from PySide6.QtWidgets import (
 from colorlab_pro.config.settings import get_config
 from colorlab_pro.ui.dialogs.about_dialog import AboutDialog
 
-# Navigation items: (icon, label)
+# Navigation items: (icon kind, label). Icons are drawn as vector pixmaps
+# via _render_nav_icon so they stay crisp and consistent across platforms.
 _NAV_ITEMS: list[tuple[str, str]] = [
-    ("◈", "Spectrum Library"),
-    ("▦", "Gamut Calculator"),
-    ("◎", "White Point"),
-    ("⚙", "Thickness Optimizer"),
+    ("spectrum", "Spectrum Library"),
+    ("gamut", "Gamut Calculator"),
+    ("whitepoint", "White Point"),
+    ("thickness", "Thickness Optimizer"),
 ]
+
+
+def _render_nav_icon(kind: str, color: str, size: int = 20) -> QPixmap:
+    """Draw a sidebar nav icon as a crisp vector pixmap (no font/SVG dependency).
+
+    Each icon is centered in a ``size`` x ``size`` canvas so all four share the
+    same visual weight and vertical baseline.
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(QPen(QColor(color), 2, Qt.SolidLine, Qt.RoundCap))
+    painter.setBrush(Qt.NoBrush)
+    center = size / 2.0
+    if kind == "spectrum":
+        heights = [8, 12, 16, 10, 6]
+        step = size / (len(heights) + 1)
+        for i, h in enumerate(heights):
+            x = step * (i + 1)
+            top = (size - h) / 2.0
+            painter.drawLine(QPointF(x, top), QPointF(x, top + h))
+    elif kind == "gamut":
+        heights = [5, 9, 12]
+        step = size / (len(heights) + 1)
+        for i, h in enumerate(heights):
+            x = step * (i + 1)
+            painter.drawLine(QPointF(x, size - 3), QPointF(x, size - 3 - h))
+    elif kind == "whitepoint":
+        painter.setBrush(QColor(color))
+        painter.drawEllipse(QPointF(center, center), 2.5, 2.5)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawEllipse(QPointF(center, center), 7, 7)
+    elif kind == "thickness":
+        painter.drawLine(QPointF(3, center), QPointF(17, center))
+        painter.setBrush(QColor(color))
+        painter.drawEllipse(QPointF(13, center), 3, 3)
+    painter.end()
+    return pixmap
+
+
+class _NavButton(QPushButton):
+    """Sidebar navigation button: a vector icon (left) + label (right)."""
+
+    _INACTIVE_COLOR = "#8e8e93"
+    _ACTIVE_COLOR = "#0a84ff"
+
+    def __init__(self, kind: str, label: str, index: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._kind = kind
+        self._index = index
+        self.setText(label)
+        self.setObjectName("nav-item")
+        self.setIcon(QIcon(_render_nav_icon(kind, self._INACTIVE_COLOR)))
+        self.setIconSize(QSize(20, 20))
+        self.setFixedHeight(40)
+        self.setProperty("active", False)
+
+    def set_active(self, active: bool) -> None:
+        self.setProperty("active", active)
+        color = self._ACTIVE_COLOR if active else self._INACTIVE_COLOR
+        self.setIcon(QIcon(_render_nav_icon(self._kind, color)))
+        self.style().unpolish(self)
+        self.style().polish(self)
 
 
 class _Sidebar(QWidget):
@@ -42,11 +116,9 @@ class _Sidebar(QWidget):
         layout.setSpacing(0)
 
         self._buttons: list[QPushButton] = []
-        for idx, (icon, label) in enumerate(_NAV_ITEMS):
-            btn = QPushButton(f"{icon}  {label}")
-            btn.setObjectName("nav-item")
-            btn.setProperty("nav_index", idx)
-            btn.clicked.connect(lambda checked, i=idx: self._on_clicked(i))
+        for idx, (kind, label) in enumerate(_NAV_ITEMS):
+            btn = _NavButton(kind, label, idx)
+            btn.clicked.connect(lambda checked=False, i=idx: self._on_clicked(i))
             layout.addWidget(btn)
             self._buttons.append(btn)
 
@@ -59,9 +131,7 @@ class _Sidebar(QWidget):
 
     def set_current_index(self, index: int) -> None:
         for i, btn in enumerate(self._buttons):
-            btn.setProperty("active", i == index)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+            btn.set_active(i == index)
 
 
 class TopBar(QWidget):

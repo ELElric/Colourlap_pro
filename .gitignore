@@ -60,3 +60,7 @@ import_debug.log
 # Broken symlinks (cannot be deleted on Windows)
 ai_context/AI_HANDOVER_*.md
 ai_context/FIXES_SUMMARY.md
+
+# Agent temp dirs
+.tmp/
+.workbuddy/
