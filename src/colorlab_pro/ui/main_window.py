@@ -10,8 +10,10 @@ from PySide6.QtGui import (
     QIcon,
     QKeySequence,
     QPainter,
+    QPainterPath,
     QPen,
     QPixmap,
+    QPolygonF,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -38,6 +40,34 @@ _NAV_ITEMS: list[tuple[str, str]] = [
 ]
 
 
+def _render_brand_icon(color: str, size: int = 28) -> QPixmap:
+    """Draw the ColorLab Pro brand icon: a stylised RGB colour disc.
+
+    Three overlapping circles (R / G / B) that blend visually to suggest
+    a colour-science tool.  Works well at small sizes and stays crisp
+    because it is rendered entirely with QPainter primitives.
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    c = QColor(color)
+    r = size * 0.22
+    offset = size * 0.12
+    cx, cy = size / 2.0, size / 2.0
+
+    for dx, dy, alpha in [(-offset, 0, 160), (0, -offset * 0.6, 130), (offset, 0, 110)]:
+        rc = QColor(c)
+        rc.setAlpha(alpha)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(rc)
+        painter.drawEllipse(QPointF(cx + dx, cy + dy), r, r)
+
+    painter.end()
+    return pixmap
+
+
 def _render_nav_icon(kind: str, color: str, size: int = 20) -> QPixmap:
     """Draw a sidebar nav icon as a crisp vector pixmap (no font/SVG dependency).
 
@@ -48,31 +78,50 @@ def _render_nav_icon(kind: str, color: str, size: int = 20) -> QPixmap:
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
-    painter.setPen(QPen(QColor(color), 2, Qt.SolidLine, Qt.RoundCap))
-    painter.setBrush(Qt.NoBrush)
+    c = QColor(color)
     center = size / 2.0
+    pen = QPen(c, 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+    painter.setPen(pen)
+
     if kind == "spectrum":
-        heights = [8, 12, 16, 10, 6]
-        step = size / (len(heights) + 1)
-        for i, h in enumerate(heights):
-            x = step * (i + 1)
-            top = (size - h) / 2.0
-            painter.drawLine(QPointF(x, top), QPointF(x, top + h))
+        # Smooth bell-curve wave to represent a spectrum
+        path = QPainterPath()
+        pts = [(0, size - 2), (3, size - 3), (5, size - 5), (7, size - 10),
+               (9, size - 15), (10, size - 17), (11, size - 15), (13, size - 10),
+               (15, size - 5), (17, size - 3), (20, size - 2)]
+        path.moveTo(*pts[0])
+        for p in pts[1:]:
+            path.lineTo(*p)
+        painter.drawPath(path)
     elif kind == "gamut":
-        heights = [5, 9, 12]
-        step = size / (len(heights) + 1)
-        for i, h in enumerate(heights):
-            x = step * (i + 1)
-            painter.drawLine(QPointF(x, size - 3), QPointF(x, size - 3 - h))
-    elif kind == "whitepoint":
-        painter.setBrush(QColor(color))
-        painter.drawEllipse(QPointF(center, center), 2.5, 2.5)
+        # Filled triangle representing a colour gamut
+        tri = [QPointF(center, 2.5), QPointF(3, size - 3), QPointF(size - 3, size - 3)]
+        c_fill = QColor(c)
+        c_fill.setAlpha(48)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(c_fill)
+        painter.drawPolygon(QPolygonF(tri))
         painter.setBrush(Qt.NoBrush)
-        painter.drawEllipse(QPointF(center, center), 7, 7)
+        painter.setPen(pen)
+        painter.drawPolygon(QPolygonF(tri))
+    elif kind == "whitepoint":
+        # Crosshair + centre dot (target reticle)
+        painter.drawLine(QPointF(center, 2), QPointF(center, size - 2))
+        painter.drawLine(QPointF(2, center), QPointF(size - 2, center))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(c)
+        painter.drawEllipse(QPointF(center, center), 2, 2)
     elif kind == "thickness":
-        painter.drawLine(QPointF(3, center), QPointF(17, center))
-        painter.setBrush(QColor(color))
-        painter.drawEllipse(QPointF(13, center), 3, 3)
+        # Stacked horizontal layers (film cross-section)
+        lw = size - 6
+        x0 = 3
+        for i, y in enumerate([4, center - 1.5, size - 5]):
+            alpha = 255 - i * 50
+            c_line = QColor(c)
+            c_line.setAlpha(alpha)
+            painter.setPen(QPen(c_line, 2.5, Qt.SolidLine, Qt.RoundCap))
+            painter.drawLine(QPointF(x0, y), QPointF(x0 + lw, y))
+
     painter.end()
     return pixmap
 
@@ -112,9 +161,32 @@ class _Sidebar(QWidget):
         self.setObjectName("Sidebar")
         self.setFixedWidth(200)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setContentsMargins(0, 0, 0, 8)
         layout.setSpacing(0)
 
+        # --- Brand header ---
+        brand = QWidget()
+        brand.setObjectName("sidebar-brand")
+        brand_layout = QHBoxLayout(brand)
+        brand_layout.setContentsMargins(14, 16, 14, 16)
+        brand_layout.setSpacing(10)
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(_render_brand_icon("#0a84ff"))
+        icon_lbl.setFixedSize(28, 28)
+        name_lbl = QLabel("ColorLab Pro")
+        name_lbl.setObjectName("sidebar-brand-name")
+        brand_layout.addWidget(icon_lbl)
+        brand_layout.addWidget(name_lbl)
+        brand_layout.addStretch()
+        layout.addWidget(brand)
+
+        # Thin divider below brand
+        divider = QWidget()
+        divider.setObjectName("sidebar-divider")
+        divider.setFixedHeight(1)
+        layout.addWidget(divider)
+
+        # Nav buttons
         self._buttons: list[QPushButton] = []
         for idx, (kind, label) in enumerate(_NAV_ITEMS):
             btn = _NavButton(kind, label, idx)

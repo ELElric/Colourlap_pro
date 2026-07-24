@@ -5,108 +5,47 @@
 <title>White Point Page - Improved UI Mockup</title>
 <link rel="stylesheet" href="theme.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg-base); color: var(--text-primary); padding: 16px; font-size: 13px; }
-  /* Loading overlay */
-  .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30,30,30,0.7); display: none; align-items: center; justify-content: center; z-index: 9999; }
-  .loading-overlay.active { display: flex; }
-  .loading-spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-  @keyframes spin { 100% { transform: rotate(360deg); } }
-  .input-error { border-color: #ff6666 !important; background: rgba(255,102,102,0.1) !important; }
-
-
-  /* Page Header */
-  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .page-title { color: var(--accent); font-size: 18px; font-weight: bold; }
-
-  /* Mode Selection Section */
-  .mode-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  /* ===== Mode Selection Section ===== */
+  .mode-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--gap-lg); margin-bottom: var(--gap-lg); }
   .mode-row { display: flex; align-items: center; gap: 20px; }
-  .mode-group { display: flex; align-items: center; gap: 12px; }
-  .mode-label { color: var(--text-secondary); font-size: 11px; }
-  .radio-group { display: flex; gap: 16px; }
-  .radio-label { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
-  .radio-label input { accent-color: var(--accent); }
+  .mode-group { display: flex; align-items: center; gap: var(--gap-md); }
+  .mode-label { color: var(--text-secondary); font-size: var(--font-sm); }
 
-  .divider { width: 1px; height: 24px; background: var(--border); }
+  /* ===== Main Content Grid ===== */
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-lg); margin-bottom: var(--gap-lg); }
 
-  .checkbox-group { display: flex; gap: 14px; }
-  .checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
-  .checkbox-label input { accent-color: var(--accent); }
-
-  /* Preset Buttons */
-  .preset-section { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-  .preset-btn { background: var(--btn-secondary); border: 1px solid var(--border-input); border-radius: 4px; padding: 4px 10px; color: var(--text-primary); font-size: 11px; cursor: pointer; }
-  .preset-btn:hover { background: var(--btn-secondary-hover); border-color: var(--accent); }
-  .preset-btn.active { background: var(--btn-primary); border-color: var(--btn-primary); color: white; }
-
-  /* Main Content Grid */
-  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-
-  /* Input Table Section */
-  .input-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-  .section-title { color: var(--accent); font-weight: bold; font-size: 13px; }
-
-  .input-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  /* ===== Input Table Section ===== */
+  .input-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .input-table { width: 100%; border-collapse: collapse; font-size: var(--font-sm); }
   .input-table thead { position: sticky; top: 0; }
-  .input-table th { background: var(--bg-base); color: var(--accent); padding: 10px 12px; text-align: center; font-weight: normal; border-bottom: 2px solid var(--border); }
-  .input-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--border-light); }
-
-  .channel-cell { font-weight: bold; width: 40px; }
-  .channel-r { color: #ff6666; }
-  .channel-g { color: #66ff66; }
-  .channel-b { color: #6666ff; }
-  .channel-w { color: #ffffff; font-size: 14px; }
+  .input-table th { padding: 10px 12px; text-align: center; }
+  .input-table td { padding: 10px 12px; text-align: center; }
+  .input-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
 
   .input-cell { background: var(--bg-base); }
-  .input-field { background: transparent; border: 1px solid var(--border-input); border-radius: 3px; padding: 6px 8px; color: var(--text-primary); font-size: 12px; width: 80px; text-align: center; font-family: 'Consolas', monospace; }
-  .input-field:focus { border-color: var(--accent); outline: none; }
-  .input-field[readonly] { background: var(--bg-panel); color: #b0b0b0; cursor: default; border-color: #3a3a3a; }
-
   .output-cell { background: var(--bg-panel); }
-  .output-value { color: #b0b0b0; font-family: 'Consolas', monospace; font-size: 12px; }
-
+  .output-value { color: #b0b0b0; font-family: var(--font-mono); font-size: var(--font-sm); }
   .row-highlight { background: rgba(79, 195, 247, 0.05); }
 
-  /* Gamut Results Section */
-  .gamut-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  /* ===== Gamut Results Section ===== */
+  .gamut-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
 
-  .gamut-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .gamut-table th { background: var(--bg-base); color: var(--accent); padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid var(--border); }
-  .gamut-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border-light); }
-  .gamut-value { font-family: 'Consolas', monospace; }
-  .gamut-high { color: #66bb6a; }
-  .gamut-medium { color: #ffd700; }
-  .gamut-low { color: #ff6666; }
-
-  /* CIE Diagrams Section */
-  .cie-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  /* ===== CIE Diagrams Section ===== */
+  .cie-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--gap-lg); }
   .cie-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
   .cie-panel { border-right: 1px solid #444; }
   .cie-panel:last-child { border-right: none; }
   .cie-header { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-  .cie-title { color: var(--accent-light); font-size: 12px; font-weight: bold; }
-  .cie-chart { height: 280px; background: #1a1a1a; margin: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+  .cie-title { color: var(--accent-light); font-size: var(--font-sm); font-weight: bold; }
+  .cie-chart { height: 280px; background: var(--chart-bg); margin: 8px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: #555; font-size: var(--font-sm); }
 
-  /* Status Bar */
-  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; }
-  .status-left { color: var(--text-muted); font-size: 11px; }
-  .status-right { display: flex; gap: 16px; }
-  .status-item { color: var(--text-faint); font-size: 11px; }
+  /* ===== Reference Legend ===== */
+  .ref-legend { display: flex; justify-content: center; gap: 12px; padding: 6px 0; }
 
-  /* Calculation Indicator */
-  .calc-indicator { display: inline-flex; align-items: center; gap: 6px; background: var(--btn-secondary); color: var(--text-secondary); padding: 4px 10px; border-radius: 4px; font-size: 11px; transition: background 0.2s, color 0.2s; }
-  .calc-indicator.ready { background: var(--accent-bg); color: var(--accent); }
-  .calc-indicator.error { background: #5c2b2b; color: #ff6666; }
-  .calc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
-  .calc-indicator.ready .calc-dot { background: var(--accent); }
-  .calc-indicator.error .calc-dot { background: #ff6666; }
-  .calc-dot.pulse { animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-  .retry-btn { display: none; background: var(--btn-secondary); border: 1px solid var(--border-input); border-radius: 4px; padding: 4px 10px; color: var(--text-primary); font-size: 11px; cursor: pointer; margin-left: 8px; }
-  .retry-btn.visible { display: inline-block; }
-  .retry-btn:hover { background: var(--btn-secondary-hover); border-color: var(--accent); }
+  /* ===== Utility Classes ===== */
+  .section-hint { color: var(--text-faint); font-size: var(--font-xs); }
+  .ml-auto { margin-left: auto; }
 </style>
 <script src="cie_chromaticity_data.js?v=3"></script>
 <script src="echarts.min.js"></script>
@@ -114,18 +53,6 @@
 <script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
 <body>
-
-<!-- Page Header -->
-<div class="page-header">
-  <div class="page-title">White Point Calculator</div>
-  <div style="display:flex;align-items:center;">
-    <div id="calc-indicator" class="calc-indicator">
-      <span id="calc-dot" class="calc-dot"></span>
-      <span id="calc-indicator-text">Auto-calculate</span>
-    </div>
-    <button id="backend-retry" class="retry-btn" onclick="checkBackend()">Retry</button>
-  </div>
-</div>
 
 <!-- Mode Selection -->
 <div class="mode-section">
@@ -153,7 +80,7 @@
         <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="updateReferenceGamuts()"> BT2020</label>
       </div>
     </div>
-    <div class="checkbox-group" style="margin-left:auto;">
+    <div class="checkbox-group ml-auto">
       <label class="checkbox-label" title="Automatically recalculate when inputs change">
         <input type="checkbox" id="auto-calc-toggle" checked onchange="toggleAutoCalculate(this.checked)">
         Auto-calculate
@@ -172,7 +99,7 @@
   <div class="input-section">
     <div class="section-header">
       <div class="section-title">RGBW Input</div>
-      <div style="color: #666; font-size: 10px;">Forward: Edit RGB xy+Ratios → W output / Reverse: Edit RGB xy+W xy → Ratio output</div>
+      <div class="section-hint">Forward: Edit RGB xy+Ratios → W output / Reverse: Edit RGB xy+W xy → Ratio output</div>
     </div>
     <table class="input-table">
       <thead>
@@ -185,28 +112,28 @@
       </thead>
       <tbody>
         <tr>
-          <td class="channel-cell channel-r">R</td>
+          <td class="channel-cell channel-r-text">R</td>
           <td class="input-cell"><input id="r-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.6400"></td>
           <td class="input-cell"><input id="r-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3300"></td>
           <td class="input-cell"><input id="r-ratio" class="input-field" type="text" oninput="scheduleCalculate()" value="0.333"></td>
         </tr>
         <tr>
-          <td class="channel-cell channel-g">G</td>
+          <td class="channel-cell channel-g-text">G</td>
           <td class="input-cell"><input id="g-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3000"></td>
           <td class="input-cell"><input id="g-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.6000"></td>
           <td class="input-cell"><input id="g-ratio" class="input-field" type="text" oninput="scheduleCalculate()" value="0.333"></td>
         </tr>
         <tr>
-          <td class="channel-cell channel-b">B</td>
+          <td class="channel-cell channel-b-text">B</td>
           <td class="input-cell"><input id="b-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.1500"></td>
           <td class="input-cell"><input id="b-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.0600"></td>
           <td class="input-cell"><input id="b-ratio" class="input-field" type="text" oninput="scheduleCalculate()" value="0.333"></td>
         </tr>
         <tr class="row-highlight">
-          <td class="channel-cell channel-w">W</td>
+          <td class="channel-cell channel-w-text">W</td>
           <td class="input-cell"><input id="w-x" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3127" readonly></td>
           <td class="input-cell"><input id="w-y" class="input-field" type="text" oninput="scheduleCalculate()" value="0.3290" readonly></td>
-          <td class="output-cell"><span class="output-value" style="color:#666;">-</span></td>
+          <td class="output-cell"><span class="output-value" style="color:var(--text-muted);">-</span></td>
         </tr>
       </tbody>
     </table>
@@ -248,23 +175,13 @@
       <div id="cie-1976-chart" style="width:100%;height:400px;"></div>
     </div>
   </div>
-  <div style="display:flex;justify-content:center;gap:16px;padding:6px 0;font-size:11px;color:#aaa;">
-    <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#ff6666;display:inline-block;"></span>sRGB</span>
-    <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#ffd700;display:inline-block;"></span>NTSC</span>
-    <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#66ff66;display:inline-block;"></span>DCI-P3</span>
-    <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:#6666ff;display:inline-block;"></span>BT2020</span>
+  <div class="ref-legend">
+    <span class="ref-chip" data-ref="sRGB" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-srgb);"></span>sRGB</span>
+    <span class="ref-chip" data-ref="NTSC" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-ntsc);"></span>NTSC</span>
+    <span class="ref-chip" data-ref="DCI-P3" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-dcip3);"></span>DCI-P3</span>
+    <span class="ref-chip" data-ref="BT2020" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-bt2020);"></span>BT2020</span>
   </div>
 </div>
-
-<!-- Status Bar -->
-<div class="status-bar">
-  <div class="status-left">Ready</div>
-  <div class="status-right">
-    <span class="status-item" id="status-primaries">Primaries: -</span>
-    <span class="status-item" id="status-white">White: -</span>
-  </div>
-</div>
-
 
 <script>
 var currentMode = 'forward';
@@ -524,12 +441,28 @@ function setRGBCoordinates(data) {
     if (data.blue_xy) { document.getElementById('b-x').value = data.blue_xy[0]; document.getElementById('b-y').value = data.blue_xy[1]; }
     calculate();
 }
-</script>
+function toggleRefChip(el) {
+    var ref = el.dataset.ref;
+    var map = {'sRGB':'ref-srgb','NTSC':'ref-ntsc','DCI-P3':'ref-dci','BT2020':'ref-bt2020'};
+    var cb = document.getElementById(map[ref]);
+    if (cb) {
+        cb.checked = !cb.checked;
+        el.classList.toggle('inactive', !cb.checked);
+        updateReferenceGamuts();
+    }
+}
+function syncRefChips() {
+    var map = {'sRGB':'ref-srgb','NTSC':'ref-ntsc','DCI-P3':'ref-dci','BT2020':'ref-bt2020'};
+    document.querySelectorAll('.ref-chip').forEach(function(chip) {
+        var cb = document.getElementById(map[chip.dataset.ref]);
+        if (cb) chip.classList.toggle('inactive', !cb.checked);
+    });
+}
 
-<script>
 document.addEventListener('DOMContentLoaded', function() {
     updateIndicator();
     updateRecalcButtonText();
+    syncRefChips();
     setTimeout(checkBackend, 300);
 });
 </script>
