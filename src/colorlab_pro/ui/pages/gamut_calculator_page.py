@@ -20,11 +20,26 @@ from colorlab_pro.utils.validation import validate_spectrum_id
 
 
 def _sample_points(spectrum, step: int = 5) -> list[list[float]]:
-    """Return a down-sampled list of [wavelength, value] for charting."""
+    """Return a down-sampled list of [wavelength, value] for charting.
+
+    Values are rounded to 6 significant figures (not 4 decimal places) so
+    that very small spectral intensities (e.g. QD emissions ~1e-5) are not
+    truncated to zero.
+    """
     if spectrum is None or len(spectrum.wavelengths) == 0:
         return []
+
+    def _sig(v: float) -> float:
+        """Round to 6 significant figures, preserving tiny values."""
+        if v == 0:
+            return 0.0
+        import math
+
+        decimals = 5 - int(math.floor(math.log10(abs(v))))
+        return round(v, max(decimals, 0))
+
     return [
-        [round(float(w), 1), round(float(v), 4)]
+        [round(float(w), 1), _sig(float(v))]
         for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step], strict=False)
     ]
 
