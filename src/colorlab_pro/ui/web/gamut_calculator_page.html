@@ -625,18 +625,16 @@ function renderSpectrumPreview() {
     var series = [];
     var cfColors = { 'R': '#ff9999', 'G': '#99ff99', 'B': '#9999ff', 'W': '#cccccc' };
 
-    // Compute global max across all emission data for normalization
-    var globalMax = 1;
-    if (yaxisMode === 'normalized') {
-        selected.forEach(function(s) {
-            if (s.data) s.data.forEach(function(p) { if (p[1] > globalMax) globalMax = p[1]; });
-        });
-    }
-
     selected.forEach(function(s, idx) {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
-        var rawData = (s.data || []).map(function(p) { return [p[0], yaxisMode === 'normalized' ? p[1] / globalMax : p[1]]; });
+        // Per-spectrum independent normalization: each curve peaks at 1
+        var norm = 1;
+        if (yaxisMode === 'normalized' && s.data && s.data.length) {
+            var maxVal = Math.max.apply(null, s.data.map(function(p) { return p[1]; }));
+            if (maxVal > 0) norm = maxVal;
+        }
+        var rawData = (s.data || []).map(function(p) { return [p[0], p[1] / norm]; });
         if (showOriginal && visMap['em_' + idx] !== false) {
             series.push({ name: s.name, type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: color, width: 2 }, itemStyle: { color: color } });
         }
@@ -644,7 +642,7 @@ function renderSpectrumPreview() {
             var cf = cfSelected[idx];
             var cfColor = cfColors[ch] || '#aaaaaa';
             if (tab === 'filtered') {
-                // Filtered tab: show emission × T^d (filtered emission)
+                // Filtered tab: show emission × T^d (filtered emission), using normalized emission
                 var cfData = (cf.data || []).map(function(p) { return [p[0], p[1]]; });
                 var plotData = applyFilter(rawData, cfData, thicknesses[idx]);
                 series.push({ name: cf.name + ' (filtered)', type: 'line', smooth: true, showSymbol: false, data: plotData, lineStyle: { color: cfColor, width: 1.5, type: 'dashed' }, itemStyle: { color: cfColor } });
