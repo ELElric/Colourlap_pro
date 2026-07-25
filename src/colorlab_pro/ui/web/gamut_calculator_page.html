@@ -180,10 +180,17 @@
     <div class="panel-header">
       <div class="panel-title">Spectrum Preview</div>
     </div>
-    <div class="tabs">
+    <div class="tabs" style="display:flex;align-items:center;gap:8px;">
       <div class="tab active" onclick="switchPreviewTab('original', this)">Original</div>
       <div class="tab" onclick="switchPreviewTab('filtered', this)">Filtered</div>
       <div class="tab" onclick="switchPreviewTab('both', this)">Both</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+        <span style="color:var(--text-secondary);font-size:10px;">Y-axis:</span>
+        <select id="spectrum-yaxis-mode" style="background:var(--bg-deep);color:var(--text-primary);border:1px solid var(--border-input);border-radius:3px;padding:2px 4px;font-size:10px;" onchange="renderSpectrumPreview()">
+          <option value="normalized" selected>Normalized</option>
+          <option value="raw">Raw Intensity</option>
+        </select>
+      </div>
     </div>
     <div id="spectrum-preview-chart" style="width:100%;height:220px;"></div>
     <div id="spectrum-empty" class="chart-area" style="display:none;">Select R/G/B spectra to preview</div>
@@ -340,14 +347,14 @@ function filterReferenceResults() {
         var cb = document.getElementById(id);
         if (cb && cb.checked) refs.push(cb.value);
     });
-    var filtered = lastResults.filter(function(r) { return refs.indexOf(r.standard) !== -1; });
 
+    // Gamut result tables always show ALL standards (unfiltered)
     var t1931 = document.getElementById('gamut-1931-body');
     var t1976 = document.getElementById('gamut-1976-body');
     if (!t1931 || !t1976) return;
     t1931.innerHTML = '';
     t1976.innerHTML = '';
-    filtered.forEach(function(r) {
+    lastResults.forEach(function(r) {
         var clsCov1931 = r.coverage_1931 >= 90 ? 'gamut-high' : (r.coverage_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
         var clsMatch1931 = r.match_1931 >= 90 ? 'gamut-high' : (r.match_1931 >= 70 ? 'gamut-medium' : 'gamut-low');
         var clsCov1976 = r.coverage_1976 >= 90 ? 'gamut-high' : (r.coverage_1976 >= 70 ? 'gamut-medium' : 'gamut-low');
@@ -356,7 +363,7 @@ function filterReferenceResults() {
         t1976.innerHTML += '<tr><td>' + r.standard + '</td><td class="' + clsCov1976 + '">' + Number(r.coverage_1976).toFixed(2) + '</td><td class="' + clsMatch1976 + '">' + Number(r.match_1976).toFixed(2) + '</td></tr>';
     });
 
-    // Reference gamut toggled → rebuild background & refresh chart
+    // Reference gamut toggled → only affects CIE chart triangles, not result tables
     invalidateBaseSeries();
     if (lastPrimaries) renderCIECharts(lastPrimaries);
 }
@@ -572,6 +579,7 @@ function renderSpectrumPreview() {
     var tab = currentPreviewTab || 'original';
     var showOriginal = (tab === 'original' || tab === 'both');
     var showFiltered = (tab === 'filtered' || tab === 'both');
+    var yaxisMode = (document.getElementById('spectrum-yaxis-mode') || {}).value || 'normalized';
 
     // Build legend table entries
     var legendEntries = [];
@@ -616,10 +624,19 @@ function renderSpectrumPreview() {
 
     var series = [];
     var cfColors = { 'R': '#ff9999', 'G': '#99ff99', 'B': '#9999ff', 'W': '#cccccc' };
+
+    // Compute global max across all emission data for normalization
+    var globalMax = 1;
+    if (yaxisMode === 'normalized') {
+        selected.forEach(function(s) {
+            if (s.data) s.data.forEach(function(p) { if (p[1] > globalMax) globalMax = p[1]; });
+        });
+    }
+
     selected.forEach(function(s, idx) {
         var ch = (s.channel || '').toUpperCase();
         var color = channelColors[ch] || '#cccccc';
-        var rawData = (s.data || []).map(function(p) { return [p[0], p[1]]; });
+        var rawData = (s.data || []).map(function(p) { return [p[0], yaxisMode === 'normalized' ? p[1] / globalMax : p[1]]; });
         if (showOriginal && visMap['em_' + idx] !== false) {
             series.push({ name: s.name, type: 'line', smooth: true, showSymbol: false, data: rawData, lineStyle: { color: color, width: 2 }, itemStyle: { color: color } });
         }
@@ -648,11 +665,11 @@ function renderSpectrumPreview() {
     previewChart.setOption({
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
-        legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 10 }, bottom: 0, itemWidth: 14, itemHeight: 8, padding: [0, 5] },
-        grid: { top: 20, right: hasCF ? 45 : 15, bottom: 25, left: 45 },
+        legend: { show: false },
+        grid: { top: 20, right: hasCF ? 45 : 15, bottom: 20, left: 45 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: [
-            { type: 'value', name: 'Emission', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+            { type: 'value', name: yaxisMode === 'normalized' ? 'Normalized' : 'Emission', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } }, max: yaxisMode === 'normalized' ? 1.05 : undefined },
             hasCF ? { type: 'value', name: 'T', min: 0, max: 1, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#888' } }, splitLine: { show: false } } : undefined
         ].filter(Boolean),
         series: series

@@ -536,8 +536,8 @@ function renderSpectrumChart(spectra, selectedIds) {
     var option = {
         backgroundColor: 'transparent',
         tooltip: { trigger: 'axis' },
-        legend: { data: toPlot.map(function(s) { return s.name; }), textStyle: { color: '#ccc' }, bottom: 0 },
-        grid: { top: 30, right: 20, bottom: 40, left: 50 },
+        legend: { show: false },
+        grid: { top: 30, right: 20, bottom: 30, left: 50 },
         xAxis: { type: 'value', name: 'Wavelength (nm)', min: 380, max: 780, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         yAxis: { type: 'value', name: currentSpectrumChartTab === 'normalized' ? 'Normalized' : 'Value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
         series: series
