@@ -58,8 +58,39 @@
   #sensitivity-chart { display: none; }
   .chart-placeholder { color: var(--text-faint); font-size: var(--font-md); text-align: center; padding: 40px; }
 </style>
-<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
+<script>
+// pywebview API bridge — works in both iframe and standalone mode
+var api = (window.pywebview && window.pywebview.api) || 
+          (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+
+function callApi(method) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (!api) {
+        console.error('pywebview API not available');
+        return Promise.reject(new Error('API not available'));
+    }
+    var fn = api[method];
+    if (!fn) {
+        console.error('API method not found:', method);
+        return Promise.reject(new Error('Method not found: ' + method));
+    }
+    return Promise.resolve(fn.apply(api, args));
+}
+
+function waitForApi(callback, maxWait) {
+    maxWait = maxWait || 10000;
+    var start = Date.now();
+    function check() {
+        if (api) { callback(); return; }
+        api = (window.pywebview && window.pywebview.api) || 
+              (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+        if (api) { callback(); return; }
+        if (Date.now() - start > maxWait) { console.warn('pywebview API not ready after timeout'); return; }
+        setTimeout(check, 200);
+    }
+    check();
+}
+</script>
 </head>
 <body>
 
@@ -361,7 +392,6 @@ function updateProgress(percent, summary) {
     if (sum && summary) sum.textContent = summary;
 }
 
-var _progressHandler = null;
 function startOptimization() {
     var data = getInputs();
     if (data.source_ids.length !== 3 || data.cf_ids.length !== 3) {
@@ -377,29 +407,23 @@ function startOptimization() {
     }
     setLoading(true);
     updateProgress(0, 'Running grid search...');
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); setLoading(false); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        var backend = channel.objects.backend;
-        // Disconnect previous handler to avoid accumulation
-        if (_progressHandler) { backend.progress.disconnect(_progressHandler); }
-        _progressHandler = function(value) { updateProgress(value); };
-        backend.progress.connect(_progressHandler);
-        backend.optimize(JSON.stringify(data), function(json) {
-            var res = JSON.parse(json);
-            setLoading(false);
-            if (res.error) { logStatus(formatError(res, 'Optimization failed')); updateProgress(0); return; }
-            if (res.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
-            renderResults(res.results, res.best);
-            updateProgress(100, 'Best coverage: ' + (res.best ? Number(res.best.coverage).toFixed(2) : '-') + '%');
-            logStatus('Optimization complete');
-        });
+    callApi('optimize', data).then(function(res) {
+        setLoading(false);
+        if (res.error) { logStatus(formatError(res, 'Optimization failed')); updateProgress(0); return; }
+        if (res.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
+        renderResults(res.results, res.best);
+        updateProgress(100, 'Best coverage: ' + (res.best ? Number(res.best.coverage).toFixed(2) : '-') + '%');
+        logStatus('Optimization complete');
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
+        updateProgress(0);
     });
 }
 
 function stopOptimization() {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) return;
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.stop();
+    callApi('optimizer_stop').catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
@@ -512,32 +536,28 @@ function switchScanTab(tab, el) {
 
 function runSensitivity(metric) {
     if (!lastBest) { logStatus('Run optimization first'); return; }
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     var data = getInputs();
     data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
     data.vary_channel = document.getElementById('sens-channel').value || 'R';
     data.metric = metric;
     setLoading(true);
     updateProgress(0, 'Running sensitivity...');
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        var backend = channel.objects.backend;
-        if (_progressHandler) { backend.progress.disconnect(_progressHandler); }
-        _progressHandler = function(value) { updateProgress(value); };
-        backend.progress.connect(_progressHandler);
-        backend.sensitivity_analysis(JSON.stringify(data), function(json) {
-            setLoading(false);
-            var res = JSON.parse(json);
-            if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
-            var ch = document.getElementById('sens-channel').value || 'R';
-            sensitivityData[ch] = { whitex: [], whitey: [] };
-            (res.points || []).forEach(function(p) {
-                sensitivityData[ch].whitex.push(p);
-                sensitivityData[ch].whitey.push(p);
-            });
-            var currentTab = getCurrentSensTab();
-            renderSensitivityChart(res.points, currentTab);
-            updateProgress(100, 'Sensitivity complete');
+    callApi('sensitivity_analysis', data).then(function(res) {
+        setLoading(false);
+        if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
+        var ch = document.getElementById('sens-channel').value || 'R';
+        sensitivityData[ch] = { whitex: [], whitey: [] };
+        (res.points || []).forEach(function(p) {
+            sensitivityData[ch].whitex.push(p);
+            sensitivityData[ch].whitey.push(p);
         });
+        var currentTab = getCurrentSensTab();
+        renderSensitivityChart(res.points, currentTab);
+        updateProgress(100, 'Sensitivity complete');
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
+        updateProgress(0);
     });
 }
 
@@ -603,7 +623,6 @@ function renderAllChannelChart(data) {
 
 function runSensitivityPanel() {
     if (!lastBest) { logStatus('Run optimization first'); return; }
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     var data = getInputs();
     data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
     // Clear all cached data
@@ -616,61 +635,54 @@ function runSensitivityPanel() {
     var tabEl = document.querySelector('.chart-tab[onclick*="coverage"]');
     if (tabEl) tabEl.classList.add('active');
     currentTab = 'coverage';
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        var backend = channel.objects.backend;
-        if (_progressHandler) { backend.progress.disconnect(_progressHandler); }
-        _progressHandler = function(value) { updateProgress(value); };
-        backend.progress.connect(_progressHandler);
-        backend.sensitivity_all(JSON.stringify(data), function(json) {
-            setLoading(false);
-            var res = JSON.parse(json);
-            if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
-            allChannelData = res;
-            renderAllChannelChart(res);
-            var scanDom = document.getElementById('scan-chart');
-            var sensDom = document.getElementById('sensitivity-chart');
-            if (scanDom) scanDom.style.display = 'none';
-            if (sensDom) sensDom.style.display = 'block';
-            updateProgress(100, 'Sensitivity complete for all channels');
-        });
+    callApi('sensitivity_all', data).then(function(res) {
+        setLoading(false);
+        if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
+        allChannelData = res;
+        renderAllChannelChart(res);
+        var scanDom = document.getElementById('scan-chart');
+        var sensDom = document.getElementById('sensitivity-chart');
+        if (scanDom) scanDom.style.display = 'none';
+        if (sensDom) sensDom.style.display = 'block';
+        updateProgress(100, 'Sensitivity complete for all channels');
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
+        updateProgress(0);
     });
 }
 
 function pasteSpectrumToSelect(btn) {
     var text = prompt('Paste wavelength/value pairs (nm a.u.) for a new spectrum:');
     if (!text) return;
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     // Find the select element next to this button
     var selectEl = btn.parentElement.querySelector('select');
     var selectId = selectEl ? selectEl.id : null;
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: 'Pasted CF' }), function(json) {
-            var res = JSON.parse(json);
-            if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
-            logStatus('Pasted spectrum ' + res.id);
-            // Refresh and auto-select the new spectrum
-            channel.objects.backend.get_initial_data(function(json2) {
-                var data = JSON.parse(json2);
-                if (data.error) return;
-                populateSelectors(data.spectra);
-                if (selectId && res.id) {
-                    var sel = document.getElementById(selectId);
-                    if (sel) sel.value = String(res.id);
-                }
-            });
-        });
+    var pastedId = null;
+    callApi('gamut_paste_spectrum', { text: text, name: 'Pasted CF' }).then(function(res) {
+        if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
+        logStatus('Pasted spectrum ' + res.id);
+        pastedId = res.id;
+        return callApi('optimizer_get_initial_data');
+    }).then(function(data) {
+        if (!data || data.error) return;
+        populateSelectors(data.spectra);
+        if (selectId && pastedId) {
+            var sel = document.getElementById(selectId);
+            if (sel) sel.value = String(pastedId);
+        }
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
 function refreshData() {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) return;
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.get_initial_data(function(json) {
-            var data = JSON.parse(json);
-            if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
-            populateSelectors(data.spectra);
-            if (typeof renderResults === 'function') renderResults(data.results, data.best);
-        });
+    callApi('optimizer_get_initial_data').then(function(data) {
+        if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
+        populateSelectors(data.spectra);
+        if (typeof renderResults === 'function') renderResults(data.results, data.best);
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
@@ -692,6 +704,11 @@ function formatError(res, defaultMsg) {
 }
 </script>
 
+<script>
+// Initial data load
+setLoading(true);
+waitForApi(function() { refreshData(); });
+</script>
 
 </body>
 </html>

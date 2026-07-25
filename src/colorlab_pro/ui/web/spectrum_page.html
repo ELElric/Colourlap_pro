@@ -56,9 +56,40 @@
   /* Change Indicator */
   .change-badge { display: inline-block; background: var(--accent-bg); color: var(--accent-light); padding: 2px 6px; border-radius: 3px; font-size: var(--font-xs); margin-left: 8px; }
 </style>
-<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script src="echarts.min.js"></script>
-<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
+<script>
+// pywebview API bridge — works in both iframe and standalone mode
+var api = (window.pywebview && window.pywebview.api) || 
+          (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+
+function callApi(method) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (!api) {
+        console.error('pywebview API not available');
+        return Promise.reject(new Error('API not available'));
+    }
+    var fn = api[method];
+    if (!fn) {
+        console.error('API method not found:', method);
+        return Promise.reject(new Error('Method not found: ' + method));
+    }
+    return Promise.resolve(fn.apply(api, args));
+}
+
+function waitForApi(callback, maxWait) {
+    maxWait = maxWait || 10000;
+    var start = Date.now();
+    function check() {
+        if (api) { callback(); return; }
+        api = (window.pywebview && window.pywebview.api) || 
+              (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+        if (api) { callback(); return; }
+        if (Date.now() - start > maxWait) { console.warn('pywebview API not ready after timeout'); return; }
+        setTimeout(check, 200);
+    }
+    check();
+}
+</script>
 </head>
 <body>
 
@@ -339,18 +370,17 @@ function startEditSelect(td, id, field, current, optionsStr) {
     });
 }
 function saveEdit(td, origHtml, payload) {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { td.innerHTML = origHtml; return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.update_spectrum(JSON.stringify(payload), function(json) {
-            var res = JSON.parse(json);
-            if (res.error || !res.ok) {
-                logStatus('Update failed: ' + (res.error || 'unknown'));
-                td.innerHTML = origHtml;
-            } else {
-                logStatus('Updated');
-                refreshSpectra();
-            }
-        });
+    callApi('spectrum_update_spectrum', payload).then(function(res) {
+        if (res.error || !res.ok) {
+            logStatus('Update failed: ' + (res.error || 'unknown'));
+            td.innerHTML = origHtml;
+        } else {
+            logStatus('Updated');
+            refreshSpectra();
+        }
+    }).catch(function(err) {
+        logStatus('Update failed: ' + (err.message || err));
+        td.innerHTML = origHtml;
     });
 }
 
@@ -583,29 +613,26 @@ function confirmImportCategory(category) {
     importSpectra(category);
 }
 function importSpectra(category) {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     setLoading(true);
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.import_spectra(category || 'LED', function(json) {
-            setLoading(false);
-            var res = JSON.parse(json);
-            if (res.error) { setLoading(false); logStatus(formatError(res, 'Import failed')); return; }
-            logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
-            updateLastAdded();
-            refreshSpectra();
-        });
+    callApi('spectrum_import_spectra', category || 'LED').then(function(res) {
+        setLoading(false);
+        if (res.error) { logStatus(formatError(res, 'Import failed')); return; }
+        logStatus('Imported ' + (res.ids ? res.ids.length : 0) + ' spectra');
+        updateLastAdded();
+        refreshSpectra();
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
 function exportSelected() {
     if (selectedIds.size === 0) { logStatus('No spectra selected to export'); return; }
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.export_selected(JSON.stringify(Array.from(selectedIds)), function(json) {
-            var res = JSON.parse(json);
-            if (res.error) { logStatus(formatError(res, 'Export failed')); return; }
-            logStatus('Exported to ' + res.path);
-        });
+    callApi('spectrum_export_selected', Array.from(selectedIds)).then(function(res) {
+        if (res.error) { logStatus(formatError(res, 'Export failed')); return; }
+        logStatus('Exported to ' + res.path);
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
@@ -619,17 +646,15 @@ function deleteSelected() {
         ? 'Delete spectrum "' + names[0] + '"?'
         : 'Delete ' + selectedIds.size + ' spectra?\n- ' + preview + more;
     if (!confirm(msg)) return;
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.delete_spectra(JSON.stringify(Array.from(selectedIds)), function(json) {
-            var res = JSON.parse(json);
-            if (res.error) { logStatus(formatError(res, 'Delete failed')); return; }
-            selectedIds.clear();
-            var n = res.deleted || 0;
-            logStatus('Deleted ' + n + ' spectrum' + (n === 1 ? '' : 's'));
-            setTimeout(function() { logStatus('Ready'); }, 3000);
-            refreshSpectra();
-        });
+    callApi('spectrum_delete_spectra', Array.from(selectedIds)).then(function(res) {
+        if (res.error) { logStatus(formatError(res, 'Delete failed')); return; }
+        selectedIds.clear();
+        var n = res.deleted || 0;
+        logStatus('Deleted ' + n + ' spectrum' + (n === 1 ? '' : 's'));
+        setTimeout(function() { logStatus('Ready'); }, 3000);
+        refreshSpectra();
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
@@ -650,17 +675,16 @@ function submitPasteModal() {
     var name = document.getElementById('paste-name').value || 'Pasted Spectrum';
     if (!text.trim()) { logStatus('No data pasted'); return; }
     hidePasteModal();
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
     setLoading(true);
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: name }), function(json) {
-            setLoading(false);
-            var res = JSON.parse(json);
-            if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
-            logStatus('Pasted spectrum ' + res.id);
-            updateLastAdded();
-            refreshSpectra();
-        });
+    callApi('spectrum_paste_spectrum', { text: text, name: name }).then(function(res) {
+        setLoading(false);
+        if (res.error) { logStatus(formatError(res, 'Paste failed')); return; }
+        logStatus('Pasted spectrum ' + res.id);
+        updateLastAdded();
+        refreshSpectra();
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
     });
 }
 function pasteSpectrum() {
@@ -668,13 +692,11 @@ function pasteSpectrum() {
 }
 
 function refreshSpectra() {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.get_spectra(function(json) {
-            var data = JSON.parse(json);
-            if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
-            renderSpectra(data);
-        });
+    callApi('spectrum_get_spectra').then(function(data) {
+        if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
+        renderSpectra(data);
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
@@ -683,6 +705,7 @@ window.pasteSpectrum = pasteSpectrum;
 
 // Show loading overlay immediately (hidden once data is rendered)
 setLoading(true);
+waitForApi(function() { refreshSpectra(); });
 </script>
 </body>
 </html>

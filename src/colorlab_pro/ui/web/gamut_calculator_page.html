@@ -28,8 +28,39 @@
 </style>
 <script src="cie_chromaticity_data.js?v=3"></script>
 <script src="echarts.min.js"></script>
-<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
+<script>
+// pywebview API bridge — works in both iframe and standalone mode
+var api = (window.pywebview && window.pywebview.api) || 
+          (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+
+function callApi(method) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (!api) {
+        console.error('pywebview API not available');
+        return Promise.reject(new Error('API not available'));
+    }
+    var fn = api[method];
+    if (!fn) {
+        console.error('API method not found:', method);
+        return Promise.reject(new Error('Method not found: ' + method));
+    }
+    return Promise.resolve(fn.apply(api, args));
+}
+
+function waitForApi(callback, maxWait) {
+    maxWait = maxWait || 10000;
+    var start = Date.now();
+    function check() {
+        if (api) { callback(); return; }
+        api = (window.pywebview && window.pywebview.api) || 
+              (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+        if (api) { callback(); return; }
+        if (Date.now() - start > maxWait) { console.warn('pywebview API not ready after timeout'); return; }
+        setTimeout(check, 200);
+    }
+    check();
+}
+</script>
 </head>
 <body>
 
@@ -399,7 +430,9 @@ function calculateGamut() {
         logStatus(mode === 'whitecf' ? 'Please select a white spectrum' : 'Please select R/G/B spectra');
         return;
     }
-    var payload = JSON.stringify({
+    setLoading(true);
+    logStatus('Calculating...');
+    var payload = {
         mode: mode,
         red_id: document.getElementById('red-select').value,
         green_id: document.getElementById('green-select').value,
@@ -411,43 +444,40 @@ function calculateGamut() {
         thickness_r: parseFloat(document.getElementById('thickness-rcf').value) || 0,
         thickness_g: parseFloat(document.getElementById('thickness-gcf').value) || 0,
         thickness_b: parseFloat(document.getElementById('thickness-bcf').value) || 0,
-    });
-    setLoading(true);
-    logStatus('Calculating...');
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); setLoading(false); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.calculate_gamut(payload, function(json) {
-            setLoading(false);
-            var data = JSON.parse(json);
-            if (data.error) {
-                logStatus('Error: ' + data.error);
-                return;
-            }
-            lastPrimaries = data.primaries;
-            lastWhiteXY = data.white_xy || null;
-            renderResults(data.results);
-            renderChromaticityData(data.primaries);
-            renderSpectrumDataTable(data.primaries);
-            renderSpectrumPreview();
-            renderCIECharts(data.primaries);
-            setExportEnabled(true);
-            // Update status bar with white point and CCT
-            if (data.white_xy) {
-                var sw = document.getElementById('status-white');
-                if (sw) sw.textContent = 'White: ' + Number(data.white_xy[0]).toFixed(4) + ', ' + Number(data.white_xy[1]).toFixed(4);
-            }
-            // Estimate CCT from white point
-            if (data.white_xy) {
-                try {
-                    var wx = data.white_xy[0], wy = data.white_xy[1];
-                    var n = (wx - 0.3320) / (0.1858 - wy);
-                    var cct = 449 * n * n * n + 3525 * n * n + 6823.3 * n + 5520.33;
-                    var sc = document.getElementById('status-cct');
-                    if (sc) sc.textContent = 'CCT: ' + Math.round(cct) + 'K';
-                } catch(e) {}
-            }
-            logStatus('Calculation complete');
-        });
+    };
+    callApi('gamut_calculate', payload).then(function(data) {
+        setLoading(false);
+        if (data.error) {
+            logStatus('Error: ' + data.error);
+            return;
+        }
+        lastPrimaries = data.primaries;
+        lastWhiteXY = data.white_xy || null;
+        renderResults(data.results);
+        renderChromaticityData(data.primaries);
+        renderSpectrumDataTable(data.primaries);
+        renderSpectrumPreview();
+        renderCIECharts(data.primaries);
+        setExportEnabled(true);
+        // Update status bar with white point and CCT
+        if (data.white_xy) {
+            var sw = document.getElementById('status-white');
+            if (sw) sw.textContent = 'White: ' + Number(data.white_xy[0]).toFixed(4) + ', ' + Number(data.white_xy[1]).toFixed(4);
+        }
+        // Estimate CCT from white point
+        if (data.white_xy) {
+            try {
+                var wx = data.white_xy[0], wy = data.white_xy[1];
+                var n = (wx - 0.3320) / (0.1858 - wy);
+                var cct = 449 * n * n * n + 3525 * n * n + 6823.3 * n + 5520.33;
+                var sc = document.getElementById('status-cct');
+                if (sc) sc.textContent = 'CCT: ' + Math.round(cct) + 'K';
+            } catch(e) {}
+        }
+        logStatus('Calculation complete');
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
     });
 }
 function renderChromaticityData(primaries) {
@@ -676,37 +706,36 @@ function renderSpectrumPreview() {
 function pasteSpectrum(selectId) {
     var text = prompt('Paste wavelength/value pairs (nm a.u.):');
     if (!text) return;
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-        channel.objects.backend.paste_spectrum(JSON.stringify({ text: text, name: 'Pasted Spectrum' }), function(json) {
-            var res = JSON.parse(json);
-            if (res.error) { logStatus('Paste failed: ' + res.error); return; }
-            logStatus('Pasted spectrum ' + res.id);
-            channel.objects.backend.get_initial_data(function(json2) {
-                var data = JSON.parse(json2);
-                if (data.error) return;
-                populateSelectors(data.spectra);
-                var sel = document.getElementById(selectId);
-                if (sel) sel.value = String(res.id);
-            });
-        });
+    var pastedId = null;
+    callApi('gamut_paste_spectrum', { text: text, name: 'Pasted Spectrum' }).then(function(res) {
+        if (res.error) { logStatus('Paste failed: ' + res.error); return; }
+        logStatus('Pasted spectrum ' + res.id);
+        pastedId = res.id;
+        return callApi('gamut_get_initial_data');
+    }).then(function(data) {
+        if (!data || data.error) return;
+        populateSelectors(data.spectra);
+        if (pastedId) {
+            var sel = document.getElementById(selectId);
+            if (sel) sel.value = String(pastedId);
+        }
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
 function exportReport() {
-    if (typeof qt === 'undefined' || !qt.webChannelTransport) { logStatus('Backend not ready'); return; }
-    new QWebChannel(qt.webChannelTransport, function(channel){
-        var payload = JSON.stringify({
-            title: 'Gamut Analysis Report',
-            primaries: lastPrimaries || [{ch:'R',x:0,y:0},{ch:'G',x:0,y:0},{ch:'B',x:0,y:0}],
-            results: lastResults
-        });
-        channel.objects.backend.export_report(payload, function(json){
-            var data = JSON.parse(json);
-            if(data.error){ logStatus('Export failed: ' + data.error); return; }
-            if(data.cancelled){ logStatus('Export cancelled'); return; }
-            logStatus('Report saved to ' + data.path);
-        });
+    var payload = {
+        title: 'Gamut Analysis Report',
+        primaries: lastPrimaries || [{ch:'R',x:0,y:0},{ch:'G',x:0,y:0},{ch:'B',x:0,y:0}],
+        results: lastResults
+    };
+    callApi('gamut_export_report', payload).then(function(data) {
+        if(data.error){ logStatus('Export failed: ' + data.error); return; }
+        if(data.cancelled){ logStatus('Export cancelled'); return; }
+        logStatus('Report saved to ' + data.path);
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
     });
 }
 
@@ -1035,6 +1064,18 @@ document.addEventListener('DOMContentLoaded', function() {
             if (cieXYChart) cieXYChart.resize();
             if (cieUVChart) cieUVChart.resize();
         }, 100);
+    });
+    // Load initial data from pywebview API
+    setLoading(true);
+    waitForApi(function() {
+        callApi('gamut_get_initial_data').then(function(data) {
+            setLoading(false);
+            if (data.error) { logStatus('Load failed: ' + data.error); return; }
+            populateSelectors(data.spectra);
+        }).catch(function(err) {
+            setLoading(false);
+            logStatus('Error: ' + (err.message || err));
+        });
     });
 });
 

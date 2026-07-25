@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ColorLab Pro</title>
+    <link rel="stylesheet" href="theme.css">
+    <style>
+        /* ===== Reset & Base ===== */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: var(--font-family);
+            font-size: var(--font-md);
+            background: var(--bg-base);
+            color: var(--text-primary);
+        }
+
+        /* ===== App Container ===== */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .app-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ===== Sidebar ===== */
+        .sidebar {
+            width: 200px;
+            min-width: 200px;
+            background: var(--bg-base);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        /* Brand Area */
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            background: transparent;
+        }
+
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .brand-icon::before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 28px;
+            left: 0;
+            top: 0;
+            border-radius: 6px 0 0 6px;
+            background: linear-gradient(180deg, #ff4444 33%, #4444ff 67%);
+        }
+
+        .brand-icon::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 28px;
+            right: 0;
+            top: 0;
+            border-radius: 0 6px 6px 0;
+            background: linear-gradient(180deg, #44cc44 33%, #ffffff 67%);
+        }
+
+        .brand-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text-primary);
+            letter-spacing: 0.2px;
+        }
+
+        /* Divider */
+        .sidebar-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0 12px;
+        }
+
+        /* Navigation Items */
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 4px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 16px;
+            height: 40px;
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            background: transparent;
+            border: none;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.15s, color 0.15s;
+        }
+
+        .nav-item:hover {
+            background-color: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: rgba(10, 132, 255, 0.14);
+            color: #ffffff;
+            border-left-color: var(--accent);
+        }
+
+        .nav-icon {
+            width: 18px;
+            text-align: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .nav-label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ===== Main Content Area ===== */
+        .main-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: var(--bg-base);
+        }
+
+        .main-area iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: var(--bg-base);
+        }
+
+        /* ===== Loading Spinner Overlay ===== */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-loading);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 36px;
+            height: 36px;
+            border: 4px solid var(--border-input);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: clp-spin 1s linear infinite;
+        }
+
+        @keyframes clp-spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ===== Status Bar ===== */
+        .status-bar {
+            height: 28px;
+            min-height: 28px;
+            background: var(--bg-base);
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            font-size: var(--font-sm);
+            user-select: none;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-text {
+            color: var(--text-muted);
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .status-item-label {
+            color: var(--text-faint);
+        }
+
+        .status-item-value {
+            color: var(--text-muted);
+        }
+
+        .status-separator {
+            width: 1px;
+            height: 14px;
+            background: var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="app-body">
+            <div class="sidebar">
+                <!-- Brand -->
+                <div class="sidebar-brand">
+                    <div class="brand-icon"></div>
+                    <span class="brand-name">ColorLab Pro</span>
+                </div>
+
+                <div class="sidebar-divider"></div>
+
+                <!-- Navigation -->
+                <nav class="sidebar-nav">
+                    <button class="nav-item active" data-page="0" onclick="navigateTo(0)">
+                        <span class="nav-icon">&#9672;</span>
+                        <span class="nav-label">Spectrum Library</span>
+                    </button>
+                    <button class="nav-item" data-page="1" onclick="navigateTo(1)">
+                        <span class="nav-icon">&#9670;</span>
+                        <span class="nav-label">Gamut Calculator</span>
+                    </button>
+                    <button class="nav-item" data-page="2" onclick="navigateTo(2)">
+                        <span class="nav-icon">&#9678;</span>
+                        <span class="nav-label">White Point</span>
+                    </button>
+                    <button class="nav-item" data-page="3" onclick="navigateTo(3)">
+                        <span class="nav-icon">&#9881;</span>
+                        <span class="nav-label">Thickness Optimizer</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-area">
+                <div class="loading-overlay" id="loading-overlay">
+                    <div class="loading-spinner"></div>
+                </div>
+                <iframe id="page-frame" src="spectrum_page.html"></iframe>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <div class="status-dot"></div>
+                <span class="status-text" id="status-text">Ready</span>
+            </div>
+            <div class="status-right">
+                <div class="status-item">
+                    <span class="status-item-label">DB:</span>
+                    <span class="status-item-value" id="status-db">SQLite</span>
+                </div>
+                <div class="status-separator"></div>
+                <div class="status-item">
+                    <span class="status-item-label">Spectra:</span>
+                    <span class="status-item-value" id="status-spectra">0</span>
+                </div>
+                <div class="status-separator"></div>
+                <div class="status-item">
+                    <span class="status-item-label">Observer:</span>
+                    <span class="status-item-value" id="status-observer">CIE 1931 2&deg;</span>
+                </div>
+                <div class="status-separator"></div>
+                <div class="status-item">
+                    <span class="status-item-label">Illuminant:</span>
+                    <span class="status-item-value" id="status-illuminant">D65</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===== Page Configuration ===== */
+        var pages = [
+            'spectrum_page.html',
+            'gamut_calculator_page.html',
+            'white_point_page.html',
+            'thickness_optimizer_page.html'
+        ];
+
+        var currentPage = 0;
+        var loadingTimer = null;
+
+        /* ===== Navigation ===== */
+        function navigateTo(index) {
+            if (index === currentPage) return;
+
+            /* Update active state on nav items */
+            var navItems = document.querySelectorAll('.nav-item');
+            for (var i = 0; i < navItems.length; i++) {
+                navItems[i].classList.remove('active');
+            }
+            navItems[index].classList.add('active');
+
+            currentPage = index;
+
+            /* Show loading spinner */
+            showLoading();
+
+            /* Reload iframe with new page */
+            var frame = document.getElementById('page-frame');
+            frame.src = pages[index];
+
+            /* Update status text */
+            var names = ['Spectrum Library', 'Gamut Calculator', 'White Point', 'Thickness Optimizer'];
+            document.getElementById('status-text').textContent = names[index];
+        }
+
+        /* ===== Loading Management ===== */
+        function showLoading() {
+            var overlay = document.getElementById('loading-overlay');
+            overlay.classList.add('active');
+
+            /* Safety timeout: hide spinner after 8 seconds even if load event never fires */
+            clearTimeout(loadingTimer);
+            loadingTimer = setTimeout(function () {
+                hideLoading();
+            }, 8000);
+        }
+
+        function hideLoading() {
+            clearTimeout(loadingTimer);
+            var overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('active');
+        }
+
+        /* ===== Iframe Load Event ===== */
+        var pageFrame = document.getElementById('page-frame');
+
+        pageFrame.addEventListener('load', function () {
+            hideLoading();
+        });
+
+        /* Handle load errors gracefully */
+        pageFrame.addEventListener('error', function () {
+            hideLoading();
+            document.getElementById('status-text').textContent = 'Error loading page';
+        });
+
+        /* ===== Keyboard Navigation ===== */
+        document.addEventListener('keydown', function (e) {
+            /* Alt+1..4 to switch pages */
+            if (e.altKey && e.key >= '1' && e.key <= '4') {
+                e.preventDefault();
+                navigateTo(parseInt(e.key) - 1);
+            }
+        });
+    </script>
+</body>
+</html>
