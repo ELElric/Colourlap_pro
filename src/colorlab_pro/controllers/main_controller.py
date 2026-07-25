@@ -68,6 +68,14 @@ class MainController(QObject):
         target_db = db_path or get_default_db_path()
         ensure_data_directory()
 
+        # Seed the user database from the bundled copy if the user DB is
+        # missing or completely empty (no spectra).  This ensures a fresh
+        # clone on another machine has the preloaded spectra ready to use.
+        # Only seeds when using the default DB path, not when tests or
+        # callers pass an explicit db_path.
+        if db_path is None:
+            self._seed_database_if_needed(target_db)
+
         self._engine = create_engine(f"sqlite:///{target_db}", echo=False)
         db_service = DatabaseService(self._engine)
         db_service.initialize(db_path=target_db)
@@ -85,6 +93,50 @@ class MainController(QObject):
         self._restore_last_project()
 
         self.status_message.emit("Database initialized.")
+
+    @staticmethod
+    def _seed_database_if_needed(target_db: Path) -> None:
+        """Copy bundled database to user location if missing or empty.
+
+        The bundled DB lives at ``src/colorlab_pro/data/colorlab.db`` (next
+        to the package).  If the user DB at *target_db* does not exist, or
+        exists but contains zero spectra, copy the bundled one over so the
+        user gets all preloaded data on first run.
+        """
+        from loguru import logger
+
+        bundled_db = Path(__file__).resolve().parents[1] / "data" / "colorlab.db"
+        if not bundled_db.exists():
+            return
+
+        needs_seed = False
+        if not target_db.exists():
+            needs_seed = True
+            logger.info("User database not found at {}; seeding from bundled copy.", target_db)
+        else:
+            # Check whether the existing DB has any spectra at all.
+            try:
+                from sqlalchemy import create_engine, text
+
+                engine = create_engine(f"sqlite:///{target_db}", echo=False)
+                with engine.connect() as conn:
+                    count = conn.execute(text("SELECT COUNT(*) FROM spectra")).scalar()
+                engine.dispose()
+                if int(count) == 0:
+                    needs_seed = True
+                    logger.info(
+                        "User database at {} has 0 spectra; seeding from bundled copy.",
+                        target_db,
+                    )
+            except Exception:  # noqa: BLE001
+                pass  # Table may not exist yet; let init_schema handle it.
+
+        if needs_seed:
+            import shutil
+
+            target_db.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(bundled_db), str(target_db))
+            logger.info("Seeded database from {}.", bundled_db)
 
     def shutdown(self) -> None:
         """Dispose of the database engine."""
