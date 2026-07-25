@@ -6,6 +6,41 @@
     <title>ColorLab Pro</title>
     <link rel="stylesheet" href="theme.css">
     <style>
+        /* ===== Light Theme Override ===== */
+        body.theme-light {
+            --bg-base: #f5f5f7;
+            --bg-panel: #ffffff;
+            --bg-input: #f2f2f7;
+            --bg-deep: #e8e8ed;
+            --bg-header: #e0e0e5;
+            --bg-hover: #e8e8ed;
+            --bg-selected: rgba(10, 132, 255, 0.10);
+            --bg-elevated: #ffffff;
+            --bg-loading: rgba(245, 245, 247, 0.7);
+            --bg-overlay: rgba(0, 0, 0, 0.3);
+
+            --border: #d1d1d6;
+            --border-light: #c7c7cc;
+            --border-input: #b0b0b5;
+            --border-focus: rgba(10, 132, 255, 0.6);
+
+            --text-primary: #1c1c1e;
+            --text-secondary: #3c3c43;
+            --text-muted: #8e8e93;
+            --text-faint: #aeaeb2;
+
+            --tooltip-bg: rgba(255, 255, 255, 0.95);
+            --tooltip-border: #d1d1d6;
+            --tooltip-text: #1c1c1e;
+
+            --echarts-axis: #999;
+            --echarts-grid: #e0e0e0;
+            --echarts-title: #333;
+            --echarts-name: #666;
+
+            --chart-bg: var(--bg-deep);
+        }
+
         /* ===== Reset & Base ===== */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
@@ -25,6 +60,108 @@
             width: 100vw;
         }
 
+        /* ===== Menu Bar ===== */
+        .menu-bar {
+            display: flex;
+            align-items: center;
+            height: 30px;
+            min-height: 30px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 0 4px;
+            user-select: none;
+            gap: 0;
+        }
+
+        .menu-item {
+            position: relative;
+            padding: 0 10px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            font-size: var(--font-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 3px;
+            transition: background-color 0.15s;
+        }
+
+        .menu-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .menu-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 180px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            padding: 4px 0;
+        }
+
+        .menu-item.open .menu-dropdown {
+            display: block;
+        }
+
+        .menu-dropdown-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 14px;
+            font-size: var(--font-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            gap: 20px;
+        }
+
+        .menu-dropdown-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .menu-dropdown-item.active {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .menu-dropdown-separator {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 8px;
+        }
+
+        .menu-dropdown-shortcut {
+            color: var(--text-faint);
+            font-size: var(--font-xs);
+            font-family: var(--font-mono);
+        }
+
+        .menu-spacer { flex: 1; }
+
+        .menu-brand {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 8px 0 6px;
+            font-weight: 700;
+            font-size: var(--font-sm);
+            color: var(--text-primary);
+        }
+
+        .menu-brand-icon {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            background: linear-gradient(135deg, #ff4444, #44cc44, #4444ff);
+        }
+
+        /* ===== App Body ===== */
         .app-body {
             display: flex;
             flex: 1;
@@ -131,6 +268,10 @@
             border-left-color: var(--accent);
         }
 
+        body.theme-light .nav-item.active {
+            color: var(--accent);
+        }
+
         .nav-icon {
             width: 18px;
             text-align: center;
@@ -142,6 +283,33 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        /* Theme toggle in sidebar footer */
+        .sidebar-footer {
+            padding: 8px 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .theme-toggle-btn {
+            width: 100%;
+            padding: 6px 10px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-input);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: var(--font-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background-color 0.15s;
+        }
+
+        .theme-toggle-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
         }
 
         /* ===== Main Content Area ===== */
@@ -248,11 +416,181 @@
             height: 14px;
             background: var(--border);
         }
+
+        /* ===== Password Dialog ===== */
+        .pwd-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-overlay);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20000;
+        }
+        .pwd-overlay.active { display: flex; }
+        .pwd-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px 32px;
+            width: 360px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .pwd-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+        .pwd-title {
+            color: var(--accent);
+            font-weight: 700;
+            font-size: var(--font-lg);
+            margin-bottom: 6px;
+        }
+        .pwd-hint {
+            color: var(--text-muted);
+            font-size: var(--font-sm);
+            margin-bottom: 18px;
+        }
+        .pwd-input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 2px solid var(--border-input);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            font-size: var(--font-md);
+            text-align: center;
+            outline: none;
+            margin-bottom: 12px;
+        }
+        .pwd-input:focus { border-color: var(--accent); }
+        .pwd-input.error { border-color: var(--error); }
+        .pwd-error {
+            color: var(--error);
+            font-size: var(--font-sm);
+            margin-bottom: 8px;
+            display: none;
+        }
+        .pwd-error.show { display: block; }
+        .pwd-btn {
+            width: 100%;
+            padding: 10px;
+            background: var(--btn-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-md);
+            cursor: pointer;
+        }
+        .pwd-btn:hover { background: var(--btn-primary-hover); }
+
+        /* ===== About Dialog ===== */
+        .about-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-overlay);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20000;
+        }
+        .about-overlay.active { display: flex; }
+        .about-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px 32px;
+            width: 400px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .about-icon {
+            width: 56px; height: 56px;
+            margin: 0 auto 12px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #ff4444, #44cc44, #4444ff);
+        }
+        .about-title {
+            color: var(--accent);
+            font-weight: 700;
+            font-size: var(--font-xl);
+            margin-bottom: 4px;
+        }
+        .about-version {
+            color: var(--text-muted);
+            font-size: var(--font-sm);
+            margin-bottom: 16px;
+        }
+        .about-desc {
+            color: var(--text-secondary);
+            font-size: var(--font-md);
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+        .about-close {
+            padding: 8px 24px;
+            background: var(--btn-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-md);
+            cursor: pointer;
+        }
+        .about-close:hover { background: var(--btn-primary-hover); }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
+        <!-- Menu Bar -->
+        <div class="menu-bar">
+            <div class="menu-brand">
+                <div class="menu-brand-icon"></div>
+                <span>ColorLab Pro</span>
+            </div>
+
+            <div class="menu-item" data-menu="file">
+                <span>File</span>
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" onclick="menuAction('import-spectrum')">Import Spectrum<span class="menu-dropdown-shortcut">Ctrl+I</span></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('export-report')">Export Report<span class="menu-dropdown-shortcut">Ctrl+E</span></div>
+                    <div class="menu-dropdown-separator"></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('exit')">Exit<span class="menu-dropdown-shortcut">Alt+F4</span></div>
+                </div>
+            </div>
+
+            <div class="menu-item" data-menu="view">
+                <span>View</span>
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" onclick="menuAction('goto-spectrum')">Spectrum Library<span class="menu-dropdown-shortcut">Alt+1</span></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('goto-gamut')">Gamut Calculator<span class="menu-dropdown-shortcut">Alt+2</span></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('goto-whitepoint')">White Point<span class="menu-dropdown-shortcut">Alt+3</span></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('goto-optimizer')">Thickness Optimizer<span class="menu-dropdown-shortcut">Alt+4</span></div>
+                </div>
+            </div>
+
+            <div class="menu-item" data-menu="theme">
+                <span>Theme</span>
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" id="theme-dark-item" onclick="menuAction('theme-dark')">Dark<span class="menu-dropdown-shortcut">&#10003;</span></div>
+                    <div class="menu-dropdown-item" id="theme-light-item" onclick="menuAction('theme-light')">Light</div>
+                </div>
+            </div>
+
+            <div class="menu-item" data-menu="help">
+                <span>Help</span>
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" onclick="menuAction('about')">About ColorLab Pro</div>
+                    <div class="menu-dropdown-item" onclick="menuAction('shortcuts')">Keyboard Shortcuts</div>
+                    <div class="menu-dropdown-separator"></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('set-password')">Set Password</div>
+                </div>
+            </div>
+
+            <div class="menu-spacer"></div>
+        </div>
+
+        <!-- App Body -->
         <div class="app-body">
             <div class="sidebar">
                 <!-- Brand -->
@@ -282,6 +620,14 @@
                         <span class="nav-label">Thickness Optimizer</span>
                     </button>
                 </nav>
+
+                <!-- Theme toggle in sidebar footer -->
+                <div class="sidebar-footer">
+                    <button class="theme-toggle-btn" id="theme-toggle" onclick="toggleTheme()">
+                        <span id="theme-icon">&#9790;</span>
+                        <span id="theme-label">Dark Mode</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Main Content -->
@@ -323,23 +669,104 @@
         </div>
     </div>
 
+    <!-- Password Dialog -->
+    <div class="pwd-overlay" id="pwd-overlay">
+        <div class="pwd-panel">
+            <div class="pwd-icon">&#128274;</div>
+            <div class="pwd-title" id="pwd-title">Enter Password</div>
+            <div class="pwd-hint" id="pwd-hint">Please enter the application password to continue.</div>
+            <input type="password" class="pwd-input" id="pwd-input" placeholder="Password" autocomplete="off">
+            <div class="pwd-error" id="pwd-error">Incorrect password. Please try again.</div>
+            <button class="pwd-btn" id="pwd-btn" onclick="submitPassword()">Unlock</button>
+        </div>
+    </div>
+
+    <!-- About Dialog -->
+    <div class="about-overlay" id="about-overlay">
+        <div class="about-panel">
+            <div class="about-icon"></div>
+            <div class="about-title">ColorLab Pro</div>
+            <div class="about-version">Version 2.0.0 (pywebview)</div>
+            <div class="about-desc">
+                Professional LED/QD/CF display color gamut analysis tool.<br>
+                Powered by pywebview + ECharts + numpy/scipy/colour-science.
+            </div>
+            <button class="about-close" onclick="closeDialog('about-overlay')">Close</button>
+        </div>
+    </div>
+
     <script>
-        /* ===== Page Configuration ===== */
+        /* ===== Global State ===== */
         var pages = [
             'spectrum_page.html',
             'gamut_calculator_page.html',
             'white_point_page.html',
             'thickness_optimizer_page.html'
         ];
-
+        var pageNames = ['Spectrum Library', 'Gamut Calculator', 'White Point', 'Thickness Optimizer'];
         var currentPage = 0;
         var loadingTimer = null;
+        var currentTheme = 'dark';
+        var api = null;
+
+        /* ===== pywebview API Access ===== */
+        function getApi() {
+            return (window.pywebview && window.pywebview.api) || null;
+        }
+
+        function waitForApi(callback, maxWait) {
+            maxWait = maxWait || 15000;
+            var start = Date.now();
+            function check() {
+                api = getApi();
+                if (api) { callback(); return; }
+                if (Date.now() - start > maxWait) {
+                    console.warn('pywebview API not ready after timeout');
+                    return;
+                }
+                setTimeout(check, 100);
+            }
+            check();
+        }
+
+        /* ===== Theme Management ===== */
+        function applyTheme(theme) {
+            currentTheme = theme;
+            if (theme === 'light') {
+                document.body.classList.add('theme-light');
+                document.getElementById('theme-icon').innerHTML = '&#9728;';
+                document.getElementById('theme-label').textContent = 'Light Mode';
+                document.getElementById('theme-dark-item').classList.remove('active');
+                document.getElementById('theme-light-item').classList.add('active');
+            } else {
+                document.body.classList.remove('theme-light');
+                document.getElementById('theme-icon').innerHTML = '&#9790;';
+                document.getElementById('theme-label').textContent = 'Dark Mode';
+                document.getElementById('theme-dark-item').classList.add('active');
+                document.getElementById('theme-light-item').classList.remove('active');
+            }
+            /* Broadcast to iframe pages */
+            var frame = document.getElementById('page-frame');
+            if (frame && frame.contentWindow) {
+                try {
+                    frame.contentWindow.postMessage({ type: 'theme', theme: theme }, '*');
+                } catch(e) {}
+            }
+        }
+        window.applyTheme = applyTheme;
+
+        function toggleTheme() {
+            var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(newTheme);
+            if (api) {
+                api.set_theme(newTheme);
+            }
+        }
 
         /* ===== Navigation ===== */
         function navigateTo(index) {
-            if (index === currentPage) return;
+            if (index === currentPage && document.querySelector('.nav-item.active')) return;
 
-            /* Update active state on nav items */
             var navItems = document.querySelectorAll('.nav-item');
             for (var i = 0; i < navItems.length; i++) {
                 navItems[i].classList.remove('active');
@@ -347,25 +774,23 @@
             navItems[index].classList.add('active');
 
             currentPage = index;
-
-            /* Show loading spinner */
             showLoading();
 
-            /* Reload iframe with new page */
             var frame = document.getElementById('page-frame');
             frame.src = pages[index];
 
-            /* Update status text */
-            var names = ['Spectrum Library', 'Gamut Calculator', 'White Point', 'Thickness Optimizer'];
-            document.getElementById('status-text').textContent = names[index];
+            document.getElementById('status-text').textContent = pageNames[index];
+
+            /* Update window title */
+            if (api) {
+                api.set_window_title(pageNames[index]);
+            }
         }
 
         /* ===== Loading Management ===== */
         function showLoading() {
             var overlay = document.getElementById('loading-overlay');
             overlay.classList.add('active');
-
-            /* Safety timeout: hide spinner after 8 seconds even if load event never fires */
             clearTimeout(loadingTimer);
             loadingTimer = setTimeout(function () {
                 hideLoading();
@@ -380,12 +805,13 @@
 
         /* ===== Iframe Load Event ===== */
         var pageFrame = document.getElementById('page-frame');
-
         pageFrame.addEventListener('load', function () {
             hideLoading();
+            /* Broadcast current theme to the newly loaded page */
+            try {
+                pageFrame.contentWindow.postMessage({ type: 'theme', theme: currentTheme }, '*');
+            } catch(e) {}
         });
-
-        /* Handle load errors gracefully */
         pageFrame.addEventListener('error', function () {
             hideLoading();
             document.getElementById('status-text').textContent = 'Error loading page';
@@ -393,11 +819,160 @@
 
         /* ===== Keyboard Navigation ===== */
         document.addEventListener('keydown', function (e) {
-            /* Alt+1..4 to switch pages */
             if (e.altKey && e.key >= '1' && e.key <= '4') {
                 e.preventDefault();
                 navigateTo(parseInt(e.key) - 1);
             }
+            if (e.ctrlKey && e.key === 'i') {
+                e.preventDefault();
+                menuAction('import-spectrum');
+            }
+        });
+
+        /* ===== Menu Bar ===== */
+        document.querySelectorAll('.menu-item').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var wasOpen = this.classList.contains('open');
+                document.querySelectorAll('.menu-item').forEach(function(m) { m.classList.remove('open'); });
+                if (!wasOpen) this.classList.add('open');
+            });
+        });
+        document.addEventListener('click', function() {
+            document.querySelectorAll('.menu-item').forEach(function(m) { m.classList.remove('open'); });
+        });
+
+        function menuAction(action) {
+            document.querySelectorAll('.menu-item').forEach(function(m) { m.classList.remove('open'); });
+            switch(action) {
+                case 'goto-spectrum': navigateTo(0); break;
+                case 'goto-gamut': navigateTo(1); break;
+                case 'goto-whitepoint': navigateTo(2); break;
+                case 'goto-optimizer': navigateTo(3); break;
+                case 'theme-dark': applyTheme('dark'); if (api) api.set_theme('dark'); break;
+                case 'theme-light': applyTheme('light'); if (api) api.set_theme('light'); break;
+                case 'about': showDialog('about-overlay'); break;
+                case 'shortcuts': alert('Keyboard Shortcuts:\n\nAlt+1 — Spectrum Library\nAlt+2 — Gamut Calculator\nAlt+3 — White Point\nAlt+4 — Thickness Optimizer\nCtrl+I — Import Spectrum'); break;
+                case 'set-password': showSetPasswordDialog(); break;
+                case 'import-spectrum':
+                    navigateTo(0);
+                    var f = document.getElementById('page-frame');
+                    if (f && f.contentWindow && f.contentWindow.importSpectra) {
+                        f.contentWindow.importSpectra();
+                    }
+                    break;
+                case 'export-report':
+                    navigateTo(1);
+                    var f2 = document.getElementById('page-frame');
+                    if (f2 && f2.contentWindow && f2.contentWindow.exportReport) {
+                        f2.contentWindow.exportReport();
+                    }
+                    break;
+                case 'exit':
+                    if (api && api.close_window) api.close_window();
+                    else window.close();
+                    break;
+            }
+        }
+
+        /* ===== Dialog Management ===== */
+        function showDialog(id) {
+            document.getElementById(id).classList.add('active');
+        }
+        function closeDialog(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        /* ===== Password Protection ===== */
+        function checkPasswordRequired() {
+            if (!api) return;
+            api.is_password_set().then(function(res) {
+                if (res && res.password_required) {
+                    document.getElementById('pwd-title').textContent = 'Enter Password';
+                    document.getElementById('pwd-hint').textContent = 'Please enter the application password to continue.';
+                    document.getElementById('pwd-btn').textContent = 'Unlock';
+                    document.getElementById('pwd-overlay').classList.add('active');
+                    setTimeout(function() { document.getElementById('pwd-input').focus(); }, 100);
+                } else {
+                    initApp();
+                }
+            });
+        }
+
+        function submitPassword() {
+            var input = document.getElementById('pwd-input');
+            var pwd = input.value;
+            if (!pwd) return;
+            if (!api) return;
+            api.verify_password(pwd).then(function(res) {
+                if (res && res.ok) {
+                    document.getElementById('pwd-overlay').classList.remove('active');
+                    input.value = '';
+                    document.getElementById('pwd-error').classList.remove('show');
+                    input.classList.remove('error');
+                    initApp();
+                } else {
+                    input.classList.add('error');
+                    document.getElementById('pwd-error').textContent = res && res.error ? res.error : 'Incorrect password. Please try again.';
+                    document.getElementById('pwd-error').classList.add('show');
+                    input.value = '';
+                    input.focus();
+                }
+            });
+        }
+
+        function showSetPasswordDialog() {
+            if (!api) return;
+            api.is_password_set().then(function(res) {
+                if (res && res.password_required) {
+                    /* Already set — ask for current password first via simple prompt */
+                    var old = prompt('Enter current password:');
+                    if (!old) return;
+                    api.verify_password(old).then(function(r) {
+                        if (r && r.ok) {
+                            promptNewPassword();
+                        } else {
+                            alert('Current password incorrect.');
+                        }
+                    });
+                } else {
+                    promptNewPassword();
+                }
+            });
+        }
+
+        function promptNewPassword() {
+            var pwd = prompt('Enter new password (min 4 characters):');
+            if (!pwd) return;
+            if (pwd.length < 4) { alert('Password too short (min 4 chars).'); return; }
+            api.verify_password(pwd).then(function(r) {
+                if (r && r.first_run && r.ok) {
+                    alert('Password set successfully!');
+                }
+            });
+        }
+
+        /* ===== App Initialization ===== */
+        function initApp() {
+            /* Load saved theme */
+            if (api) {
+                api.get_theme().then(function(theme) {
+                    if (theme && theme !== currentTheme) {
+                        applyTheme(theme);
+                    }
+                });
+                api.set_window_title(pageNames[currentPage]);
+            }
+        }
+
+        /* ===== Password input enter key ===== */
+        document.getElementById('pwd-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') submitPassword();
+        });
+
+        /* ===== Boot ===== */
+        waitForApi(function() {
+            checkPasswordRequired();
         });
     </script>
 </body>

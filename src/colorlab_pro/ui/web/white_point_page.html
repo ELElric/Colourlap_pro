@@ -119,6 +119,7 @@ function waitForApi(callback, maxWait) {
     </div>
     <div class="divider"></div>
     <div class="preset-section">
+      <button id="import-gamut-btn" class="preset-btn" onclick="importFromGamut()" title="Import RGB primaries from Gamut Calculator">From Gamut</button>
       <button id="recalc-btn" class="preset-btn" onclick="calculate()">Recalculate</button>
     </div>
   </div>
@@ -477,6 +478,49 @@ document.addEventListener('DOMContentLoaded', function() {
     updateRecalcButtonText();
     syncRefChips();
     waitForApi(function() { checkBackend(); });
+    /* Auto-check for gamut primaries on load */
+    waitForApi(function() {
+        callApi('whitepoint_get_gamut_primaries').then(function(data) {
+            if (data && data.has_data) {
+                var btn = document.getElementById('import-gamut-btn');
+                if (btn) {
+                    btn.style.borderColor = 'var(--accent)';
+                    btn.style.color = 'var(--accent-light)';
+                    btn.title = 'RGB primaries available from Gamut Calculator. Click to import.';
+                }
+            }
+        }).catch(function() {});
+    });
+});
+
+function importFromGamut() {
+    callApi('whitepoint_get_gamut_primaries').then(function(data) {
+        if (!data || !data.has_data) {
+            logStatus('No gamut data available. Calculate gamut first.');
+            return;
+        }
+        document.getElementById('r-x').value = data.red_xy[0];
+        document.getElementById('r-y').value = data.red_xy[1];
+        document.getElementById('g-x').value = data.green_xy[0];
+        document.getElementById('g-y').value = data.green_xy[1];
+        document.getElementById('b-x').value = data.blue_xy[0];
+        document.getElementById('b-y').value = data.blue_xy[1];
+        logStatus('Imported RGB from Gamut Calculator');
+        if (autoCalcEnabled && inputsValid()) calculate();
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
+    });
+}
+
+/* Listen for theme changes from parent */
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'theme' && e.data.theme) {
+        if (e.data.theme === 'light') {
+            document.body.classList.add('theme-light');
+        } else {
+            document.body.classList.remove('theme-light');
+        }
+    }
 });
 </script>
 

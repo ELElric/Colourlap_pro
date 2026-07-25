@@ -89,6 +89,7 @@ function waitForApi(callback, maxWait) {
       </div>
       <div class="controls-actions">
         <button id="calculate-btn" class="btn btn-primary">Calculate Gamut</button>
+        <button id="send-to-wp-btn" class="btn btn-secondary" disabled title="Calculate gamut first, then send RGB to White Point">Send to White Point</button>
         <button id="export-report-btn" class="btn btn-secondary" disabled title="Calculate gamut first to enable export">Export Report</button>
       </div>
     </div>
@@ -297,6 +298,12 @@ function setExportEnabled(enabled) {
     btn.style.color = enabled ? '#e0e0e0' : '#888';
     btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
     btn.style.background = enabled ? '#0a84ff' : '#3c3c3c';
+    /* Also enable/disable Send to White Point button */
+    var wpBtn = document.getElementById('send-to-wp-btn');
+    if (wpBtn) {
+        wpBtn.disabled = !enabled;
+        wpBtn.title = enabled ? 'Send RGB primaries to White Point page' : 'Calculate gamut first';
+    }
 }
 
 function populateSelectors(spectra) {
@@ -744,7 +751,29 @@ function exportReport() {
     if (btn) btn.addEventListener('click', calculateGamut);
     var exp = document.getElementById('export-report-btn');
     if (exp) exp.addEventListener('click', exportReport);
+    var wp = document.getElementById('send-to-wp-btn');
+    if (wp) wp.addEventListener('click', sendToWhitePoint);
 })();
+
+function sendToWhitePoint() {
+    /* Primaries are already stored in the API via gamut_calculate */
+    /* Navigate to White Point page via parent window */
+    if (window.parent && window.parent.navigateTo) {
+        window.parent.navigateTo(2);
+    }
+    logStatus('RGB primaries sent to White Point page');
+}
+
+/* Listen for theme changes from parent */
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'theme' && e.data.theme) {
+        if (e.data.theme === 'light') {
+            document.body.classList.add('theme-light');
+        } else {
+            document.body.classList.remove('theme-light');
+        }
+    }
+});
 
 function toggleRefChip(el) {
     var ref = el.dataset.ref;

@@ -150,6 +150,9 @@ class ColorLabApi:
 
         # Optimizer state
         self._stop_event = threading.Event()
+        self._opt_progress: int = 0
+        self._opt_result: dict | None = None
+        self._opt_running: bool = False
 
         # Gamut page state
         self._last_primaries: list[dict] = [
@@ -158,6 +161,145 @@ class ColorLabApi:
             {"ch": "B", "x": 0.0, "y": 0.0},
         ]
         self._last_results: list[dict] = []
+
+        # pywebview window reference (set after window creation)
+        self._window: Any = None
+
+        # Settings (theme, window state, password)
+        self._settings: dict[str, Any] = {}
+        self._load_settings()
+
+    # -------------------------------------------------------------- #
+    # Window / Settings / Cross-page communication
+    # -------------------------------------------------------------- #
+
+    _SETTINGS_FILE = Path.home() / ".colorlab_pro" / "settings.json"
+
+    def _load_settings(self) -> None:
+        """Load settings from JSON file."""
+        try:
+            if self._SETTINGS_FILE.exists():
+                import json
+
+                self._settings = json.loads(self._SETTINGS_FILE.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            self._settings = {}
+
+    def _save_settings(self) -> None:
+        """Persist settings to JSON file."""
+        try:
+            self._SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            import json
+
+            self._SETTINGS_FILE.write_text(
+                json.dumps(self._settings, indent=2), encoding="utf-8"
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def set_window(self, window: Any) -> None:
+        """Set the pywebview window reference for JS evaluation (progress push)."""
+        self._window = window
+
+    def _push_js(self, js_code: str) -> None:
+        """Evaluate JavaScript in the pywebview window (fire-and-forget)."""
+        if self._window is not None:
+            try:
+                self._window.evaluate_js(js_code)
+            except Exception:  # noqa: BLE001
+                pass
+
+    # --- Theme --- #
+
+    def get_theme(self) -> str:
+        """Return current theme ('dark' or 'light')."""
+        return self._settings.get("theme", "dark")
+
+    def set_theme(self, theme: str) -> dict:
+        """Persist and broadcast theme change."""
+        self._settings["theme"] = theme
+        self._save_settings()
+        self._push_js(f"window.applyTheme && window.applyTheme('{theme}')")
+        return {"theme": theme}
+
+    # --- Window state --- #
+
+    def get_window_state(self) -> dict:
+        """Return saved window geometry."""
+        return self._settings.get("window", {})
+
+    def save_window_state(self, payload: dict) -> dict:
+        """Persist window geometry."""
+        self._settings["window"] = payload
+        self._save_settings()
+        return {"ok": True}
+
+    def set_window_title(self, title: str) -> None:
+        """Update the native window title."""
+        if self._window is not None:
+            try:
+                self._window.set_title(f"ColorLab Pro — {title}")
+            except Exception:  # noqa: BLE001
+                pass
+
+    # --- Password protection --- #
+
+    def verify_password(self, password: str) -> dict:
+        """Verify the application password.
+
+        Returns {ok: bool, first_run: bool}.
+        On first run (no password set), any non-empty password becomes the new password.
+        """
+        stored = self._settings.get("password_hash")
+        if not stored:
+            # First run — accept and store the password
+            if password and len(password) >= 4:
+                import hashlib
+
+                self._settings["password_hash"] = hashlib.sha256(
+                    password.encode()
+                ).hexdigest()
+                self._save_settings()
+                return {"ok": True, "first_run": True}
+            return {"ok": False, "first_run": True, "error": "Password too short (min 4 chars)"}
+
+        import hashlib
+
+        entered = hashlib.sha256(password.encode()).hexdigest()
+        return {"ok": entered == stored, "first_run": False}
+
+    def is_password_set(self) -> dict:
+        """Check whether a password has been configured."""
+        return {"password_required": bool(self._settings.get("password_hash"))}
+
+    # --- Cross-page communication --- #
+
+    def gamut_get_primaries(self) -> dict:
+        """Return the last computed RGB primaries from the Gamut Calculator page.
+
+        Called by the White Point page to import RGB coordinates.
+        """
+        return {
+            "primaries": self._last_primaries,
+            "has_data": any(p["x"] != 0.0 or p["y"] != 0.0 for p in self._last_primaries),
+        }
+
+    def whitepoint_get_gamut_primaries(self) -> dict:
+        """Return gamut primaries formatted for the White Point page.
+
+        Returns red_xy / green_xy / blue_xy arrays, or null if no data.
+        """
+        if not any(p["x"] != 0.0 or p["y"] != 0.0 for p in self._last_primaries):
+            return {"has_data": False}
+        r = self._last_primaries[0]
+        g = self._last_primaries[1]
+        b = self._last_primaries[2]
+        return {
+            "has_data": True,
+            "red_xy": [r["x"], r["y"]],
+            "green_xy": [g["x"], g["y"]],
+            "blue_xy": [b["x"], b["y"]],
+        }
 
     # -------------------------------------------------------------- #
     # Spectrum page methods
@@ -753,13 +895,30 @@ class ColorLabApi:
         self._stop_event.set()
 
     def optimizer_optimize(self, payload: dict) -> dict:
-        """Run a grid-search thickness optimization in a background thread.
+        """Start a grid-search thickness optimization in a background thread.
 
-        Returns immediately with a placeholder; the actual result is
-        stored and can be polled.  For simplicity, we run synchronously
-        here since pywebview's expose methods already run on a separate
-        thread from the UI.
+        Returns immediately with {started: True}.  Progress is pushed to the
+        frontend via window.evaluate_js calls to ``window.updateOptProgress``
+        and the final result via ``window.updateOptResult``.
         """
+        if self._opt_running:
+            return {"error": "Optimization already running"}
+
+        self._stop_event.clear()
+        self._opt_running = True
+        self._opt_progress = 0
+        self._opt_result = None
+
+        thread = threading.Thread(
+            target=self._optimize_worker, args=(payload,), daemon=True
+        )
+        thread.start()
+        return {"started": True}
+
+    def _optimize_worker(self, payload: dict) -> None:
+        """Background worker: runs the grid search and pushes progress/result."""
+        import json as _json
+
         try:
             source_ids = [int(x) for x in payload["source_ids"]]
             cf_ids = [int(x) for x in payload["cf_ids"]]
@@ -816,16 +975,26 @@ class ColorLabApi:
             candidates: list[dict] = []
             total = steps ** 3
             count = 0
-            self._stop_event.clear()
             for dr in np.linspace(bounds[0][0], bounds[0][1], steps):
                 for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
                     for db in np.linspace(bounds[2][0], bounds[2][1], steps):
                         count += 1
                         if self._stop_event.is_set():
-                            return {"results": [], "best": None, "stopped": True}
-                        # Yield to allow stop() to be processed
+                            self._push_js("window.updateOptProgress && window.updateOptProgress(0, 'Stopped')")
+                            self._push_js(
+                                "window.updateOptResult && window.updateOptResult("
+                                + _json.dumps({"results": [], "best": None, "stopped": True})
+                                + ")"
+                            )
+                            self._opt_running = False
+                            return
+                        # Push progress every 5%
                         if count % 50 == 0:
-                            time.sleep(0.001)
+                            pct = int(100 * count / total)
+                            self._opt_progress = pct
+                            self._push_js(
+                                f"window.updateOptProgress && window.updateOptProgress({pct}, 'Running grid search...')"
+                            )
                         filtered = []
                         for src, alpha, d in zip(sources, alphas, [dr, dg, db], strict=False):
                             t = np.power(10.0, -alpha * d)
@@ -862,9 +1031,31 @@ class ColorLabApi:
             for i, r in enumerate(top):
                 r["rank"] = i + 1
 
-            return {"results": top, "best": top[0] if top else None}
+            result = {"results": top, "best": top[0] if top else None}
+            self._opt_result = result
+            self._opt_progress = 100
+            best_cov = top[0]["coverage"] if top else 0
+            self._push_js(
+                f"window.updateOptProgress && window.updateOptProgress(100, 'Best coverage: {best_cov:.1f}%')"
+            )
+            self._push_js(
+                "window.updateOptResult && window.updateOptResult(" + _json.dumps(result) + ")"
+            )
         except Exception as exc:  # noqa: BLE001
-            return _safe_error(exc)
+            err = _safe_error(exc)
+            self._push_js(
+                "window.updateOptResult && window.updateOptResult(" + _json.dumps(err) + ")"
+            )
+        finally:
+            self._opt_running = False
+
+    def optimizer_get_progress(self) -> dict:
+        """Return current optimization progress (fallback polling)."""
+        return {
+            "running": self._opt_running,
+            "progress": self._opt_progress,
+            "result": self._opt_result,
+        }
 
     def optimizer_sensitivity_analysis(self, payload: dict) -> dict:
         """Vary one CF thickness at a time and return coverage / white point drift."""

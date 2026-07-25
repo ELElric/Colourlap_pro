@@ -88,6 +88,41 @@
   --chart-bg: var(--bg-deep);
 }
 
+/* ===== Light Theme Override ===== */
+body.theme-light {
+  --bg-base: #f5f5f7;
+  --bg-panel: #ffffff;
+  --bg-input: #f2f2f7;
+  --bg-deep: #e8e8ed;
+  --bg-header: #e0e0e5;
+  --bg-hover: #e8e8ed;
+  --bg-selected: rgba(10, 132, 255, 0.10);
+  --bg-elevated: #ffffff;
+  --bg-loading: rgba(245, 245, 247, 0.7);
+  --bg-overlay: rgba(0, 0, 0, 0.3);
+
+  --border: #d1d1d6;
+  --border-light: #c7c7cc;
+  --border-input: #b0b0b5;
+  --border-focus: rgba(10, 132, 255, 0.6);
+
+  --text-primary: #1c1c1e;
+  --text-secondary: #3c3c43;
+  --text-muted: #8e8e93;
+  --text-faint: #aeaeb2;
+
+  --tooltip-bg: rgba(255, 255, 255, 0.95);
+  --tooltip-border: #d1d1d6;
+  --tooltip-text: #1c1c1e;
+
+  --echarts-axis: #999;
+  --echarts-grid: #e0e0e0;
+  --echarts-title: #333;
+  --echarts-name: #666;
+
+  --chart-bg: var(--bg-deep);
+}
+
 /* Common Reset */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

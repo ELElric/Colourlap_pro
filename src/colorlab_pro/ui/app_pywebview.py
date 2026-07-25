@@ -197,15 +197,46 @@ def main(argv: list[str] | None = None) -> int:
     api = ColorLabApi(main_ctrl)
     url = f"http://127.0.0.1:{port}/index.html"
 
+    # Apply saved window geometry
+    saved_state = api.get_window_state()
+    win_width = saved_state.get("width", 1600)
+    win_height = saved_state.get("height", 900)
+    win_x = saved_state.get("x")
+    win_y = saved_state.get("y")
+
     try:
-        window = webview.create_window(
-            "ColorLab Pro",
-            url,
-            js_api=api,
-            width=1600,
-            height=900,
-            min_size=(1200, 700),
-        )
+        window_kwargs: dict = {
+            "js_api": api,
+            "width": win_width,
+            "height": win_height,
+            "min_size": (1200, 700),
+        }
+        if win_x is not None and win_y is not None:
+            window_kwargs["x"] = win_x
+            window_kwargs["y"] = win_y
+        window = webview.create_window("ColorLab Pro", url, **window_kwargs)
+
+        # Wire window reference into API for JS evaluation (progress push)
+        api.set_window(window)
+
+        # Save window state on close
+        def _on_closing():
+            try:
+                import webview as _wv
+
+                for w in _wv.windows:
+                    api.save_window_state({
+                        "width": w.width,
+                        "height": w.height,
+                        "x": w.x,
+                        "y": w.y,
+                    })
+                    break
+            except Exception:  # noqa: BLE001
+                pass
+
+        window.events.closing += _on_closing
+
         webview.start(debug="--debug" in (argv or []))
     except Exception:
         traceback.print_exc()

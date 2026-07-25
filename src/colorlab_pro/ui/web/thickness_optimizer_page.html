@@ -406,20 +406,37 @@ function startOptimization() {
         }
     }
     setLoading(true);
-    updateProgress(0, 'Running grid search...');
-    callApi('optimize', data).then(function(res) {
-        setLoading(false);
-        if (res.error) { logStatus(formatError(res, 'Optimization failed')); updateProgress(0); return; }
-        if (res.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
-        renderResults(res.results, res.best);
-        updateProgress(100, 'Best coverage: ' + (res.best ? Number(res.best.coverage).toFixed(2) : '-') + '%');
-        logStatus('Optimization complete');
+    updateProgress(0, 'Starting grid search...');
+    /* Async: optimizer_optimize starts a background thread and returns {started: true}.
+       Progress and results are pushed via window.updateOptProgress / window.updateOptResult. */
+    callApi('optimizer_optimize', data).then(function(res) {
+        if (res && res.error) {
+            setLoading(false);
+            logStatus(formatError(res, 'Optimization failed'));
+            updateProgress(0);
+        }
+        /* If started successfully, wait for progress callbacks */
     }).catch(function(err) {
         setLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateProgress(0);
     });
 }
+
+/* ===== Progress callback handlers (called from Python via evaluate_js) ===== */
+window.updateOptProgress = function(percent, message) {
+    updateProgress(percent, message);
+};
+
+window.updateOptResult = function(result) {
+    setLoading(false);
+    if (!result) { logStatus('Optimization returned no result'); updateProgress(0); return; }
+    if (result.error) { logStatus(formatError(result, 'Optimization failed')); updateProgress(0); return; }
+    if (result.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
+    renderResults(result.results, result.best);
+    updateProgress(100, 'Best coverage: ' + (result.best ? Number(result.best.coverage).toFixed(2) : '-') + '%');
+    logStatus('Optimization complete');
+};
 
 function stopOptimization() {
     callApi('optimizer_stop').catch(function(err) {
@@ -542,7 +559,7 @@ function runSensitivity(metric) {
     data.metric = metric;
     setLoading(true);
     updateProgress(0, 'Running sensitivity...');
-    callApi('sensitivity_analysis', data).then(function(res) {
+    callApi('optimizer_sensitivity_analysis', data).then(function(res) {
         setLoading(false);
         if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
         var ch = document.getElementById('sens-channel').value || 'R';
@@ -635,7 +652,7 @@ function runSensitivityPanel() {
     var tabEl = document.querySelector('.chart-tab[onclick*="coverage"]');
     if (tabEl) tabEl.classList.add('active');
     currentTab = 'coverage';
-    callApi('sensitivity_all', data).then(function(res) {
+    callApi('optimizer_sensitivity_all', data).then(function(res) {
         setLoading(false);
         if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
         allChannelData = res;
@@ -708,6 +725,17 @@ function formatError(res, defaultMsg) {
 // Initial data load
 setLoading(true);
 waitForApi(function() { refreshData(); });
+
+/* Listen for theme changes from parent */
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'theme' && e.data.theme) {
+        if (e.data.theme === 'light') {
+            document.body.classList.add('theme-light');
+        } else {
+            document.body.classList.remove('theme-light');
+        }
+    }
+});
 </script>
 
 </body>
