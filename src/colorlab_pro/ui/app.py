@@ -162,6 +162,14 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
 
     apply_theme(get_config().default_theme)
 
+    # --- Password gate ---------------------------------------------------
+    from colorlab_pro.ui.dialogs.password_dialog import PasswordDialog
+
+    pwd_dlg = PasswordDialog()
+    if pwd_dlg.exec() != PasswordDialog.DialogCode.Accepted:
+        return 0  # User cancelled or wrong password
+    # -------------------------------------------------------------------
+
     # Initialize the application controller (database + services)
     main_ctrl = MainController()
     main_ctrl.initialize()
