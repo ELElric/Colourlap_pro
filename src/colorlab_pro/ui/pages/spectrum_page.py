@@ -198,20 +198,46 @@ class SpectrumPage(WebViewPage):
     def create_backend(self) -> QObject:
         return SpectrumPageBackend(self._controller, self)
 
-    def page_script(self) -> str:
-        return """
+    _LOAD_SCRIPT: str = """
+        (function attemptLoad(attempts) {
+            setLoading(true);
+            function tryChannel() {
+                if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                    new QWebChannel(qt.webChannelTransport, function(channel) {
+                        channel.objects.backend.get_spectra(function(json) {
+                            var data = JSON.parse(json);
+                            if (data.error) {
+                                console.error('Backend error:', data.error);
+                                setLoading(false);
+                                return;
+                            }
+                            renderSpectra(data);
+                            logStatus('Loaded ' + data.length + ' spectra');
+                        });
+                    });
+                } else if (attempts > 0) {
+                    setTimeout(function() { tryChannel(); }, 300);
+                } else {
+                    console.warn('QWebChannel not available after retries');
+                    setLoading(false);
+                }
+            }
+            tryChannel();
+        })(10);
+        """
+
+    _REFRESH_SCRIPT: str = """
         setLoading(true);
         if (typeof qt !== 'undefined' && qt.webChannelTransport) {
             new QWebChannel(qt.webChannelTransport, function(channel) {
                 channel.objects.backend.get_spectra(function(json) {
                     var data = JSON.parse(json);
                     if (data.error) {
-                        console.error('Backend error:', data.error);
+                        console.error('Refresh error:', data.error);
                         setLoading(false);
                         return;
                     }
                     renderSpectra(data);
-                    logStatus('Loaded ' + data.length + ' spectra');
                 });
             });
         } else {
@@ -219,27 +245,14 @@ class SpectrumPage(WebViewPage):
         }
         """
 
+    def page_script(self) -> str:
+        """Initial page load script with QWebChannel retry logic."""
+        return self._LOAD_SCRIPT
+
     def _on_page_about_to_show(self, index: int) -> None:
         """Refresh data when the page becomes visible."""
         if index == self._page_index:
-            self.run_javascript("""
-                setLoading(true);
-                if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-                    new QWebChannel(qt.webChannelTransport, function(channel) {
-                        channel.objects.backend.get_spectra(function(json) {
-                            var data = JSON.parse(json);
-                            if (data.error) {
-                                console.error('Refresh error:', data.error);
-                                setLoading(false);
-                                return;
-                            }
-                            renderSpectra(data);
-                        });
-                    });
-                } else {
-                    setLoading(false);
-                }
-            """)
+            self.run_javascript(self._REFRESH_SCRIPT)
 
     def connect_auto_refresh(self, window: QWidget) -> None:
         window.page_about_to_show.connect(self._on_page_about_to_show)
