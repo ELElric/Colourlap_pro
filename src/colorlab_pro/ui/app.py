@@ -108,6 +108,47 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
+def _ensure_project_with_spectra(
+    main_ctrl: MainController, project_ctrl: ProjectController
+) -> None:
+    """Ensure the current project has spectra, else switch to one that does.
+
+    QSettings may restore a previously-selected project that is now empty
+    (e.g. the auto-created "Default Project"), while the user's imported
+    spectra live in a different project.  This switches the active project
+    to the one with the most spectra when the current project is empty.
+    """
+    current_id = main_ctrl.current_project_id
+    if current_id is None:
+        return
+
+    try:
+        projects = project_ctrl.list_projects()
+    except Exception:  # noqa: BLE001
+        return
+
+    if not projects:
+        return
+
+    best_project_id = current_id
+    max_spectra = 0
+
+    for project in projects:
+        pid = project.id
+        count = project.spectrum_count
+
+        if pid == current_id:
+            if count > 0:
+                return  # Current project already has spectra — nothing to do.
+            max_spectra = count
+        elif count > max_spectra:
+            max_spectra = count
+            best_project_id = pid
+
+    if best_project_id != current_id and max_spectra > 0:
+        main_ctrl.set_current_project(best_project_id)
+
+
 def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
     """Inner runner wrapped by :func:`main` for exception safety."""
     app = create_application(argv if argv is not None else sys.argv)
@@ -134,6 +175,10 @@ def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
 
     # Load bundled test spectra into the default demo project
     load_default_spectra(main_ctrl)
+
+    # Ensure the current project actually has spectra; if not (e.g. QSettings
+    # restored an empty project), switch to the project with the most spectra.
+    _ensure_project_with_spectra(main_ctrl, project_ctrl)
 
     # Create the main window
     window = main_ctrl.create_window()

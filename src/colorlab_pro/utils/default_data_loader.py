@@ -34,22 +34,32 @@ DEFAULT_PROJECT_DESCRIPTION: str = "Preloaded BLED/QD/CF test spectra"
 
 
 def _find_test_data_dir() -> Path | None:
-    """Locate the test_data directory relative to the project root."""
-    # When running from src/colorlab_pro/utils/default_data_loader.py
-    candidate = Path(__file__).resolve().parents[3] / "test_data"
-    if candidate.is_dir():
-        logger.debug("Found test_data directory: {}", candidate)
-        return candidate
+    """Locate the test data directory relative to the project root.
 
-    # Fallback: search upward from cwd for a test_data folder
-    cwd = Path.cwd().resolve()
-    for parent in [cwd, *cwd.parents]:
-        candidate = parent / "test_data"
+    Accepts both ``test_data`` (underscore) and ``test data`` (space) naming
+    conventions so bundled spectra are found regardless of how the folder
+    was named on disk.
+    """
+    _NAMES = ("test_data", "test data")
+
+    # When running from src/colorlab_pro/utils/default_data_loader.py
+    root = Path(__file__).resolve().parents[3]
+    for name in _NAMES:
+        candidate = root / name
         if candidate.is_dir():
-            logger.debug("Found test_data directory via cwd fallback: {}", candidate)
+            logger.debug("Found test data directory: {}", candidate)
             return candidate
 
-    logger.warning("test_data directory not found near {} or {}", Path(__file__), Path.cwd())
+    # Fallback: search upward from cwd for a test data folder
+    cwd = Path.cwd().resolve()
+    for parent in [cwd, *cwd.parents]:
+        for name in _NAMES:
+            candidate = parent / name
+            if candidate.is_dir():
+                logger.debug("Found test data directory via cwd fallback: {}", candidate)
+                return candidate
+
+    logger.warning("test data directory not found near {} or {}", Path(__file__), Path.cwd())
     return None
 
 
