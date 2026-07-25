@@ -27,10 +27,10 @@ htmlcov/
 # mypy
 .mypy_cache/
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Database (keep a copy in repo for cross-machine use)
+# *.db
+# *.sqlite
+# *.sqlite3
 
 # Logs
 *.log
@@ -40,7 +40,7 @@ htmlcov/
 Thumbs.db
 
 # Data files (user-specific)
-data/user/
+# data/user/
 
 # Generated files
 test_led_rgb.csv
