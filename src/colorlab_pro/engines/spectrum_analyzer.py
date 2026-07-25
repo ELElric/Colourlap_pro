@@ -10,15 +10,12 @@ Provides colorimetric analysis functions for a Spectrum:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
 from colorlab_pro.dto.color import XY, XYZ
 from colorlab_pro.dto.spectrum import Spectrum
-
-if TYPE_CHECKING:
-    pass
 
 # Cached colour-science singletons
 _cmf_cache: dict[str, Any] = {}

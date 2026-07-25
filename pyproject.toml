@@ -16,6 +16,7 @@ keywords = ["display", "spectral", "gamut", "color-science", "ciexyz", "cie1931"
 
 dependencies = [
     "PySide6>=6.6,<6.13",
+    "pywebview>=5.0",
     "numpy>=1.26,<2.3",
     "colour-science>=0.4.4,<0.5",
     "SQLAlchemy>=2.0,<2.1",
@@ -30,7 +31,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "pytest-qt>=4.4",
     "pytest-cov>=4.1",
     "ruff>=0.1",
     "mypy>=1.7",
@@ -38,7 +38,7 @@ dev = [
 
 [project.scripts]
 colorlab-pro = "colorlab_pro.cli:main"
-colorlab-pro-gui = "colorlab_pro.ui.app:main"
+colorlab-pro-gui = "colorlab_pro.ui.app_pywebview:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -47,16 +47,63 @@ where = ["src"]
 "colorlab_pro.ui" = ["**/*.qss", "**/*.ui", "**/*.html", "**/*.js"]
 "colorlab_pro.resources" = ["**/*"]
 
+# --- Ruff (merged from ruff.toml) ---
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "DTZ", "PT", "Q"]
+ignore = [
+    "E501",  # line-too-long (handled by formatter)
+    "B008",  # function call in default argument (common in Pydantic)
+]
+
 [tool.ruff.lint.per-file-ignores]
-# web_demo.py adjusts sys.path before project imports
-"src/colorlab_pro/ui/web_demo.py" = ["E402"]
+"tests/**" = ["B011"]
 "tests/unit/ui/test_spectrum_page.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# --- pytest (merged from pytest.ini) ---
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (require DB / filesystem)",
+    "ui: UI tests (require display)",
+    "slow: Slow tests (skip on default run)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:colour..*",
+]
+
+# --- mypy (merged from mypy.ini) ---
+
+[tool.mypy]
+python_version = "3.10"
+mypy_path = "src"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["colour.*", "shapely.*", "PySide6.*", "sqlalchemy.*", "scipy.*", "openpyxl.*"]
+ignore_missing_imports = true
+
+# --- Coverage ---
 
 [tool.coverage.run]
 source = ["src/colorlab_pro"]
-# Business logic layers (engines/services/controllers) are fully covered and
-# gated at 90%. UI/cli/migrations/exporters are measured but reported
-# separately and do not block the gate.
 omit = [
     "src/colorlab_pro/ui/*",
     "src/colorlab_pro/cli.py",
@@ -65,9 +112,6 @@ omit = [
 ]
 
 [tool.coverage.report]
-# Gate applies to business-logic layers only (engines + services +
-# controllers + repositories + importers + dto + utils + config).
-# UI layer is validated via integration/manual testing.
 fail_under = 90
 show_missing = true
 

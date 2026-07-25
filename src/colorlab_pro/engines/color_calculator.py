@@ -10,8 +10,6 @@ Provides color math utilities:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 
 from colorlab_pro.dto.color import XY, XYZ
@@ -20,10 +18,6 @@ from colorlab_pro.engines.spectrum_analyzer import (
     xy,
     xyz,
 )
-
-if TYPE_CHECKING:
-    pass
-
 
 
 def _to_common_grid(
