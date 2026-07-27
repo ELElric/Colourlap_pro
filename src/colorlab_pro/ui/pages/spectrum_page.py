@@ -216,7 +216,7 @@ class SpectrumPage(WebViewPage):
                         });
                     });
                 } else if (attempts > 0) {
-                    setTimeout(function() { tryChannel(); }, 300);
+                    setTimeout(function() { tryChannel(attempts - 1); }, 300);
                 } else {
                     console.warn('QWebChannel not available after retries');
                     setLoading(false);
@@ -238,6 +238,7 @@ class SpectrumPage(WebViewPage):
                         return;
                     }
                     renderSpectra(data);
+                    setLoading(false);
                 });
             });
         } else {
