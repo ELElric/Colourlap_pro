@@ -1,1 +1,1 @@
-"""$pkg subpackage."""
+"""ColorLab Pro UI package."""

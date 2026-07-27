@@ -21,22 +21,6 @@ from colorlab_pro.dto.spectrum import Spectrum
 _cmf_cache: dict[str, Any] = {}
 _illuminant_sd_cache: dict[str, Any] = {}
 
-# Supported observers / illuminants exposed to the UI.
-OBSERVER_CHOICES = [
-    "CIE 1931 2 Degree Standard Observer",
-    "CIE 1964 10 Degree Standard Observer",
-]
-
-ILLUMINANT_CHOICES = [
-    "A",
-    "C",
-    "D50",
-    "D55",
-    "D65",
-    "D75",
-    "E",
-]
-
 
 def _get_cmf(observer: str = "CIE 1931 2 Degree Standard Observer") -> Any:
     """Return the requested colour-science CMF (cached)."""

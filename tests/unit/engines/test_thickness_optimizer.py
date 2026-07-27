@@ -82,30 +82,6 @@ class TestOptimizeThickness:
             topt.optimize_thickness(XY(0.3, 0.3), equal_source, [equal_source])
 
 
-# ---- transmission_for_thicknesses ----
-
-
-class TestTransmission:
-    def test_returns_spectrum(
-        self,
-        equal_source: Spectrum,
-        rgb_absorbers: list[Spectrum],
-    ) -> None:
-        out = topt.transmission_for_thicknesses(equal_source, rgb_absorbers, (1.0, 1.0, 1.0))
-        assert isinstance(out, Spectrum)
-        assert out.wavelengths.shape == equal_source.wavelengths.shape
-        assert np.all(out.values >= 0)
-        assert np.all(out.values <= equal_source.values + 1e-12)
-
-    def test_zero_thickness_no_attenuation(
-        self,
-        equal_source: Spectrum,
-        rgb_absorbers: list[Spectrum],
-    ) -> None:
-        out = topt.transmission_for_thicknesses(equal_source, rgb_absorbers, (0.0, 0.0, 0.0))
-        np.testing.assert_allclose(out.values, equal_source.values, atol=1e-12)
-
-
 # ---- optimize_thickness_display (display model) ----
 
 
@@ -177,29 +153,3 @@ class TestOptimizeThicknessDisplay:
     ) -> None:
         res = topt.optimize_thickness_display(XY(0.3, 0.3), rgb_sources, rgb_absorbers)
         assert res.meta.get("model") == "display"
-
-
-class TestDisplayTransmission:
-    def test_returns_per_channel_spectra(
-        self,
-        rgb_sources: list[Spectrum],
-        rgb_absorbers: list[Spectrum],
-    ) -> None:
-        out = topt.display_transmission_for_thicknesses(
-            rgb_sources, rgb_absorbers, (1.0, 1.0, 1.0)
-        )
-        assert len(out) == 3
-        for s in out:
-            assert isinstance(s, Spectrum)
-            assert np.all(s.values >= 0)
-
-    def test_zero_thickness_returns_source(
-        self,
-        rgb_sources: list[Spectrum],
-        rgb_absorbers: list[Spectrum],
-    ) -> None:
-        out = topt.display_transmission_for_thicknesses(
-            rgb_sources, rgb_absorbers, (0.0, 0.0, 0.0)
-        )
-        for src, filtered in zip(rgb_sources, out, strict=True):
-            np.testing.assert_allclose(filtered.values, src.values, atol=1e-12)

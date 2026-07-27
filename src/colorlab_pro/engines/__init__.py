@@ -46,7 +46,6 @@ __all__ = [
     "nearest_white_point",
     # ThicknessOptimizer (T-06)
     "optimize_thickness",
-    "transmission_for_thicknesses",
     "CF_THICKNESS_BOUNDS_UM",
 ]
 
@@ -98,10 +97,6 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "nearest_white_point": ("colorlab_pro.engines.white_point_calculator", "nearest_white_point"),
     # ThicknessOptimizer (T-06)
     "optimize_thickness": ("colorlab_pro.engines.thickness_optimizer", "optimize_thickness"),
-    "transmission_for_thicknesses": (
-        "colorlab_pro.engines.thickness_optimizer",
-        "transmission_for_thicknesses",
-    ),
     "CF_THICKNESS_BOUNDS_UM": (
         "colorlab_pro.engines.thickness_optimizer",
         "CF_THICKNESS_BOUNDS_UM",
