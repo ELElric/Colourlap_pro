@@ -29,8 +29,7 @@ DEPS = [
     "openpyxl>=3.1,<3.2",
     "pyyaml>=6.0,<6.1",
     "matplotlib>=3.7,<3.12",
-    "pywebview",
-    "PySide6>=6.6,<6.13",
+    "pywebview>=5.0",
 ]
 
 

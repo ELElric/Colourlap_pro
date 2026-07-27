@@ -47,6 +47,8 @@ SITE_PACKAGES = RUNTIME_DIR / "Lib" / "site-packages"
 # 项目源码位置（PyInstaller 打包后从 _MEIPASS 读取；开发模式从项目根目录读取）
 APP_ENTRY = "scripts/run_pywebview.py"
 
+OFFLINE_RUNTIME_NAME = "runtime.7z"
+
 # PyPI 国内镜像（依次尝试，选第一个能连通的）
 PYPI_MIRRORS = [
     "https://pypi.tuna.tsinghua.edu.cn/simple",
@@ -153,6 +155,35 @@ def extract_zip(archive_path: Path, dest_dir: Path) -> bool:
         return True
     except Exception as exc:
         print(f"[Launcher] Extract failed: {exc}", file=sys.stderr)
+        return False
+
+
+def _find_offline_runtime() -> Path | None:
+    """查找离线运行时包 (runtime.7z)."""
+    # 打包后：与 EXE 同目录
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        candidate = exe_dir / OFFLINE_RUNTIME_NAME
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def extract_offline_runtime(archive_path: Path, progress_callback=None) -> bool:
+    """解压离线运行时包到 runtime 目录."""
+    import zipfile
+    if progress_callback:
+        progress_callback(0, "Extracting offline runtime...")
+    try:
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            # Filter out __pycache__ and .pyc during extraction
+            for member in zf.namelist():
+                if "__pycache__" in member or member.endswith(".pyc"):
+                    continue
+                zf.extract(member, RUNTIME_DIR)
+        return True
+    except Exception as exc:
+        print(f"[Launcher] Offline extraction failed: {exc}", file=sys.stderr)
         return False
 
 
@@ -500,8 +531,24 @@ class ProgressDialog:
 
 def main() -> int:
     """Launcher 入口."""
-    # 检查 runtime 是否完全就绪（python + 所有依赖）
+    # Step 0: Check for offline runtime package (faster than online)
     python_ok = check_python_installed()
+    if not python_ok:
+        offline_pkg = _find_offline_runtime()
+        if offline_pkg:
+            dialog = ProgressDialog(f"{APP_NAME} - Setup")
+            def _p(pct, msg):
+                dialog.update(pct, msg)
+                if dialog._tk:
+                    dialog.root.update()
+            _p(0, "Extracting offline runtime package...")
+            if extract_offline_runtime(offline_pkg, _p):
+                python_ok = check_python_installed()
+                if python_ok:
+                    print("[Launcher] Offline runtime extracted successfully")
+            dialog.close()
+
+    # Step 1: Check deps
     deps_ok = False
     if python_ok:
         deps_ok = all(
@@ -509,12 +556,12 @@ def main() -> int:
             for _, mn, mx, imp in PROJECT_DEPS
         )
 
-    # 全部就绪 → 直接启动（静默，无 UI）
+    # All ready -> launch silently
     if python_ok and deps_ok:
         print("[Launcher] Runtime ready, starting app...")
         return launch_app()
 
-    # 需要安装 → 显示进度窗口
+    # Need online install -> show progress dialog
     dialog = ProgressDialog(f"{APP_NAME} - Setup")
     if dialog._tk:
         dialog.root.update()
