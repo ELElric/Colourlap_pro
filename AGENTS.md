@@ -1,15 +1,15 @@
 # ColorLab Pro — AI 开发指南
 
-ColorLab Pro 是面向 LED/QD/CF 显示研发的桌面色域分析工具。技术栈：PySide6 + QtWebEngine + ECharts + SQLAlchemy/SQLite + numpy/scipy/colour-science/shapely。
+ColorLab Pro 是面向 LED/QD/CF 显示研发的桌面色域分析工具。技术栈：pywebview + ECharts + SQLAlchemy/SQLite + numpy/scipy/colour-science/shapely。
 
 ---
 
 ## 架构总览
 
 ```
-MainWindow (PySide6)
-  ├── Sidebar Navigation
-  ├── QStackedWidget (4 pages)
+pywebview Window
+  ├── Sidebar Navigation (HTML/JS)
+  ├── Page Container (4 pages)
   │     ├── [0] SpectrumPage        ← ui/web/spectrum_page.html
   │     ├── [1] GamutCalculatorPage ← ui/web/gamut_calculator_page.html
   │     ├── [2] WhitePointPage      ← ui/web/white_point_page.html
@@ -17,7 +17,7 @@ MainWindow (PySide6)
   └── StatusBar (DB/Spectra/Observer/Illuminant)
 ```
 
-每个页面继承 `WebViewPage`，通过 `QWebEngineView` 渲染 HTML/JS，通过 `QWebChannel` 与 Python Backend 通信。
+每个页面是一个 HTML 文件，由 pywebview 渲染，通过 `js_api` 与 Python Backend 通信。
 
 ---
 
@@ -25,8 +25,8 @@ MainWindow (PySide6)
 
 ```
 UI (HTML/JS + ECharts)
-  ↕ QWebChannel (JSON)
-Controller (@Slot 方法，暴露给 JS)
+  ↕ pywebview js_api (JSON)
+Controller (暴露给 JS 的 API 方法)
   → Service (业务逻辑)
     → Engine (纯函数，无副作用)
   → Repository (ORM 读写)
@@ -44,52 +44,51 @@ Controller (@Slot 方法，暴露给 JS)
 
 ---
 
-## QWebChannel 通信机制
+## pywebview js_api 通信机制
 
 ### JS 调用 Python
 
 ```javascript
-new QWebChannel(qt.webChannelTransport, function(channel) {
-    channel.objects.backend.method_name(JSON.stringify(args), function(json) {
-        var data = JSarson.parse(json);
-        // 处理结果
-    });
+// pywebview 把 js_api 对象暴露为 window.pywebview.api
+window.pywebview.api.method_name(JSON.stringify(args)).then(function(json) {
+    var data = JSON.parse(json);
+    // 处理结果
 });
 ```
 
 ### Python 端
 
 ```python
-class PageBackend(QObject):
-    @Slot(str, result=str)
+class ColorLabApi:
     def method_name(self, payload: str) -> str:
         data = json.loads(payload)
         # 处理逻辑
         return json.dumps({"key": "value"})
 ```
 
+`ColorLabApi` 实例通过 `webview.create_window(..., js_api=api)` 注入窗口，
+pywebview 自动将其公开方法暴露给 JS 作为 `window.pywebview.api.*`。
+
 ### 关键约束
 
-- Backend 必须注册为 `"backend"`：`self._channel.registerObject("backend", self._backend)`
-- 所有数据通过 JSON 字符串传递
-- JS 端引用 `qrc:///qtwebchannel/qwebchannel.js`
-- HTML 通过 `setUrl(QUrl.fromLocalFile(str(html)))` 加载（非 `setHtml`），保证相对路径资源（JS/CSS/PNG）可访问
+- API 类在 `ui/pywebview_api.py` 中定义，通过 `js_api` 参数传给 `webview.create_window`
+- 所有数据通过 JSON 字符串传递（pywebview 原生仅支持基本类型，复杂对象需序列化）
+- HTML 通过本地 HTTP server 提供（`http://127.0.0.1:<port>/index.html`），保证相对路径资源（JS/CSS/PNG）可访问
+- Python 主动推送结果到前端使用 `window.evaluate_js(...)` 执行 JS 代码
 
 ---
 
 ## 页面生命周期
 
 ```
-WebViewPage.__init__()
-  → _build_ui()           # 创建 QWebEngineView
-  → QWebChannel 绑定
-  → initialize()          # 注册 Backend + setUrl 加载 HTML
-    → _on_load_finished() # 页面加载完成
+pywebview create_window()
+  → HTTP server 提供 index.html
+    → 页面加载完成
       → page_script()     # 注入初始 JS（获取数据、渲染）
 
-MainWindow.page_about_to_show(index)
-  → connect_auto_refresh() → _on_page_about_to_show()
-    → run_javascript()     # 每次切回页面刷新数据
+页面切换 (JS 端)
+  → show_page(index)     # 切换显示的 page div
+    → refresh_data()      # 每次切回页面刷新数据
 ```
 
 ---
@@ -255,7 +254,7 @@ pip install -e ".[dev]"
 
 # 运行 GUI
 colorlab-pro-gui
-python scripts/run_app.py
+python scripts/run_pywebview.py
 
 # Lint
 ruff check src/

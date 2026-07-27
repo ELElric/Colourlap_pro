@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from PySide6.QtCore import QObject, Signal
+from colorlab_pro.utils.signal import QObject, Signal
 from sqlalchemy.orm import Session
 
 from colorlab_pro.controllers.main_controller import MainController

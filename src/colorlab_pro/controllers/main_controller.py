@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal
+from colorlab_pro.utils.signal import QObject, Signal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 

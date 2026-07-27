@@ -15,7 +15,6 @@ authors = [
 keywords = ["display", "spectral", "gamut", "color-science", "ciexyz", "cie1931", "pywebview"]
 
 dependencies = [
-    "PySide6>=6.6,<6.13",
     "pywebview>=5.0",
     "numpy>=1.26,<2.3",
     "colour-science>=0.4.4,<0.5",
@@ -45,7 +44,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "colorlab_pro.ui" = ["**/*.html", "**/*.js", "**/*.css", "**/*.png", "**/*.json"]
-"colorlab_pro.resources" = ["**/*"]
+"colorlab_pro.ui.resources" = ["**/*"]
 
 [tool.coverage.run]
 source = ["src/colorlab_pro"]

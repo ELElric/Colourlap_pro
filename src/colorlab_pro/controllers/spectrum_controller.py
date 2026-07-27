@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal
+from colorlab_pro.utils.signal import QObject, Signal
 
 from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.dto.spectrum import Spectrum

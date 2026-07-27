@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QObject, Signal
+from colorlab_pro.utils.signal import QObject, Signal
 
 from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.dto.color import XY, OptimizationResult

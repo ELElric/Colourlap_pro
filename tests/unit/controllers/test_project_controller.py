@@ -12,11 +12,10 @@ from colorlab_pro.controllers.project_controller import ProjectController, Proje
 
 
 @pytest.fixture
-def project_ctrl(tmp_path: Path, qtbot):
+def project_ctrl(tmp_path: Path):
     """Provide a ProjectController backed by an in-memory database."""
     main = MainController()
     main.initialize(db_path=tmp_path / "test.db")
-    qtbot.addWidget(main.create_window())
 
     ctrl = ProjectController(main)
     yield ctrl
@@ -24,24 +23,30 @@ def project_ctrl(tmp_path: Path, qtbot):
 
 
 class TestCreate:
-    def test_create_project_returns_id(self, project_ctrl: ProjectController, qtbot) -> None:
-        with qtbot.waitSignal(project_ctrl.project_created, timeout=1000):
-            pid = project_ctrl.create_project("Test Project", "A description")
+    def test_create_project_returns_id(self, project_ctrl: ProjectController) -> None:
+        created_ids: list[int] = []
+        project_ctrl.project_created.connect(lambda pid: created_ids.append(pid))
+        pid = project_ctrl.create_project("Test Project", "A description")
         assert pid is not None
         assert isinstance(pid, int)
+        assert pid in created_ids  # signal emitted
 
     def test_create_project_sets_current(self, project_ctrl: ProjectController) -> None:
         pid = project_ctrl.create_project("Active")
         assert project_ctrl._main.current_project_id == pid
 
-    def test_create_project_emits_updated(self, project_ctrl: ProjectController, qtbot) -> None:
-        with qtbot.waitSignal(project_ctrl.projects_updated, timeout=1000):
-            project_ctrl.create_project("Emit Test")
+    def test_create_project_emits_updated(self, project_ctrl: ProjectController) -> None:
+        updated_flags: list = []
+        project_ctrl.projects_updated.connect(lambda: updated_flags.append(True))
+        project_ctrl.create_project("Emit Test")
+        assert updated_flags  # signal emitted
 
-    def test_create_project_empty_name_fails(self, project_ctrl: ProjectController, qtbot) -> None:
-        with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-            result = project_ctrl.create_project("  ")
+    def test_create_project_empty_name_fails(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
+        result = project_ctrl.create_project("  ")
         assert result is None
+        assert errors
 
 
 class TestList:
@@ -78,18 +83,22 @@ class TestUpdate:
         assert info is not None
         assert info.name == "New Name"
 
-    def test_update_missing_project(self, project_ctrl: ProjectController, qtbot) -> None:
-        with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-            result = project_ctrl.update_project(9999, name="X")
+    def test_update_missing_project(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
+        result = project_ctrl.update_project(9999, name="X")
         assert result is False
+        assert errors
 
 
 class TestDelete:
-    def test_delete_existing(self, project_ctrl: ProjectController, qtbot) -> None:
+    def test_delete_existing(self, project_ctrl: ProjectController) -> None:
         pid = project_ctrl.create_project("To Delete")
-        with qtbot.waitSignal(project_ctrl.project_deleted, timeout=1000):
-            result = project_ctrl.delete_project(pid)
+        deleted_ids: list[int] = []
+        project_ctrl.project_deleted.connect(lambda pid: deleted_ids.append(pid))
+        result = project_ctrl.delete_project(pid)
         assert result is True
+        assert pid in deleted_ids  # signal emitted
         assert project_ctrl.get_project(pid) is None
 
     def test_delete_clears_current_project(self, project_ctrl: ProjectController) -> None:
@@ -97,10 +106,12 @@ class TestDelete:
         project_ctrl.delete_project(pid)
         assert project_ctrl._main.current_project_id is None
 
-    def test_delete_missing(self, project_ctrl: ProjectController, qtbot) -> None:
-        with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-            result = project_ctrl.delete_project(9999)
+    def test_delete_missing(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
+        result = project_ctrl.delete_project(9999)
         assert result is False
+        assert errors
 
 
 class TestSelect:
@@ -114,9 +125,11 @@ class TestSelect:
         project_ctrl.select_project(None)
         assert project_ctrl._main.current_project_id is None
 
-    def test_select_invalid_emits_error(self, project_ctrl: ProjectController, qtbot) -> None:
-        with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-            project_ctrl.select_project(9999)
+    def test_select_invalid_emits_error(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
+        project_ctrl.select_project(9999)
+        assert errors
 
 
 class TestSessionFactory:
@@ -127,47 +140,57 @@ class TestSessionFactory:
 
 
 class TestRepositoryExceptions:
-    def test_create_project_exception(self, project_ctrl: ProjectController, qtbot) -> None:
+    def test_create_project_exception(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
         with patch(
             "colorlab_pro.controllers.project_controller.project_repository.create",
             side_effect=RuntimeError("db error"),
         ):
-            with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-                result = project_ctrl.create_project("Fails")
+            result = project_ctrl.create_project("Fails")
         assert result is None
+        assert errors
 
-    def test_list_projects_exception(self, project_ctrl: ProjectController, qtbot) -> None:
+    def test_list_projects_exception(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
         with patch(
             "colorlab_pro.controllers.project_controller.project_repository.list_all",
             side_effect=RuntimeError("db error"),
         ):
-            with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-                result = project_ctrl.list_projects()
+            result = project_ctrl.list_projects()
         assert result == []
+        assert errors
 
-    def test_get_project_exception(self, project_ctrl: ProjectController, qtbot) -> None:
+    def test_get_project_exception(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
         with patch(
             "colorlab_pro.controllers.project_controller.project_repository.get_by_id",
             side_effect=RuntimeError("db error"),
         ):
-            with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-                result = project_ctrl.get_project(1)
+            result = project_ctrl.get_project(1)
         assert result is None
+        assert errors
 
-    def test_update_project_exception(self, project_ctrl: ProjectController, qtbot) -> None:
+    def test_update_project_exception(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
         with patch(
             "colorlab_pro.controllers.project_controller.project_repository.update",
             side_effect=RuntimeError("db error"),
         ):
-            with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-                result = project_ctrl.update_project(1, name="X")
+            result = project_ctrl.update_project(1, name="X")
         assert result is False
+        assert errors
 
-    def test_delete_project_exception(self, project_ctrl: ProjectController, qtbot) -> None:
+    def test_delete_project_exception(self, project_ctrl: ProjectController) -> None:
+        errors: list[str] = []
+        project_ctrl.error_occurred.connect(lambda msg: errors.append(msg))
         with patch(
             "colorlab_pro.controllers.project_controller.project_repository.delete",
             side_effect=RuntimeError("db error"),
         ):
-            with qtbot.waitSignal(project_ctrl.error_occurred, timeout=1000):
-                result = project_ctrl.delete_project(1)
+            result = project_ctrl.delete_project(1)
         assert result is False
+        assert errors

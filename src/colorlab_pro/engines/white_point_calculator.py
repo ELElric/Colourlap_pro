@@ -47,7 +47,6 @@ def mixing_weights(
 
     # Target XYZ with Y = 1.0 via colour-science
     import colour
-    import numpy as np
 
     target_xyz = colour.xy_to_XYZ(np.array([target_xy.x, target_xy.y]))
     b = np.array([float(target_xyz[0]), float(target_xyz[1]), float(target_xyz[2])], dtype=np.float64)

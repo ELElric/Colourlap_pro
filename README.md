@@ -44,7 +44,7 @@ Downloading Python 3.10...    ← 下载 python-embed（约 10MB）
 Configuring Python...        ← 配置 ._pth 启用 site-packages
 Installing pip...             ← 安装 pip 包管理器
 Checking numpy (1/11)...      ← 逐个检查依赖是否已安装
-Installing PySide6 (3/11)...  ← 仅安装缺失的依赖
+Installing pywebview (3/11)...  ← 仅安装缺失的依赖
 ```
 
 **运行时文件位置：**
@@ -209,8 +209,6 @@ python scripts/packaging/build_runtime.py
 | openpyxl | 3.1 | 3.2 |
 | pyyaml | 6.0 | 6.1 |
 | matplotlib | 3.7 | 3.12 |
-| pywebview | — | — |
-| PySide6 | 6.6 | 6.13 |
 
 ## 许可证
 

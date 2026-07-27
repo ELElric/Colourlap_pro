@@ -84,7 +84,6 @@ PROJECT_DEPS = [
     ("pyyaml", "6.0", "6.1", "yaml"),
     ("matplotlib", "3.7", "3.12", "matplotlib"),
     ("pywebview", "", "", "webview"),
-    ("PySide6", "6.6", "6.13", "PySide6"),
 ]
 
 

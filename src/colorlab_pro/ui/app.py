@@ -1,7 +1,6 @@
 """pywebview 版本的 ColorLab Pro 入口文件.
 
 使用 pywebview + 内置 HTTP server 提供前端页面。
-后端 controllers 继承 QObject，需要一个 headless QApplication 实例。
 """
 
 from __future__ import annotations
@@ -145,19 +144,6 @@ def main(argv: list[str] | None = None) -> int:
     """
     _setup_logging()
     _install_excepthook()
-
-    # --- Ensure a minimal QApplication exists --------------------------
-    # Controllers inherit QObject and need a QApplication at init time.
-    # We create a headless one (no event loop will be exec'd) so that
-    # QObject.__init__, Signal definitions work.  pywebview
-    # manages its own GUI event loop.
-    try:
-        from PySide6.QtWidgets import QApplication
-
-        if QApplication.instance() is None:
-            QApplication(sys.argv)
-    except Exception:  # noqa: BLE001
-        pass
 
     # --- Initialize database and controllers --------------------------
     main_ctrl = MainController()
