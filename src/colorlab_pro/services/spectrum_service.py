@@ -294,27 +294,22 @@ class SpectrumService:
         observer: str,
         illuminant: str,
     ) -> float | None:
-        """Compute excitation purity from xy and dominant wavelength."""
+        """Compute excitation purity from xy and dominant wavelength.
+
+        Uses the direction-cosine matching method for accuracy.
+        """
         if xy_val is None or dom_wl is None:
             return None
         try:
-            import numpy as np
+            from colorlab_pro.engines.spectrum_analyzer import (
+                _dominant_wavelength_core,
+                _get_illuminant_xy,
+            )
 
             white = _get_illuminant_xy(illuminant, observer=observer)
-            wavelengths = np.arange(380.0, 781.0, 1.0, dtype=np.float64)
-            v = np.zeros_like(wavelengths)
-            idx = int(dom_wl - 380.0)
-            if 0 <= idx < v.size:
-                v[idx] = 1.0
-            s = Spectrum(wavelengths=wavelengths, values=v, unit="a.u.")
-            locus_pt = xy(s, observer=observer, illuminant=illuminant)
-
-            sample_vec = np.array([xy_val.x - white.x, xy_val.y - white.y])
-            locus_vec = np.array([locus_pt.x - white.x, locus_pt.y - white.y])
-            locus_norm = np.linalg.norm(locus_vec)
-            if locus_norm < 1e-12:
+            _, purity = _dominant_wavelength_core(xy_val, white, observer)
+            if purity is None:
                 return None
-            purity = float(np.linalg.norm(sample_vec) / locus_norm)
-            return max(0.0, min(1.0, purity))
+            return max(0.0, min(1.0, float(purity)))
         except Exception:  # noqa: BLE001
             return None

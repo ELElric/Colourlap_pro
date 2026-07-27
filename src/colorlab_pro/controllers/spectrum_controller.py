@@ -325,12 +325,16 @@ class SpectrumController(QObject):
         import numpy as np
 
         from colorlab_pro.engines.spectrum_analyzer import (
-            dominant_wavelength as _compute_dwl,
+            _dominant_wavelength_core,
+        )
+        from colorlab_pro.engines.spectrum_analyzer import (
+            _get_illuminant_xy as _ill_xy,
         )
         from colorlab_pro.engines.spectrum_analyzer import (
             uprime_vprime,
             xy,
         )
+        from colorlab_pro.dto.color import XY
 
         wavelengths = np.array([p.wavelength for p in orm.points], dtype=np.float64)
         values = np.array([p.value for p in orm.points], dtype=np.float64)
@@ -341,10 +345,14 @@ class SpectrumController(QObject):
         try:
             xy_val = xy(spectrum, illuminant="E")
             uv_val = uprime_vprime(spectrum, illuminant="E")
-            dom_wl = _compute_dwl(spectrum, illuminant="E")
+            ill = _ill_xy("E")
+            dwl_val, purity_val = _dominant_wavelength_core(
+                XY(x=xy_val.x, y=xy_val.y), ill, "CIE 1931 2 Degree Standard Observer"
+            )
             xy_x, xy_y = float(xy_val.x), float(xy_val.y)
             uv_u, uv_v = float(uv_val[0]), float(uv_val[1])
-            dwl = float(dom_wl) if dom_wl is not None else None
+            dwl = float(dwl_val) if dwl_val is not None else None
+            purity = round(float(purity_val), 4) if purity_val is not None else None
 
             # QD multi-peak: if dominant wavelength is in blue region (380-500nm)
             # and spectrum has another peak outside blue region, recompute from non-blue peak
@@ -370,30 +378,11 @@ class SpectrumController(QObject):
                                 if alt_dwl is not None:
                                     dwl = float(alt_dwl)
                                     # Recompute purity for the non-blue peak
-                                    dom_wl = alt_dwl
-                except Exception:
-                    pass
-            # Compute excitation purity
-            purity = None
-            if dom_wl is not None:
-                try:
-                    from colorlab_pro.engines.spectrum_analyzer import (
-                        _get_illuminant_xy as _ill_xy,
-                    )
-
-                    ill = _ill_xy("E")
-                    import colour
-
-                    cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"]
-                    cmf = cmfs[np.float64(dom_wl)]
-                    lx = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2]))
-                    ly = float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
-                    import math
-
-                    dist_cw = math.sqrt((xy_x - ill.x) ** 2 + (xy_y - ill.y) ** 2)
-                    dist_lw = math.sqrt((lx - ill.x) ** 2 + (ly - ill.y) ** 2)
-                    if dist_lw > 1e-6:
-                        purity = round(dist_cw / dist_lw, 4)
+                                    dwl = float(alt_dwl)
+                                    _, alt_purity = _dominant_wavelength_core(
+                                        XY(x=xy_x, y=xy_y), ill, "CIE 1931 2 Degree Standard Observer"
+                                    )
+                                    purity = round(float(alt_purity), 4) if alt_purity is not None else None
                 except Exception:
                     pass
             return xy_x, xy_y, uv_u, uv_v, dwl, purity

@@ -193,11 +193,6 @@ class GamutPageBackend(QObject):
                     filtered_specs[0], filtered_specs[1], filtered_specs[2], name="Device"
                 )
 
-            def _xy_to_xyz(x, y):
-                if y == 0:
-                    return (0.0, 0.0, 0.0)
-                return (x / y, 1.0, (1.0 - x - y) / y)
-
             def _cct_from_xy(x, y):
                 try:
                     import colour
@@ -208,12 +203,24 @@ class GamutPageBackend(QObject):
                 except Exception:
                     return None
 
+            # Compute dominant wavelength and excitation purity using the engine
+            from colorlab_pro.engines.spectrum_analyzer import _dominant_wavelength_core
+            from colorlab_pro.dto.color import XY
+
+            white_xy = XY(x=0.3127, y=0.3290)  # D65
+            observer = "CIE 1931 2 Degree Standard Observer"
+
             primaries = []
             for idx, (ch, xy_pt) in enumerate([("R", device.red), ("G", device.green), ("B", device.blue)]):
-                x, y = round(xy_pt[0], 4), round(xy_pt[1], 4)
-                xyz = _xy_to_xyz(x, y)
                 # Get spectrum analysis data from the filtered spectrum
                 sp = filtered_specs[idx]
+                try:
+                    from colorlab_pro.engines.spectrum_analyzer import xyz as _xyz_calc
+
+                    real_xyz = _xyz_calc(sp)
+                    xyz_vals = (real_xyz.X, real_xyz.Y, real_xyz.Z)
+                except Exception:
+                    xyz_vals = (0.0, 0.0, 0.0)
                 try:
                     peak_nm = float(sp.wavelengths[np.argmax(sp.values)])
                     peak_val = float(np.max(sp.values))
@@ -226,47 +233,24 @@ class GamutPageBackend(QObject):
                         fwhm_nm = None
                 except Exception:
                     peak_nm, fwhm_nm = None, None
-                # Compute dominant wavelength (peak as proxy) and excitation purity
+                # Compute dominant wavelength and excitation purity using the engine
                 try:
-                    dominant_nm = peak_nm  # Peak wavelength as proxy for dominant
-                    # Excitation purity: distance from white to color / distance from white to spectrum locus
-                    # Use simple Euclidean distance from white point as approximation
-                    import colour
-                    wl_cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"]
-                    # Find closest dominant wavelength on spectrum locus
-                    best_nm, best_dist = None, float("inf")
-                    for w in range(380, 781, 5):
-                        cmf = wl_cmfs[np.float64(w)]
-                        lx, ly = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2])), float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
-                        d = (lx - x) ** 2 + (ly - y) ** 2
-                        if d < best_dist:
-                            best_dist = d
-                            best_nm = w
-                    dominant_nm = best_nm
-                    # Purity: |color-white| / |locus-white| along dominant direction
-                    try:
-                        cmf = wl_cmfs[np.float64(dominant_nm)]
-                        lx = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2]))
-                        ly = float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
-                        # white point (D65)
-                        wx, wy = 0.3127, 0.3290
-                        import math
-                        dist_cw = math.sqrt((x - wx) ** 2 + (y - wy) ** 2)
-                        dist_lw = math.sqrt((lx - wx) ** 2 + (ly - wy) ** 2)
-                        purity = (dist_cw / dist_lw * 100) if dist_lw > 0.001 else None
-                    except Exception:
-                        purity = None
+                    dw, purity_val = _dominant_wavelength_core(
+                        XY(x=xy_pt[0], y=xy_pt[1]), white_xy, observer
+                    )
+                    dominant_nm = dw
+                    purity = purity_val * 100 if purity_val is not None else None
                 except Exception:
                     dominant_nm, purity = None, None
                 primaries.append(
                     {
                         "ch": ch,
-                        "x": x,
-                        "y": y,
-                        "X": round(xyz[0], 4),
-                        "Y": round(xyz[1], 4),
-                        "Z": round(xyz[2], 4),
-                        "cct": _cct_from_xy(x, y),
+                        "x": round(xy_pt[0], 4),
+                        "y": round(xy_pt[1], 4),
+                        "X": round(xyz_vals[0], 4),
+                        "Y": round(xyz_vals[1], 4),
+                        "Z": round(xyz_vals[2], 4),
+                        "cct": _cct_from_xy(xy_pt[0], xy_pt[1]),
                         "peak_nm": peak_nm,
                         "fwhm_nm": fwhm_nm,
                         "dominant_nm": dominant_nm,

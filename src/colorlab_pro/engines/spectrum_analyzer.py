@@ -229,6 +229,45 @@ def cct_mccamy(
 cct = cct_mccamy
 
 
+def _dominant_wavelength_core(
+    sample_xy: XY,
+    white: XY,
+    observer: str,
+) -> tuple[float, float] | tuple[None, None]:
+    """Core algorithm: find dominant wavelength and excitation purity for an xy point.
+
+    Uses direction-cosine matching against the spectrum locus.
+
+    Returns:
+        (wavelength_nm, excitation_purity) or (None, None) if the point falls
+        outside the spectrum locus (cosine similarity <= 0).
+    """
+    if observer not in _LOCUS_CACHE:
+        _LOCUS_CACHE[observer] = _build_locus(observer)
+    wl, locus_xy = _LOCUS_CACHE[observer]
+
+    s_vec = np.array([sample_xy.x - white.x, sample_xy.y - white.y], dtype=np.float64)
+    s_norm = np.linalg.norm(s_vec)
+    if s_norm < 1e-12:
+        return None, None
+    s_hat = s_vec / s_norm
+
+    diffs = locus_xy - np.array([white.x, white.y], dtype=np.float64)
+    diffs_norm = np.linalg.norm(diffs, axis=1)
+    valid = diffs_norm > 1e-12
+    if not np.any(valid):
+        return None, None
+
+    cos_sim = np.full(diffs_norm.shape, -2.0, dtype=np.float64)
+    cos_sim[valid] = (diffs[valid] / diffs_norm[valid][:, None]) @ s_hat
+    best = int(np.argmax(cos_sim))
+    if cos_sim[best] <= 0:
+        return None, None
+
+    purity = s_norm / diffs_norm[best]
+    return float(wl[best]), float(purity)
+
+
 def dominant_wavelength(
     spectrum: Spectrum,
     *,
@@ -250,25 +289,34 @@ def dominant_wavelength(
     if white is None:
         white = _get_illuminant_xy(illuminant, observer=observer)
     c = xy(spectrum, observer=observer, illuminant=illuminant)
+    dw, _ = _dominant_wavelength_core(c, white, observer)
+    return dw
 
-    # Fast path: use cached spectrum locus (pre-computed, observer-dependent).
-    if observer not in _LOCUS_CACHE:
-        _LOCUS_CACHE[observer] = _build_locus(observer)
-    _, locus_xy = _LOCUS_CACHE[observer]
 
-    s_vec = np.array([c.x - white.x, c.y - white.y], dtype=np.float64)
-    s_norm = np.linalg.norm(s_vec)
-    if s_norm < 1e-12:
-        return None
-    s_hat = s_vec / s_norm
-    diffs = locus_xy - np.array([white.x, white.y], dtype=np.float64)
-    diffs_norm = np.linalg.norm(diffs, axis=1)
-    valid = diffs_norm > 1e-12
-    if not np.any(valid):
-        return None
-    cos_sim = np.full(diffs_norm.shape, -2.0, dtype=np.float64)
-    cos_sim[valid] = (diffs[valid] / diffs_norm[valid][:, None]) @ s_hat
-    best = int(np.argmax(cos_sim))
-    if cos_sim[best] <= 0:
-        return None
-    return float(_STD_WL[best])
+def excitation_purity(
+    spectrum: Spectrum,
+    *,
+    white: XY | None = None,
+    observer: str = "CIE 1931 2 Degree Standard Observer",
+    illuminant: str = "E",
+) -> float | None:
+    """Compute the excitation purity of a spectrum.
+
+    Excitation purity is the ratio of the distance from the white point to
+    the sample colour, divided by the distance from the white point to the
+    spectrum locus along the same dominant-wavelength direction.
+
+    Args:
+        spectrum: Input spectrum.
+        white: Reference white point. Defaults to the selected illuminant.
+        observer: Standard observer name.
+        illuminant: Illuminant name.
+
+    Returns:
+        Excitation purity as a float in [0, 1], or None if undefined.
+    """
+    if white is None:
+        white = _get_illuminant_xy(illuminant, observer=observer)
+    c = xy(spectrum, observer=observer, illuminant=illuminant)
+    _, purity = _dominant_wavelength_core(c, white, observer)
+    return purity
