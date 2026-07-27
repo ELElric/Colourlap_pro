@@ -325,16 +325,12 @@ class SpectrumController(QObject):
         import numpy as np
 
         from colorlab_pro.engines.spectrum_analyzer import (
-            _dominant_wavelength_core,
-        )
-        from colorlab_pro.engines.spectrum_analyzer import (
             _get_illuminant_xy as _ill_xy,
         )
         from colorlab_pro.engines.spectrum_analyzer import (
             uprime_vprime,
             xy,
         )
-        from colorlab_pro.dto.color import XY
 
         wavelengths = np.array([p.wavelength for p in orm.points], dtype=np.float64)
         values = np.array([p.value for p in orm.points], dtype=np.float64)
@@ -343,16 +339,20 @@ class SpectrumController(QObject):
 
         spectrum = Spectrum(wavelengths=wavelengths, values=values)
         try:
+            import colour
+
             xy_val = xy(spectrum, illuminant="E")
             uv_val = uprime_vprime(spectrum, illuminant="E")
             ill = _ill_xy("E")
-            dwl_val, purity_val = _dominant_wavelength_core(
-                XY(x=xy_val.x, y=xy_val.y), ill, "CIE 1931 2 Degree Standard Observer"
-            )
+            xy_arr = np.array([xy_val.x, xy_val.y])
+            ill_arr = np.array([ill.x, ill.y])
+            dw_result = colour.dominant_wavelength(xy_arr, ill_arr)
+            dwl_val = float(dw_result[0]) if dw_result[0] > 0 else None
+            ep = float(colour.excitation_purity(xy_arr, ill_arr))
             xy_x, xy_y = float(xy_val.x), float(xy_val.y)
             uv_u, uv_v = float(uv_val[0]), float(uv_val[1])
             dwl = float(dwl_val) if dwl_val is not None else None
-            purity = round(float(purity_val), 4) if purity_val is not None else None
+            purity = round(ep, 4) if ep > 1e-6 else None
 
             # QD multi-peak: if dominant wavelength is in blue region (380-500nm)
             # and spectrum has another peak outside blue region, recompute from non-blue peak
@@ -379,10 +379,8 @@ class SpectrumController(QObject):
                                     dwl = float(alt_dwl)
                                     # Recompute purity for the non-blue peak
                                     dwl = float(alt_dwl)
-                                    _, alt_purity = _dominant_wavelength_core(
-                                        XY(x=xy_x, y=xy_y), ill, "CIE 1931 2 Degree Standard Observer"
-                                    )
-                                    purity = round(float(alt_purity), 4) if alt_purity is not None else None
+                                    alt_ep = float(colour.excitation_purity(xy_arr, ill_arr))
+                                    purity = round(alt_ep, 4) if alt_ep > 1e-6 else None
                 except Exception:
                     pass
             return xy_x, xy_y, uv_u, uv_v, dwl, purity

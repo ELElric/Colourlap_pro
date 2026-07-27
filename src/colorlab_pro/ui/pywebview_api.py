@@ -143,7 +143,7 @@ class ColorLabApi:
         self._main_ctrl = main_ctrl
 
         # Create sub-controllers (they need QApplication.instance(), which
-        # app_pywebview.py ensures exists before this point)
+        # app.py ensures exists before this point)
         self._spectrum_ctrl = SpectrumController(main_ctrl)
         self._color_ctrl = ColorController(main_ctrl)
         self._opt_ctrl = OptimizationController(main_ctrl)
@@ -536,7 +536,9 @@ class ColorLabApi:
             def _xy_to_xyz(x, y):
                 if y == 0:
                     return (0.0, 0.0, 0.0)
-                return (x / y, 1.0, (1.0 - x - y) / y)
+                import colour
+                xyz = colour.xy_to_XYZ(np.array([x, y]))
+                return (float(xyz[0]), float(xyz[1]), float(xyz[2]))
 
             def _cct_from_xy(x, y):
                 try:
@@ -553,37 +555,54 @@ class ColorLabApi:
                 try:
                     peak_nm = float(sp.wavelengths[np.argmax(sp.values)])
                     peak_val = float(np.max(sp.values))
+                    # FWHM: 使用线性插值法精确计算半高宽
                     half_max = peak_val / 2.0
                     above_half = sp.values >= half_max
                     if np.any(above_half):
                         indices = np.where(above_half)[0]
-                        fwhm_nm = float(sp.wavelengths[indices[-1]] - sp.wavelengths[indices[0]])
+                        # 左边界插值
+                        left_idx = indices[0]
+                        if left_idx > 0 and sp.values[left_idx - 1] < half_max:
+                            frac_l = (half_max - sp.values[left_idx - 1]) / (
+                                sp.values[left_idx] - sp.values[left_idx - 1]
+                            )
+                            left_wl = sp.wavelengths[left_idx - 1] + frac_l * (
+                                sp.wavelengths[left_idx] - sp.wavelengths[left_idx - 1]
+                            )
+                        else:
+                            left_wl = sp.wavelengths[left_idx]
+                        # 右边界插值
+                        right_idx = indices[-1]
+                        if right_idx < len(sp.values) - 1 and sp.values[right_idx + 1] < half_max:
+                            frac_r = (half_max - sp.values[right_idx + 1]) / (
+                                sp.values[right_idx] - sp.values[right_idx + 1]
+                            )
+                            right_wl = sp.wavelengths[right_idx + 1] - frac_r * (
+                                sp.wavelengths[right_idx + 1] - sp.wavelengths[right_idx]
+                            )
+                        else:
+                            right_wl = sp.wavelengths[right_idx]
+                        fwhm_nm = round(float(right_wl - left_wl), 1)
                     else:
                         fwhm_nm = None
                 except Exception:
                     peak_nm, fwhm_nm = None, None
                 try:
-                    dominant_nm = peak_nm
                     import colour
 
-                    wl_cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"]
-                    best_nm, best_dist = None, float("inf")
-                    for w in range(380, 781, 5):
-                        cmf = wl_cmfs[np.float64(w)]
-                        lx = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2]))
-                        ly = float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
-                        d = (lx - x) ** 2 + (ly - y) ** 2
-                        if d < best_dist:
-                            best_dist = d
-                            best_nm = w
-                    dominant_nm = best_nm
+                    # 主波长: 使用 colour-science 的 dominant_wavelength (光谱轨迹交叉法)
+                    xy_arr = np.array([x, y])
+                    xy_n = np.array([0.3127, 0.3290])
+                    dw_result = colour.dominant_wavelength(xy_arr, xy_n)
+                    dw_wl = float(dw_result[0])
+                    dominant_nm = int(round(dw_wl)) if dw_wl > 0 else None
+                    # 色纯度: 使用 dominant_wavelength 返回的光谱轨迹交点精确计算
                     try:
-                        cmf = wl_cmfs[np.float64(dominant_nm)]
-                        lx = float(cmf[0] / (cmf[0] + cmf[1] + cmf[2]))
-                        ly = float(cmf[1] / (cmf[0] + cmf[1] + cmf[2]))
-                        wx, wy = 0.3127, 0.3290
-                        dist_cw = math.sqrt((x - wx) ** 2 + (y - wy) ** 2)
-                        dist_lw = math.sqrt((lx - wx) ** 2 + (ly - wy) ** 2)
+                        xy_wl = dw_result[1]
+                        dist_cw = math.sqrt((x - xy_n[0]) ** 2 + (y - xy_n[1]) ** 2)
+                        dist_lw = math.sqrt(
+                            (float(xy_wl[0]) - xy_n[0]) ** 2 + (float(xy_wl[1]) - xy_n[1]) ** 2
+                        )
                         purity = (dist_cw / dist_lw * 100) if dist_lw > 0.001 else None
                     except Exception:
                         purity = None
@@ -731,10 +750,11 @@ class ColorLabApi:
     def _xy_to_xyz(x: float, y: float) -> tuple[float, float, float]:
         if y == 0:
             return 0.0, 0.0, 0.0
-        yy = 1.0
-        xx = yy * x / y
-        zz = yy * (1.0 - x - y) / y
-        return xx, yy, zz
+        import colour
+        import numpy as np
+
+        xyz = colour.xy_to_XYZ(np.array([x, y]))
+        return float(xyz[0]), float(xyz[1]), float(xyz[2])
 
     def whitepoint_calculate(self, payload: dict) -> dict:
         """Compute white point and gamut metrics from RGB xy coordinates."""
@@ -830,10 +850,9 @@ class ColorLabApi:
             def xy_to_xyz(x, y):
                 if y == 0:
                     return [0.0, 0.0, 0.0]
-                yy = 1.0
-                xx = yy * x / y
-                zz = yy * (1.0 - x - y) / y
-                return [xx, yy, zz]
+                import colour
+                xyz = colour.xy_to_XYZ(np.array([x, y]))
+                return [float(xyz[0]), float(xyz[1]), float(xyz[2])]
 
             matrix = [
                 xy_to_xyz(*red_xy),

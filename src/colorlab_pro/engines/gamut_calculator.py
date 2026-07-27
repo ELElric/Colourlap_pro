@@ -31,15 +31,15 @@ def _xy_to_tuple(xy: XY) -> tuple[float, float]:
 
 
 def xy_to_uv(x: float, y: float) -> tuple[float, float]:
-    """Convert CIE 1931 xy chromaticity to CIE 1976 u'v'.
+    """Convert CIE 1931 xy chromaticity to CIE 1976 u'v' via colour-science."""
+    import colour
+    import numpy as np
 
-    u' = 4x / (-2x + 12y + 3)
-    v' = 9y / (-2x + 12y + 3)
-    """
     denom = -2.0 * x + 12.0 * y + 3.0
     if denom == 0:
         return 0.0, 0.0
-    return (4.0 * x) / denom, (9.0 * y) / denom
+    uv = colour.xy_to_Luv_uv(np.array([x, y]))
+    return float(uv[0]), float(uv[1])
 
 
 def build_gamut_from_primaries(

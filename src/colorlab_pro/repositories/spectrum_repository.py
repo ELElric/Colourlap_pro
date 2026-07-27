@@ -58,26 +58,26 @@ def _name_from_dto(spectrum: Spectrum, fallback: str | None) -> str:
 
 
 def _compute_purity(spectrum: Spectrum, dom_wl: float | None, illuminant: str = "E") -> float | None:
-    """Compute excitation purity from a spectrum.
-
-    Uses the direction-cosine matching method for accuracy.
-    """
+    """Compute excitation purity from a spectrum via colour-science."""
     if dom_wl is None:
         return None
     try:
-        from colorlab_pro.engines.spectrum_analyzer import _dominant_wavelength_core
+        import colour
+        import numpy as np
+
         from colorlab_pro.engines.spectrum_analyzer import (
             _get_illuminant_xy,
         )
 
         white = _get_illuminant_xy(illuminant)
         xy_val = xy(spectrum, illuminant=illuminant)
-        _, purity = _dominant_wavelength_core(
-            xy_val, white, "CIE 1931 2 Degree Standard Observer"
+        ep = float(
+            colour.excitation_purity(
+                np.array([xy_val.x, xy_val.y]),
+                np.array([white.x, white.y]),
+            )
         )
-        if purity is None:
-            return None
-        return max(0.0, min(1.0, float(purity)))
+        return max(0.0, min(1.0, ep))
     except Exception:
         return None
 

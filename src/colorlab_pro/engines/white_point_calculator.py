@@ -45,12 +45,12 @@ def mixing_weights(
         c = xyz(s)
         design_matrix[:, i] = [c.X, c.Y, c.Z]
 
-    # Target XYZ with Y = 1.0
-    total = target_xy.x + target_xy.y + (1.0 - target_xy.x - target_xy.y)
-    x_t = target_xy.x / total
-    y_t = target_xy.y / total
-    z_t = (1.0 - target_xy.x - target_xy.y) / total
-    b = np.array([x_t, y_t, z_t], dtype=np.float64)
+    # Target XYZ with Y = 1.0 via colour-science
+    import colour
+    import numpy as np
+
+    target_xyz = colour.xy_to_XYZ(np.array([target_xy.x, target_xy.y]))
+    b = np.array([float(target_xyz[0]), float(target_xyz[1]), float(target_xyz[2])], dtype=np.float64)
 
     # Non-negative least squares via scipy.optimize.nnls
     from scipy.optimize import nnls

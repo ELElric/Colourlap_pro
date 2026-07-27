@@ -104,9 +104,9 @@ colorlab-pro/
 │   ├── importers/           # 导入器（CSV/XLSX）
 │   ├── repositories/        # 仓储层
 │   ├── services/            # 服务层
-│   ├── ui/                  # UI 层（主窗口/页面/对话框/控件）
+│   ├── ui/                  # UI 层（pywebview 入口 + API 桥接）
 │   │   ├── web/             # 前端页面（HTML/JS/CSS + ECharts）
-│   │   ├── app_pywebview.py # pywebview 版本入口
+│   │   ├── app.py           # pywebview 入口
 │   │   └── pywebview_api.py # Python↔JS API 桥接
 │   └── utils/               # 工具（日志/路径/校验/错误）
 ├── scripts/                 # 脚本

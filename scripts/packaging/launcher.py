@@ -11,7 +11,7 @@
 2. 若无 python.exe → 从 python.org 下载 python-embed
 3. 逐个检查依赖是否能 import + 版本是否满足
 4. 缺失/版本不匹配的依赖从 PyPI 镜像安装
-5. 启动 app_pywebview.py
+5. 启动 app.py (pywebview 入口)
 """
 
 from __future__ import annotations

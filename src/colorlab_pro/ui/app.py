@@ -1,32 +1,44 @@
-"""Main application entry point for ColorLab Pro GUI."""
+"""pywebview 版本的 ColorLab Pro 入口文件.
+
+使用 pywebview + 内置 HTTP server 提供前端页面。
+后端 controllers 继承 QObject，需要一个 headless QApplication 实例。
+"""
 
 from __future__ import annotations
 
+import socket
 import sys
+import threading
 import traceback
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
-from colorlab_pro.config.settings import get_config
-from colorlab_pro.controllers.color_controller import ColorController
+import webview  # type: ignore[import-untyped]
+
 from colorlab_pro.controllers.main_controller import MainController
-from colorlab_pro.controllers.optimization_controller import OptimizationController
 from colorlab_pro.controllers.project_controller import ProjectController
-from colorlab_pro.controllers.spectrum_controller import SpectrumController
-from colorlab_pro.ui.main_window import create_application
-from colorlab_pro.ui.pages.gamut_calculator_page import GamutCalculatorPage
-from colorlab_pro.ui.pages.spectrum_page import SpectrumPage
-from colorlab_pro.ui.pages.thickness_optimizer_page import ThicknessOptimizerPage
-from colorlab_pro.ui.pages.white_point_page import WhitePointPage
+from colorlab_pro.ui.pywebview_api import ColorLabApi
 from colorlab_pro.utils.default_data_loader import load_default_spectra
+from colorlab_pro.utils.paths import ensure_data_directory, get_default_db_path
+
+
+# ------------------------------------------------------------------ #
+# Logging setup
+# ------------------------------------------------------------------ #
+
+
+def _setup_logging() -> None:
+    """Enable loguru logging as early as possible."""
+    try:
+        from colorlab_pro.utils.logging import setup_logging as _setup
+
+        _setup()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _install_excepthook() -> None:
-    """Install a global excepthook that logs uncaught exceptions.
-
-    In GUI mode uncaught exceptions would otherwise silently abort the event
-    loop. We log them and print the traceback so packaged (windowed) builds
-    still leave a diagnostic trail.
-    """
+    """Install a global excepthook that logs uncaught exceptions."""
 
     def hook(exc_type, exc_value, exc_tb):  # type: ignore[no-untyped-def]
         if issubclass(exc_type, KeyboardInterrupt):
@@ -43,69 +55,9 @@ def _install_excepthook() -> None:
     sys.excepthook = hook
 
 
-def _show_fatal_error(exc: Exception) -> None:
-    """Best-effort fatal-error dialog so the user is not left with a bare crash."""
-    log_dir: str = "~/.colorlab_pro/logs"
-    try:
-        from colorlab_pro.utils.logging import get_log_dir
-
-        log_dir = str(get_log_dir())
-    except Exception:  # noqa: BLE001
-        pass
-
-    message = (
-        f"ColorLab Pro encountered a fatal error and cannot continue.\n\n"
-        f"Error: {exc}\n\n"
-        f"Please see the log file under:\n{log_dir}\n\n"
-        f"Contact support with the log file for assistance."
-    )
-    try:
-        from PySide6.QtWidgets import QApplication, QMessageBox
-
-        app = QApplication.instance()
-        if app is None:
-            app = QApplication(sys.argv)
-        QMessageBox.critical(None, "ColorLab Pro — Fatal Error", message)
-    except Exception:  # noqa: BLE001
-        # If Qt is unavailable, fall back to stderr.
-        print(message, file=sys.stderr)
-
-
-def main(argv: list[str] | None = None) -> int:
-    """Launch the ColorLab Pro main window.
-
-    Initializes the database, creates all controllers and pages,
-    and registers them with the MainWindow.
-
-    Args:
-        argv: Command-line arguments. Uses sys.argv if None.
-
-    Returns:
-        Application exit code.
-    """
-    # Enable logging as early as possible so that startup failures are
-    # captured to ~/.colorlab_pro/logs/colorlab_pro.log.
-    log_dir: Path | None = None
-    try:
-        from colorlab_pro.utils.logging import setup_logging
-
-        log_dir = setup_logging()
-    except Exception:  # noqa: BLE001
-        pass
-
-    _install_excepthook()
-
-    try:
-        return _run(argv, log_dir)
-    except Exception as exc:  # noqa: BLE001
-        try:
-            from loguru import logger
-
-            logger.exception("Fatal error during startup: {}", exc)
-        except Exception:  # noqa: BLE001
-            pass
-        _show_fatal_error(exc)
-        return 1
+# ------------------------------------------------------------------ #
+# Database initialization
+# ------------------------------------------------------------------ #
 
 
 def _ensure_project_with_spectra(
@@ -113,10 +65,9 @@ def _ensure_project_with_spectra(
 ) -> None:
     """Ensure the current project has spectra, else switch to one that does.
 
-    QSettings may restore a previously-selected project that is now empty
-    (e.g. the auto-created "Default Project"), while the user's imported
-    spectra live in a different project.  This switches the active project
-    to the one with the most spectra when the current project is empty.
+    Since pywebview has no QSettings, this uses a simpler heuristic:
+    switch to the project with the most spectra when the current project
+    is empty.
     """
     current_id = main_ctrl.current_project_id
     if current_id is None:
@@ -139,7 +90,7 @@ def _ensure_project_with_spectra(
 
         if pid == current_id:
             if count > 0:
-                return  # Current project already has spectra — nothing to do.
+                return
             max_spectra = count
         elif count > max_spectra:
             max_spectra = count
@@ -149,91 +100,153 @@ def _ensure_project_with_spectra(
         main_ctrl.set_current_project(best_project_id)
 
 
-def _run(argv: list[str] | None, log_dir: Path | None) -> int:  # noqa: ARG001
-    """Inner runner wrapped by :func:`main` for exception safety."""
-    app = create_application(argv if argv is not None else sys.argv)
+# ------------------------------------------------------------------ #
+# HTTP Server
+# ------------------------------------------------------------------ #
 
-    styles_dir = Path(__file__).resolve().parent / "resources" / "styles"
 
-    def apply_theme(theme_name: str) -> None:
-        qss_path = styles_dir / f"{theme_name}.qss"
-        if qss_path.exists():
-            app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+def _find_free_port() -> int:
+    """Find a free TCP port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
-    apply_theme(get_config().default_theme)
 
-    # --- Password gate ---------------------------------------------------
-    from colorlab_pro.ui.dialogs.password_dialog import PasswordDialog
+def _create_http_server(directory: Path, port: int) -> HTTPServer:
+    """Create an HTTP server serving files from *directory* on *port*."""
 
-    pwd_dlg = PasswordDialog()
-    if pwd_dlg.exec() != PasswordDialog.DialogCode.Accepted:
-        return 0  # User cancelled or wrong password
-    # -------------------------------------------------------------------
+    class _Handler(SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            super().__init__(*args, directory=str(directory), **kwargs)
 
-    # Initialize the application controller (database + services)
+        def log_message(self, format, *args):  # type: ignore[no-untyped-def, override]
+            # Suppress per-request logging to keep console clean
+            pass
+
+    server = HTTPServer(("127.0.0.1", port), _Handler)
+    return server
+
+
+# ------------------------------------------------------------------ #
+# Main entry point
+# ------------------------------------------------------------------ #
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Launch ColorLab Pro with pywebview.
+
+    1. Initialize database and controllers
+    2. Start a local HTTP server to serve HTML/JS/CSS assets
+    3. Create a pywebview window pointing to that server
+    4. Expose the unified API class for JS<->Python communication
+
+    Returns:
+        Exit code (0 on success, non-zero on error).
+    """
+    _setup_logging()
+    _install_excepthook()
+
+    # --- Ensure a minimal QApplication exists --------------------------
+    # Controllers inherit QObject and need a QApplication at init time.
+    # We create a headless one (no event loop will be exec'd) so that
+    # QObject.__init__, Signal definitions work.  pywebview
+    # manages its own GUI event loop.
+    try:
+        from PySide6.QtWidgets import QApplication
+
+        if QApplication.instance() is None:
+            QApplication(sys.argv)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # --- Initialize database and controllers --------------------------
     main_ctrl = MainController()
-    main_ctrl.initialize()
+    try:
+        main_ctrl.initialize()
+    except Exception as exc:
+        print(f"Failed to initialize database: {exc}", file=sys.stderr)
+        traceback.print_exc()
+        return 1
 
-    # Ensure a default project exists (empty, for immediate use)
+    # Ensure a default project exists
     project_ctrl = ProjectController(main_ctrl)
     if main_ctrl.current_project_id is None:
         pid = project_ctrl.create_project("Default Project")
         if pid is not None:
             main_ctrl.set_current_project(pid)
 
-    # Load bundled test spectra into the default demo project
+    # Load bundled test spectra
     load_default_spectra(main_ctrl)
 
-    # Ensure the current project actually has spectra; if not (e.g. QSettings
-    # restored an empty project), switch to the project with the most spectra.
+    # Ensure current project has spectra
     _ensure_project_with_spectra(main_ctrl, project_ctrl)
 
-    # Create the main window
-    window = main_ctrl.create_window()
+    # --- Prepare web assets directory ----------------------------------
+    web_dir = Path(__file__).resolve().parent / "web"
+    if not web_dir.is_dir():
+        print(f"Web assets directory not found: {web_dir}", file=sys.stderr)
+        main_ctrl.shutdown()
+        return 1
 
-    def on_theme_changed(theme: str) -> None:
-        apply_theme(theme)
-        from colorlab_pro.config.settings import save_config
-        save_config(default_theme=theme)
+    # --- Start HTTP server in background thread -----------------------
+    port = _find_free_port()
+    server = _create_http_server(web_dir, port)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
 
-    window.theme_changed.connect(on_theme_changed)
+    # --- Create API and pywebview window -------------------------------
+    api = ColorLabApi(main_ctrl)
+    url = f"http://127.0.0.1:{port}/index.html"
 
-    # Create sub-controllers
-    spec_ctrl = SpectrumController(main_ctrl)
-    color_ctrl = ColorController(main_ctrl)
-    opt_ctrl = OptimizationController(main_ctrl)
+    # Apply saved window geometry
+    saved_state = api.get_window_state()
+    win_width = saved_state.get("width", 1600)
+    win_height = saved_state.get("height", 900)
+    win_x = saved_state.get("x")
+    win_y = saved_state.get("y")
 
-    # Create and register workspace pages
-    spectrum_page = SpectrumPage(spec_ctrl, page_index=0)
-    gamut_page = GamutCalculatorPage(spec_ctrl, color_ctrl, page_index=1)
-    white_point_page = WhitePointPage(color_ctrl, page_index=2)
-    optimizer_page = ThicknessOptimizerPage(spec_ctrl, color_ctrl, opt_ctrl, page_index=3)
+    try:
+        window_kwargs: dict = {
+            "js_api": api,
+            "width": win_width,
+            "height": win_height,
+            "min_size": (1200, 700),
+        }
+        if win_x is not None and win_y is not None:
+            window_kwargs["x"] = win_x
+            window_kwargs["y"] = win_y
+        window = webview.create_window("ColorLab Pro", url, **window_kwargs)
 
-    pages = [
-        ("Spectrum Library", spectrum_page),
-        ("Gamut Calculator", gamut_page),
-        ("White Point", white_point_page),
-        ("Thickness Optimizer", optimizer_page),
-    ]
-    for name, page in pages:
-        window.add_page(page, name)
+        # Wire window reference into API for JS evaluation (progress push)
+        api.set_window(window)
 
-    # Auto-refresh: pages reload data when switched to
-    for _name, page in pages:
-        if hasattr(page, "connect_auto_refresh"):
-            page.connect_auto_refresh(window)
+        # Save window state on close
+        def _on_closing():
+            try:
+                import webview as _wv
 
-    # Cross-page wiring: Gamut Calculator RGB coordinates -> White Point
-    gamut_page.white_point_calculated.connect(white_point_page.set_rgb_coordinates)
+                for w in _wv.windows:
+                    api.save_window_state({
+                        "width": w.width,
+                        "height": w.height,
+                        "x": w.x,
+                        "y": w.y,
+                    })
+                    break
+            except Exception:  # noqa: BLE001
+                pass
 
-    # Connect status messages to status bar
-    main_ctrl.status_message.connect(window.statusBar().showMessage)
+        window.events.closing += _on_closing
 
-    window.show()
-    exit_code = int(app.exec())
+        webview.start(debug="--debug" in (argv or []))
+    except Exception:
+        traceback.print_exc()
+        return 1
+    finally:
+        server.shutdown()
+        main_ctrl.shutdown()
 
-    main_ctrl.shutdown()
-    return exit_code
+    return 0
 
 
 if __name__ == "__main__":

@@ -18,7 +18,6 @@ from colorlab_pro.services.database_service import DatabaseService
 from colorlab_pro.services.gamut_service import GamutService
 from colorlab_pro.services.optimization_service import OptimizationService
 from colorlab_pro.services.spectrum_service import SpectrumService
-from colorlab_pro.ui.main_window import MainWindow
 from colorlab_pro.utils.paths import ensure_data_directory, get_default_db_path
 
 
@@ -34,7 +33,6 @@ class MainController(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         """Initialize the controller without opening the window."""
         super().__init__(parent)
-        self._window: MainWindow | None = None
         self._engine = None
         self._session_factory: Callable[[], Session] | None = None
 
@@ -145,25 +143,6 @@ class MainController(QObject):
             self._engine = None
 
     # ------------------------------------------------------------------ #
-    # Window
-    # ------------------------------------------------------------------ #
-
-    def create_window(self) -> MainWindow:
-        """Factory: create the main window."""
-        self._window = MainWindow()
-        return self._window
-
-    def show_window(self) -> None:
-        """Show the main window if it exists."""
-        if self._window is not None:
-            self._window.show()
-
-    @property
-    def window(self) -> MainWindow | None:
-        """Return the current MainWindow instance."""
-        return self._window
-
-    # ------------------------------------------------------------------ #
     # Page / Controller registration
     # ------------------------------------------------------------------ #
 
@@ -172,9 +151,12 @@ class MainController(QObject):
         self._page_controllers[page_index] = controller
 
     def switch_to_page(self, index: int) -> None:
-        """Switch the main window to the given page index."""
-        if self._window is not None:
-            self._window.set_page(index)
+        """Switch the main window to the given page index.
+
+        In the pywebview build, page switching is handled by JavaScript
+        in the frontend; this method is a no-op kept for API compatibility.
+        """
+        pass
 
     # ------------------------------------------------------------------ #
     # Project state
@@ -195,14 +177,36 @@ class MainController(QObject):
         else:
             self.status_message.emit("No project selected.")
 
+    # JSON settings file shared with pywebview_api.py
+    _SETTINGS_FILE = Path.home() / ".colorlab_pro" / "settings.json"
+
+    def _load_settings(self) -> dict:
+        """Load settings from JSON file."""
+        try:
+            if self._SETTINGS_FILE.exists():
+                import json
+
+                return json.loads(self._SETTINGS_FILE.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            pass
+        return {}
+
+    def _save_settings(self, data: dict) -> None:
+        """Persist settings to JSON file."""
+        try:
+            import json
+
+            self._SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            self._SETTINGS_FILE.write_text(
+                json.dumps(data, indent=2), encoding="utf-8"
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
     def _restore_last_project(self) -> None:
-        """Restore the last used project from QSettings."""
-        from PySide6.QtCore import QSettings
-
-        from colorlab_pro.config.settings import get_config
-
-        settings = QSettings(get_config().org_name, get_config().app_name)
-        last_project_id = settings.value("last_project_id")
+        """Restore the last used project from JSON settings."""
+        settings = self._load_settings()
+        last_project_id = settings.get("last_project_id")
         if last_project_id is not None:
             try:
                 project_id = int(last_project_id)
@@ -216,12 +220,9 @@ class MainController(QObject):
                 pass
 
     def _save_last_project(self, project_id: int) -> None:
-        """Save the current project id to QSettings."""
-        from PySide6.QtCore import QSettings
-
-        from colorlab_pro.config.settings import get_config
-
-        settings = QSettings(get_config().org_name, get_config().app_name)
-        settings.setValue("last_project_id", project_id)
+        """Save the current project id to JSON settings."""
+        settings = self._load_settings()
+        settings["last_project_id"] = project_id
+        self._save_settings(settings)
 
 

@@ -212,12 +212,9 @@ def delta_uv(
     c = xy(spectrum, observer=observer, illuminant=illuminant)
 
     # Convert xy to CIE 1960 UCS (u, v) for Planckian locus comparison.
-    # u = 4x / (-2x + 12y + 3), v = 6y / (-2x + 12y + 3)
-    denom = -2.0 * c.x + 12.0 * c.y + 3.0
-    if denom == 0:
-        return 0.0, 0.0
-    u = 4.0 * c.x / denom
-    v = 6.0 * c.y / denom
+    uv = colour.xy_to_UCS_uv(np.array([c.x, c.y]))
+    u = float(uv[0])
+    v = float(uv[1])
 
     cct = cct_mccamy(spectrum, observer=observer, illuminant=illuminant)
 

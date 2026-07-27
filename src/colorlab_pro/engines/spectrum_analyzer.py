@@ -25,8 +25,6 @@ _illuminant_sd_cache: dict[str, Any] = {}
 _STD_WL = np.arange(380.0, 781.0, 1.0, dtype=np.float64)
 # CMF matrix cache: observer -> (wavelengths, x_bar, y_bar, z_bar)
 _CMF_MATRIX: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
-# Spectrum locus cache: observer -> (wavelengths, locus_xy)
-_LOCUS_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
 
 def _get_cmf(observer: str = "CIE 1931 2 Degree Standard Observer") -> Any:
@@ -87,19 +85,6 @@ def _build_cmf_matrix(
         yb[i] = v[1]
         zb[i] = v[2]
     return (_STD_WL.copy(), xb, yb, zb)
-
-
-def _build_locus(observer: str) -> tuple[np.ndarray, np.ndarray]:
-    """Build cached spectrum locus xy coordinates for a given observer."""
-    if observer not in _CMF_MATRIX:
-        _CMF_MATRIX[observer] = _build_cmf_matrix(observer)
-    _, xb, yb, zb = _CMF_MATRIX[observer]
-    locus_xy = np.zeros((401, 2), dtype=np.float64)
-    total = xb + yb + zb
-    valid = total > 0
-    locus_xy[valid, 0] = xb[valid] / total[valid]
-    locus_xy[valid, 1] = yb[valid] / total[valid]
-    return (_STD_WL.copy(), locus_xy)
 
 
 def _to_spectral_distribution(spectrum: Spectrum) -> Any:
@@ -236,36 +221,27 @@ def _dominant_wavelength_core(
 ) -> tuple[float, float] | tuple[None, None]:
     """Core algorithm: find dominant wavelength and excitation purity for an xy point.
 
-    Uses direction-cosine matching against the spectrum locus.
+    Delegates to colour-science for accuracy and standard compliance.
 
     Returns:
-        (wavelength_nm, excitation_purity) or (None, None) if the point falls
-        outside the spectrum locus (cosine similarity <= 0).
+        (wavelength_nm, excitation_purity) or (None, None) if the point is
+        achromatic (excitation purity near zero).
     """
-    if observer not in _LOCUS_CACHE:
-        _LOCUS_CACHE[observer] = _build_locus(observer)
-    wl, locus_xy = _LOCUS_CACHE[observer]
+    import colour
 
-    s_vec = np.array([sample_xy.x - white.x, sample_xy.y - white.y], dtype=np.float64)
-    s_norm = np.linalg.norm(s_vec)
-    if s_norm < 1e-12:
+    xy_sample = np.array([sample_xy.x, sample_xy.y])
+    xy_white = np.array([white.x, white.y])
+    try:
+        dw_result = colour.dominant_wavelength(xy_sample, xy_white)
+        dw = float(dw_result[0])
+        if dw < 0:
+            return None, None
+        ep = float(colour.excitation_purity(xy_sample, xy_white))
+        if ep < 1e-6:
+            return None, None
+        return dw, ep
+    except Exception:
         return None, None
-    s_hat = s_vec / s_norm
-
-    diffs = locus_xy - np.array([white.x, white.y], dtype=np.float64)
-    diffs_norm = np.linalg.norm(diffs, axis=1)
-    valid = diffs_norm > 1e-12
-    if not np.any(valid):
-        return None, None
-
-    cos_sim = np.full(diffs_norm.shape, -2.0, dtype=np.float64)
-    cos_sim[valid] = (diffs[valid] / diffs_norm[valid][:, None]) @ s_hat
-    best = int(np.argmax(cos_sim))
-    if cos_sim[best] <= 0:
-        return None, None
-
-    purity = s_norm / diffs_norm[best]
-    return float(wl[best]), float(purity)
 
 
 def dominant_wavelength(
