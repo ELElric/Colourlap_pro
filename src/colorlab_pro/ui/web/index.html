@@ -715,13 +715,14 @@
         }
 
         function waitForApi(callback, maxWait) {
-            maxWait = maxWait || 15000;
+            maxWait = maxWait || 30000;
             var start = Date.now();
             function check() {
                 api = getApi();
                 if (api) { callback(); return; }
                 if (Date.now() - start > maxWait) {
                     console.warn('pywebview API not ready after timeout');
+                    callback();
                     return;
                 }
                 setTimeout(check, 100);
