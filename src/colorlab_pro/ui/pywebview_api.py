@@ -699,7 +699,7 @@ class ColorLabApi:
             self._last_primaries = primaries
 
             results = []
-            for std in ["sRGB", "NTSC", "DCI-P3", "BT2020"]:
+            for std in ["sRGB", "NTSC", "DCI-P3", "Adobe RGB", "BT2020"]:
                 try:
                     cov = gs.coverage(std, device)
                     m = gs.match(std, device)

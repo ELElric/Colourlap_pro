@@ -89,6 +89,7 @@ function waitForApi(callback, maxWait) {
           <label class="checkbox-label"><input type="checkbox" id="ref-ntsc" value="NTSC" checked onchange="filterReferenceResults()"> NTSC</label>
           <label class="checkbox-label"><input type="checkbox" id="ref-dci" value="DCI-P3" checked onchange="filterReferenceResults()"> DCI-P3</label>
           <label class="checkbox-label"><input type="checkbox" id="ref-bt2020" value="BT2020" checked onchange="filterReferenceResults()"> BT2020</label>
+          <label class="checkbox-label"><input type="checkbox" id="ref-adobe" value="Adobe RGB" checked onchange="filterReferenceResults()"> Adobe RGB</label>
         </div>
       </div>
       <div class="controls-actions">
@@ -209,6 +210,7 @@ function waitForApi(callback, maxWait) {
       <span class="ref-chip" data-ref="NTSC" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-ntsc);"></span>NTSC</span>
       <span class="ref-chip" data-ref="DCI-P3" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-dcip3);"></span>DCI-P3</span>
       <span class="ref-chip" data-ref="BT2020" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-bt2020);"></span>BT2020</span>
+      <span class="ref-chip" data-ref="Adobe RGB" onclick="toggleRefChip(this)"><span class="ref-bar" style="background:var(--ref-adobe);"></span>Adobe RGB</span>
     </div>
   </div>
 
@@ -398,7 +400,7 @@ function renderResults(results) {
 
 function filterReferenceResults() {
     var refs = [];
-    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
+    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-adobe', 'ref-bt2020'].forEach(function(id) {
         var cb = document.getElementById(id);
         if (cb && cb.checked) refs.push(cb.value);
     });
@@ -843,7 +845,7 @@ window.addEventListener('message', function(e) {
 
 function toggleRefChip(el) {
     var ref = el.dataset.ref;
-    var map = {'sRGB':'ref-srgb','NTSC':'ref-ntsc','DCI-P3':'ref-dci','BT2020':'ref-bt2020'};
+    var map = {'sRGB':'ref-srgb','NTSC':'ref-ntsc','DCI-P3':'ref-dci','Adobe RGB':'ref-adobe','BT2020':'ref-bt2020'};
     var cb = document.getElementById(map[ref]);
     if (cb) {
         cb.checked = !cb.checked;
@@ -853,7 +855,7 @@ function toggleRefChip(el) {
 }
 
 function syncRefChips() {
-    var map = {'sRGB':'ref-srgb','NTSC':'ref-ntsc','DCI-P3':'ref-dci','BT2020':'ref-bt2020'};
+    var map = {'sRGB':'ref-srgb','NTSC':'ref-ntsc','DCI-P3':'ref-dci','Adobe RGB':'ref-adobe','BT2020':'ref-bt2020'};
     document.querySelectorAll('.ref-chip').forEach(function(chip) {
         var cb = document.getElementById(map[chip.dataset.ref]);
         if (cb) chip.classList.toggle('inactive', !cb.checked);
@@ -903,7 +905,7 @@ function computeWhitePoint(primaries, white_xy) {
 
 function getRefGamuts() {
     var refs = [];
-    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-bt2020'].forEach(function(id) {
+    ['ref-srgb', 'ref-ntsc', 'ref-dci', 'ref-adobe', 'ref-bt2020'].forEach(function(id) {
         var cb = document.getElementById(id);
         if (cb && cb.checked) refs.push(cb.value);
     });
@@ -979,7 +981,7 @@ function buildBaseSeriesXY() {
         z: 1
     });
     getRefGamuts().forEach(function(std) {
-        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'BT2020': '#6666ff' }[std] || '#888888';
+        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'Adobe RGB': '#ff8c00', 'BT2020': '#6666ff' }[std] || '#888888';
         series.push({
             name: std,
             type: 'line',
@@ -1006,7 +1008,7 @@ function buildBaseSeriesUV() {
         z: 1
     });
     getRefGamuts().forEach(function(std) {
-        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'BT2020': '#6666ff' }[std] || '#888888';
+        var color = { 'sRGB': '#ff6666', 'NTSC': '#ffd700', 'DCI-P3': '#66ff66', 'Adobe RGB': '#ff8c00', 'BT2020': '#6666ff' }[std] || '#888888';
         series.push({
             name: std,
             type: 'line',

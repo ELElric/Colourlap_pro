@@ -54,6 +54,7 @@
   --ref-srgb: #ff6666;
   --ref-ntsc: #ffd700;
   --ref-dcip3: #30d158;
+  --ref-adobe: #ff8c00;
   --ref-bt2020: #5e5ce6;
 
   /* Tooltip (ECharts inline styles) */
