@@ -39,6 +39,11 @@ except ImportError:
 APP_NAME = "ColorLab Pro"
 VERSION = "1.1.0"
 
+# GitHub Release 下载地址（用于下载离线 runtime.7z）
+GITHUB_REPO = "ELElric/Colourlap_pro"
+GITHUB_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASE_DOWNLOAD = f"https://github.com/{GITHUB_REPO}/releases/latest/download"
+
 # runtime 安装位置：用户本地目录（避免权限问题）
 RUNTIME_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ColorLabPro" / "runtime"
 PYTHON_EXE = RUNTIME_DIR / "python.exe"
@@ -98,10 +103,33 @@ def _resource_path(rel: str) -> Path:
     return base / rel
 
 
+def _detect_arch() -> str:
+    """检测当前设备 CPU 架构，返回 python-embed 对应的后缀.
+
+    返回值: 'amd64' (x64), 'arm64' (ARM64)
+    """
+    # 方法1: PROCESSOR_ARCHITECTURE 环境变量
+    arch = os.environ.get("PROCESSOR_ARCHITECTURE", "").upper()
+    if "ARM64" in arch:
+        return "arm64"
+    if "AMD64" in arch or "X64" in arch or "IA64" in arch:
+        return "amd64"
+    # 方法2: platform.machine()
+    try:
+        machine = __import__("platform").machine().lower()
+        if "arm" in machine or "aarch64" in machine:
+            return "arm64"
+    except Exception:
+        pass
+    # 默认 x64
+    return "amd64"
+
+
 def _get_embed_url() -> str:
-    """构建 python-embed zip 下载 URL."""
+    """构建 python-embed zip 下载 URL（根据设备架构选择 amd64 或 arm64）."""
     full_ver = PYTHON_EMBED_VERSIONS.get(TARGET_PY_VERSION, TARGET_PY_FULL_VERSION)
-    return f"{PYTHON_EMBED_BASE_URL}/{full_ver}/python-{full_ver}-embed-amd64.zip"
+    arch = _detect_arch()
+    return f"{PYTHON_EMBED_BASE_URL}/{full_ver}/python-{full_ver}-embed-{arch}.zip"
 
 
 # ---------------------------------------------------------------------------
@@ -159,24 +187,107 @@ def extract_zip(archive_path: Path, dest_dir: Path) -> bool:
 
 
 def _find_offline_runtime() -> Path | None:
-    """查找离线运行时包 (runtime.7z)."""
+    """查找离线运行时包 (runtime.7z).
+
+    查找顺序:
+    1. 与 EXE 同目录（本地分发场景）
+    2. runtime 目录下已下载的缓存
+    """
     # 打包后：与 EXE 同目录
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).parent
         candidate = exe_dir / OFFLINE_RUNTIME_NAME
         if candidate.is_file():
             return candidate
+    # 检查 runtime 目录下是否有缓存的 runtime.7z
+    cached = RUNTIME_DIR / OFFLINE_RUNTIME_NAME
+    if cached.is_file():
+        return cached
+    return None
+
+
+def _download_runtime_from_github(progress_callback=None) -> Path | None:
+    """从 GitHub Release 下载 runtime.7z 离线依赖包.
+
+    依次尝试:
+    1. GitHub Release direct download (latest/download/runtime.7z)
+    2. GitHub API 查找 asset download URL
+    """
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    dest = RUNTIME_DIR / OFFLINE_RUNTIME_NAME
+
+    # 方法1: 直接下载 latest/download/runtime.7z
+    direct_url = f"{GITHUB_RELEASE_DOWNLOAD}/{OFFLINE_RUNTIME_NAME}"
+    if progress_callback:
+        progress_callback(0, "Downloading runtime from GitHub...")
+    if download_file(direct_url, dest, progress_callback):
+        if dest.stat().st_size > 1_000_000:  # >1MB 才认为是有效文件
+            print(f"[Launcher] Downloaded runtime from {direct_url}")
+            return dest
+        dest.unlink(missing_ok=True)
+
+    # 方法2: 通过 GitHub API 查找 asset
+    try:
+        req = urllib.request.Request(
+            GITHUB_RELEASE_API,
+            headers={"User-Agent": f"{APP_NAME}/{VERSION}", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            release_info = json.loads(resp.read().decode("utf-8"))
+        for asset in release_info.get("assets", []):
+            if asset.get("name") == OFFLINE_RUNTIME_NAME:
+                asset_url = asset.get("browser_download_url")
+                if asset_url and download_file(asset_url, dest, progress_callback):
+                    print(f"[Launcher] Downloaded runtime from API: {asset_url}")
+                    return dest
+    except Exception as exc:
+        print(f"[Launcher] GitHub API lookup failed: {exc}", file=sys.stderr)
+
     return None
 
 
 def extract_offline_runtime(archive_path: Path, progress_callback=None) -> bool:
-    """解压离线运行时包到 runtime 目录."""
+    """解压离线运行时包到 runtime 目录.
+
+    支持 .7z（需要 7z.exe 或 py7zr）和 .zip 格式。
+    """
+    if archive_path.suffix.lower() == ".7z":
+        # 尝试 7z.exe
+        seven_z = Path(r"C:\Program Files\7-Zip\7z.exe")
+        if not seven_z.is_file():
+            seven_z = Path(r"C:\Program Files (x86)\7-Zip\7z.exe")
+        if seven_z.is_file():
+            try:
+                if progress_callback:
+                    progress_callback(0, "Extracting runtime with 7-Zip...")
+                subprocess.run(
+                    [str(seven_z), "x", str(archive_path), f"-o{RUNTIME_DIR}", "-y"],
+                    capture_output=True, check=True, timeout=300,
+                )
+                return PYTHON_EXE.is_file()
+            except Exception as exc:
+                print(f"[Launcher] 7z extraction failed: {exc}", file=sys.stderr)
+        # 尝试 py7zr
+        try:
+            import py7zr  # type: ignore[import-untyped]
+            if progress_callback:
+                progress_callback(0, "Extracting runtime with py7zr...")
+            with py7zr.SevenZipFile(archive_path, "r") as sz:
+                sz.extractall(RUNTIME_DIR)
+            return PYTHON_EXE.is_file()
+        except ImportError:
+            print("[Launcher] Cannot extract .7z: neither 7-Zip nor py7zr available", file=sys.stderr)
+            return False
+        except Exception as exc:
+            print(f"[Launcher] py7zr extraction failed: {exc}", file=sys.stderr)
+            return False
+
+    # .zip 格式
     import zipfile
     if progress_callback:
         progress_callback(0, "Extracting offline runtime...")
     try:
         with zipfile.ZipFile(archive_path, "r") as zf:
-            # Filter out __pycache__ and .pyc during extraction
             for member in zf.namelist():
                 if "__pycache__" in member or member.endswith(".pyc"):
                     continue
@@ -530,7 +641,16 @@ class ProgressDialog:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
-    """Launcher 入口."""
+    """Launcher 入口.
+
+    启动流程:
+    1. 检查本地 runtime 是否就绪（python.exe + 所有依赖）
+    2. 若未就绪，依次尝试:
+       a. 本地离线 runtime.7z（与 EXE 同目录）
+       b. GitHub Release 下载 runtime.7z
+       c. 在线安装: 下载 python-embed + pip install 依赖
+    3. 启动 ColorLab Pro
+    """
     # Step 0: Check for offline runtime package (faster than online)
     python_ok = check_python_installed()
     if not python_ok:
@@ -547,6 +667,23 @@ def main() -> int:
                 if python_ok:
                     print("[Launcher] Offline runtime extracted successfully")
             dialog.close()
+
+    # Step 0b: Try downloading runtime.7z from GitHub Release
+    if not python_ok:
+        dialog = ProgressDialog(f"{APP_NAME} - Setup")
+        def _p2(pct, msg):
+            dialog.update(pct, msg)
+            if dialog._tk:
+                dialog.root.update()
+        _p2(0, "Downloading runtime from GitHub Release...")
+        github_pkg = _download_runtime_from_github(_p2)
+        if github_pkg:
+            _p2(80, "Extracting runtime...")
+            if extract_offline_runtime(github_pkg, _p2):
+                python_ok = check_python_installed()
+                if python_ok:
+                    print("[Launcher] GitHub runtime extracted successfully")
+        dialog.close()
 
     # Step 1: Check deps
     deps_ok = False
@@ -573,7 +710,7 @@ def main() -> int:
 
     # Step 1: 安装 Python
     if not python_ok:
-        _progress(0, f"Installing Python {TARGET_PY_VERSION}...")
+        _progress(0, f"Installing Python {TARGET_PY_VERSION} ({_detect_arch()})...")
         if not install_python_embed(_progress):
             dialog.close()
             _show_error("Failed to download Python. Check your network connection.")

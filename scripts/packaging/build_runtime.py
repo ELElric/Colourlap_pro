@@ -2,10 +2,15 @@
 
 用法: python scripts/packaging/build_runtime.py
 前置: pip install py7zr 或安装 7-Zip
+
+输出:
+    dist/runtime.7z — 离线依赖包（Python embed + 所有 pip 依赖）
+    分发方式: 上传到 GitHub Release 作为 asset，launcher 自动下载
 """
 
 from __future__ import annotations
 
+import platform
 import shutil
 import subprocess
 import sys
@@ -17,7 +22,17 @@ DIST_DIR = PROJECT_ROOT / "dist"
 OUTPUT_ARCHIVE = DIST_DIR / "runtime.7z"
 
 TARGET_PY = "3.11"
-EMBED_URL = f"https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
+
+# 自动检测当前设备架构
+def _detect_arch() -> str:
+    """检测 CPU 架构，返回 python-embed 后缀."""
+    machine = platform.machine().lower()
+    if "arm" in machine or "aarch64" in machine:
+        return "arm64"
+    return "amd64"
+
+ARCH = _detect_arch()
+EMBED_URL = f"https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-{ARCH}.zip"
 
 DEPS = [
     "numpy>=1.26,<2.3",
@@ -35,7 +50,7 @@ DEPS = [
 
 def main():
     print("=" * 50)
-    print("Building runtime.7z")
+    print(f"Building runtime.7z (arch={ARCH})")
     print("=" * 50)
 
     runtime_dir = PROJECT_ROOT / "build_runtime"
