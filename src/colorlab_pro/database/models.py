@@ -5,6 +5,7 @@ Tables (see docs/06):
 - spectra
 - spectrum_points
 - optimizations
+- history
 """
 
 from __future__ import annotations
@@ -38,6 +39,9 @@ class Project(Base):
         back_populates="project", cascade="all, delete-orphan"
     )
     optimizations: Mapped[list[Optimization]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    history: Mapped[list[History]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
 
@@ -124,3 +128,30 @@ class Optimization(Base):
 
     def __repr__(self) -> str:
         return f"<Optimization id={self.id} name={self.name!r}>"
+
+
+class History(Base):
+    """A saved calculation session snapshot."""
+
+    __tablename__ = "history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    channels_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gamut_results_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_xy_x: Mapped[float | None] = mapped_column(nullable=True)
+    target_xy_y: Mapped[float | None] = mapped_column(nullable=True)
+    achieved_xy_x: Mapped[float | None] = mapped_column(nullable=True)
+    achieved_xy_y: Mapped[float | None] = mapped_column(nullable=True)
+    optimized_thickness_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delta_xy: Mapped[float | None] = mapped_column(nullable=True)
+    meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_utc_now, onupdate=_utc_now)
+
+    project: Mapped[Project | None] = relationship(back_populates="history")
+
+    def __repr__(self) -> str:
+        return f"<History id={self.id} name={self.name!r}>"

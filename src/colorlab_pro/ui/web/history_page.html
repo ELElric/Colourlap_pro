@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>History Page - ColorLab Pro</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* ===== History Page Specific Styles ===== */
+
+  /* Page header */
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: var(--gap-md);
+  }
+  .page-title {
+    color: var(--accent); font-weight: bold; font-size: var(--font-xl);
+  }
+  .page-subtitle {
+    color: var(--text-muted); font-size: var(--font-sm); margin-left: 8px;
+  }
+  .record-count {
+    color: var(--text-muted); font-size: var(--font-sm);
+  }
+
+  /* Views */
+  .list-view { display: block; }
+  .detail-view { display: none; }
+
+  /* History table */
+  .history-table {
+    width: 100%; border-collapse: collapse; font-size: var(--font-sm);
+  }
+  .history-table th {
+    background: var(--bg-base); color: var(--accent);
+    padding: 8px 10px; text-align: center; font-weight: normal;
+    border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 1;
+  }
+  .history-table td {
+    padding: 8px 10px; text-align: center;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .history-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .history-table tbody tr:hover {
+    background: var(--bg-hover); cursor: pointer;
+  }
+  .history-table .name-cell {
+    text-align: left; color: var(--text-primary); font-weight: 500;
+    max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .history-table .name-cell:hover {
+    cursor: text; outline: 1px dashed var(--accent); outline-offset: -1px;
+  }
+  .history-table .mode-cell {
+    font-family: var(--font-mono); font-size: var(--font-xs);
+  }
+  .history-table .date-cell {
+    color: var(--text-secondary); font-size: var(--font-xs);
+  }
+  .history-table .badge-cell { font-size: var(--font-xs); }
+  .history-table .actions-cell { white-space: nowrap; }
+
+  /* Mode badges */
+  .mode-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 3px;
+    font-size: var(--font-xs); font-weight: bold;
+  }
+  .mode-nocf { background: #2a3a2a; color: #66bb6a; }
+  .mode-cffixed { background: #3a2a3a; color: #e040e0; }
+  .mode-cfopt { background: #2a2a3a; color: var(--accent-light); }
+
+  /* Inline rename input */
+  .rename-input {
+    background: var(--bg-base); border: 1px solid var(--accent);
+    border-radius: 3px; color: var(--text-primary); font-size: var(--font-sm);
+    padding: 2px 6px; width: 200px; outline: none;
+  }
+
+  /* Detail panel */
+  .detail-panel {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: var(--radius-md); overflow: hidden;
+  }
+  .detail-header {
+    display: flex; align-items: center; gap: var(--gap-md);
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg-base);
+  }
+  .detail-title {
+    color: var(--accent); font-weight: bold; font-size: var(--font-lg);
+  }
+  .detail-meta {
+    color: var(--text-muted); font-size: var(--font-sm); margin-left: auto;
+  }
+  .detail-back-btn {
+    background: var(--btn-secondary); border: 1px solid var(--border-input);
+    border-radius: var(--radius-sm); padding: 4px 12px; color: var(--text-primary);
+    font-size: var(--font-sm); cursor: pointer;
+  }
+  .detail-back-btn:hover { background: var(--btn-secondary-hover); }
+
+  .detail-body { padding: var(--gap-md); }
+
+  /* Detail subsections */
+  .detail-section { margin-bottom: var(--gap-lg); }
+  .detail-section-title {
+    color: var(--accent-light); font-weight: bold; font-size: var(--font-sm);
+    margin-bottom: var(--gap-sm);
+    padding-bottom: 4px; border-bottom: 1px solid var(--border-light);
+  }
+
+  /* Optimization panel */
+  .optimization-panel {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--gap-md);
+  }
+  .opt-card {
+    background: var(--bg-base); border: 1px solid #333;
+    border-radius: var(--radius-sm); padding: 10px; text-align: center;
+  }
+  .opt-label { color: var(--text-muted); font-size: var(--font-xs); margin-bottom: 4px; }
+  .opt-value { color: var(--text-primary); font-size: var(--font-lg); font-weight: 500; font-family: var(--font-mono); }
+  .opt-unit { color: var(--text-faint); font-size: var(--font-xs); }
+
+  /* Thickness grid */
+  .thickness-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--gap-sm); margin-top: 8px;
+  }
+  .thickness-item {
+    background: var(--bg-base); border: 1px solid #333;
+    border-radius: var(--radius-sm); padding: 8px; text-align: center;
+  }
+  .thickness-ch { font-weight: bold; font-size: var(--font-sm); }
+  .thickness-val { color: var(--text-primary); font-family: var(--font-mono); font-size: var(--font-md); }
+
+  /* Notification */
+  .notification {
+    position: fixed; top: 16px; right: 16px; z-index: 10000;
+    padding: 10px 16px; border-radius: var(--radius-sm);
+    font-size: var(--font-sm); display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .notification.show { display: block; }
+  .notification.success { background: #1a3a1a; color: var(--success); border: 1px solid rgba(48,209,88,0.3); }
+  .notification.error { background: #3a1a1a; color: var(--error); border: 1px solid rgba(255,69,58,0.3); }
+  .notification.info { background: #1a2a3a; color: var(--accent-light); border: 1px solid var(--accent-border); }
+
+  /* Scrollable container */
+  .table-container {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: var(--radius-md); max-height: calc(100vh - 140px); overflow-y: auto;
+  }
+
+  /* Empty state for table */
+  .table-empty td {
+    text-align: center !important; color: var(--text-faint) !important;
+    padding: 40px 16px !important; font-size: var(--font-md) !important;
+  }
+</style>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
+</head>
+<body>
+
+<!-- Notification -->
+<div id="notification" class="notification"></div>
+
+<!-- List View -->
+<div id="list-view" class="list-view">
+  <div class="page-header">
+    <div style="display:flex;align-items:baseline;gap:8px;">
+      <span class="page-title">历史记录 / History</span>
+      <span id="record-count" class="record-count"></span>
+    </div>
+  </div>
+  <div class="table-container">
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;min-width:180px;">Name</th>
+          <th style="width:100px;">Mode</th>
+          <th style="width:140px;">Date</th>
+          <th style="width:80px;">Channels</th>
+          <th style="width:60px;">Gamut</th>
+          <th style="width:60px;">Optim</th>
+          <th style="width:80px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="history-tbody">
+        <tr class="table-empty"><td colspan="7">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Detail View -->
+<div id="detail-view" class="detail-view">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <button class="detail-back-btn" onclick="showListView()">&#8592; Back</button>
+      <span id="detail-name" class="detail-title"></span>
+      <span id="detail-meta" class="detail-meta"></span>
+    </div>
+    <div class="detail-body">
+      <!-- Channel Analysis -->
+      <div id="channel-section" class="detail-section">
+        <div class="detail-section-title">Channel Analysis</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Spectrum</th>
+              <th>x</th><th>y</th>
+              <th>u'</th><th>v'</th>
+              <th>Peak (nm)</th>
+              <th>FWHM (nm)</th>
+              <th>Dom. λ (nm)</th>
+              <th>Purity (%)</th>
+              <th>CF Info</th>
+            </tr>
+          </thead>
+          <tbody id="detail-channels-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Gamut Comparison -->
+      <div id="gamut-section" class="detail-section" style="display:none;">
+        <div class="detail-section-title">Gamut Comparison</div>
+        <table class="gamut-table">
+          <thead>
+            <tr>
+              <th>Standard</th>
+              <th>Cov. 1931 (%)</th>
+              <th>Cov. 1976 (%)</th>
+              <th>Match 1931 (%)</th>
+              <th>Match 1976 (%)</th>
+            </tr>
+          </thead>
+          <tbody id="detail-gamut-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Optimization Results -->
+      <div id="optim-section" class="detail-section" style="display:none;">
+        <div class="detail-section-title">Optimization Results</div>
+        <div class="optimization-panel">
+          <div class="opt-card">
+            <div class="opt-label">Target xy</div>
+            <div id="opt-target" class="opt-value">-</div>
+          </div>
+          <div class="opt-card">
+            <div class="opt-label">Achieved xy</div>
+            <div id="opt-achieved" class="opt-value">-</div>
+          </div>
+          <div class="opt-card">
+            <div class="opt-label">Delta xy</div>
+            <div id="opt-delta" class="opt-value">-</div>
+          </div>
+        </div>
+        <div id="opt-thickness-section" style="margin-top:var(--gap-md); display:none;">
+          <div class="opt-label" style="margin-bottom:4px;">Optimized Thickness (um)</div>
+          <div id="opt-thickness-grid" class="thickness-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var backend = null;
+var currentRecords = [];
+
+/* ===== Notification ===== */
+function showNotification(msg, type) {
+  var el = document.getElementById('notification');
+  el.textContent = msg;
+  el.className = 'notification show ' + (type || 'info');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(function() { el.className = 'notification'; }, 3000);
+}
+
+/* ===== Gamut color class ===== */
+function gamutClass(val) {
+  if (val === null || val === undefined) return '';
+  if (val >= 70) return 'gamut-high';
+  if (val >= 40) return 'gamut-medium';
+  return 'gamut-low';
+}
+
+/* ===== Mode badge ===== */
+function modeBadge(mode) {
+  var labels = { 'no_cf': 'No CF', 'cf_fixed': 'CF Fixed', 'cf_optimized': 'CF Optimized' };
+  var classes = { 'no_cf': 'mode-nocf', 'cf_fixed': 'mode-cffixed', 'cf_optimized': 'mode-cfopt' };
+  var label = labels[mode] || mode;
+  var cls = classes[mode] || 'mode-nocf';
+  return '<span class="mode-badge ' + cls + '">' + label + '</span>';
+}
+
+/* ===== Render History List ===== */
+function renderHistoryList(records) {
+  currentRecords = records;
+  var tbody = document.getElementById('history-tbody');
+  var countEl = document.getElementById('record-count');
+  countEl.textContent = '(' + records.length + ' records)';
+
+  if (records.length === 0) {
+    tbody.innerHTML = '<tr class="table-empty"><td colspan="7">No history records found.</td></tr>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < records.length; i++) {
+    var r = records[i];
+    var gamutIcon = r.has_gamut ? '&#10003;' : '-';
+    var optimIcon = r.has_optimization ? '&#10003;' : '-';
+    html += '<tr onclick="showDetail(' + r.id + ')" data-id="' + r.id + '">'
+      + '<td class="name-cell" ondblclick="startRename(event, ' + r.id + ', this)" title="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</td>'
+      + '<td class="mode-cell">' + modeBadge(r.mode) + '</td>'
+      + '<td class="date-cell">' + escapeHtml(r.created_at || '-') + '</td>'
+      + '<td>' + r.channel_count + '</td>'
+      + '<td class="badge-cell">' + gamutIcon + '</td>'
+      + '<td class="badge-cell">' + optimIcon + '</td>'
+      + '<td class="actions-cell">'
+      + '<button class="btn btn-secondary btn-icon" title="Rename" onclick="event.stopPropagation(); startRenameById(' + r.id + ')">&#9998;</button> '
+      + '<button class="btn btn-danger btn-icon" title="Delete" onclick="event.stopPropagation(); deleteRecord(' + r.id + ')">&#10005;</button>'
+      + '</td></tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+/* ===== Show Detail ===== */
+function showDetail(id) {
+  if (!backend) return;
+  backend.get_detail(id, function(json) {
+    var data = JSON.parse(json);
+    if (!data.ok) {
+      showNotification('Error: ' + data.error, 'error');
+      return;
+    }
+    document.getElementById('list-view').style.display = 'none';
+    document.getElementById('detail-view').style.display = 'block';
+
+    document.getElementById('detail-name').textContent = data.name || '(unnamed)';
+    document.getElementById('detail-meta').textContent =
+      (data.mode || '') + '  |  ' + (data.created_at || '');
+
+    // Channels
+    var chTbody = document.getElementById('detail-channels-tbody');
+    if (data.channels && data.channels.length > 0) {
+      var chHtml = '';
+      for (var i = 0; i < data.channels.length; i++) {
+        var ch = data.channels[i];
+        var chClass = 'channel-' + ch.name.toLowerCase();
+        var cfInfo = '-';
+        if (ch.cf_name) {
+          cfInfo = ch.cf_name;
+          if (ch.cf_thickness_um !== null && ch.cf_thickness_um !== undefined) {
+            cfInfo += ' (' + ch.cf_thickness_um + ' um)';
+          }
+        }
+        chHtml += '<tr>'
+          + '<td><span class="channel-tag ' + chClass + '">' + ch.name + '</span></td>'
+          + '<td>' + escapeHtml(ch.spectrum_name || '-') + '</td>'
+          + '<td>' + fmt(ch.xy[0]) + '</td><td>' + fmt(ch.xy[1]) + '</td>'
+          + '<td>' + fmt(ch.uv[0]) + '</td><td>' + fmt(ch.uv[1]) + '</td>'
+          + '<td>' + fmtNum(ch.peak_wavelength) + '</td>'
+          + '<td>' + fmtNum(ch.fwhm) + '</td>'
+          + '<td>' + fmtNum(ch.dominant_wavelength) + '</td>'
+          + '<td>' + fmtNum(ch.purity) + '</td>'
+          + '<td style="font-size:var(--font-xs);">' + escapeHtml(cfInfo) + '</td>'
+          + '</tr>';
+      }
+      chTbody.innerHTML = chHtml;
+      document.getElementById('channel-section').style.display = 'block';
+    } else {
+      chTbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-faint);">No channel data</td></tr>';
+    }
+
+    // Gamut
+    if (data.gamut_results && data.gamut_results.length > 0) {
+      var gHtml = '';
+      for (var j = 0; j < data.gamut_results.length; j++) {
+        var g = data.gamut_results[j];
+        gHtml += '<tr>'
+          + '<td>' + escapeHtml(g.standard_name) + '</td>'
+          + '<td class="' + gamutClass(g.coverage_1931) + '">' + fmtNum(g.coverage_1931) + '</td>'
+          + '<td class="' + gamutClass(g.coverage_1976) + '">' + fmtNum(g.coverage_1976) + '</td>'
+          + '<td class="' + gamutClass(g.match_1931) + '">' + fmtNum(g.match_1931) + '</td>'
+          + '<td class="' + gamutClass(g.match_1976) + '">' + fmtNum(g.match_1976) + '</td>'
+          + '</tr>';
+      }
+      document.getElementById('detail-gamut-tbody').innerHTML = gHtml;
+      document.getElementById('gamut-section').style.display = 'block';
+    } else {
+      document.getElementById('gamut-section').style.display = 'none';
+    }
+
+    // Optimization
+    if (data.target_xy || data.achieved_xy) {
+      document.getElementById('opt-target').textContent =
+        data.target_xy ? fmt(data.target_xy[0]) + ', ' + fmt(data.target_xy[1]) : '-';
+      document.getElementById('opt-achieved').textContent =
+        data.achieved_xy ? fmt(data.achieved_xy[0]) + ', ' + fmt(data.achieved_xy[1]) : '-';
+      document.getElementById('opt-delta').textContent =
+        data.delta_xy !== null && data.delta_xy !== undefined ? fmtNum(data.delta_xy) : '-';
+
+      // Thickness grid
+      if (data.optimized_thickness) {
+        var tHtml = '';
+        for (var ch in data.optimized_thickness) {
+          tHtml += '<div class="thickness-item">'
+            + '<div class="thickness-ch">' + ch + '</div>'
+            + '<div class="thickness-val">' + fmtNum(data.optimized_thickness[ch]) + '</div>'
+            + '</div>';
+        }
+        document.getElementById('opt-thickness-grid').innerHTML = tHtml;
+        document.getElementById('opt-thickness-section').style.display = 'block';
+      } else {
+        document.getElementById('opt-thickness-section').style.display = 'none';
+      }
+      document.getElementById('optim-section').style.display = 'block';
+    } else {
+      document.getElementById('optim-section').style.display = 'none';
+    }
+  });
+}
+
+/* ===== Show List View ===== */
+function showListView() {
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('list-view').style.display = 'block';
+}
+
+/* ===== Rename (double-click) ===== */
+function startRename(event, id, cell) {
+  event.stopPropagation();
+  var record = currentRecords.find(function(r) { return r.id === id; });
+  if (!record) return;
+  var oldName = record.name;
+  cell.innerHTML = '<input class="rename-input" type="text" value="' + escapeHtml(oldName) + '">'
+    + '<button class="btn btn-primary" style="margin-left:4px;padding:2px 8px;font-size:11px;" onclick="event.stopPropagation(); confirmRename(' + id + ', this.parentElement, \'' + escapeJs(oldName) + '\')">OK</button>'
+    + '<button class="btn btn-secondary" style="margin-left:2px;padding:2px 8px;font-size:11px;" onclick="event.stopPropagation(); cancelRename(this.parentElement, \'' + escapeJs(oldName) + '\')">Cancel</button>';
+  var input = cell.querySelector('input');
+  input.focus();
+  input.select();
+  input.onkeydown = function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmRename(id, cell, oldName); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelRename(cell, oldName); }
+  };
+}
+
+function startRenameById(id) {
+  var row = document.querySelector('tr[data-id="' + id + '"]');
+  if (!row) return;
+  var cell = row.querySelector('.name-cell');
+  if (cell) startRename({ stopPropagation: function(){} }, id, cell);
+}
+
+function confirmRename(id, cell, oldName) {
+  var input = cell.querySelector('input');
+  if (!input) return;
+  var newName = input.value.trim();
+  if (!newName || newName === oldName) {
+    cancelRename(cell, oldName);
+    return;
+  }
+  if (!backend) return;
+  backend.rename(JSON.stringify({ id: id, name: newName }), function(json) {
+    var result = JSON.parse(json);
+    if (result.ok) {
+      showNotification('Renamed successfully', 'success');
+    } else {
+      showNotification('Rename failed: ' + (result.error || 'Unknown error'), 'error');
+    }
+  });
+}
+
+function cancelRename(cell, oldName) {
+  cell.innerHTML = escapeHtml(oldName);
+}
+
+/* ===== Delete ===== */
+function deleteRecord(id) {
+  if (!confirm('Delete this history record? This action cannot be undone.')) return;
+  if (!backend) return;
+  backend.delete_record(id, function(json) {
+    var result = JSON.parse(json);
+    if (result.ok) {
+      showNotification('Record deleted', 'success');
+    } else {
+      showNotification('Delete failed: ' + (result.error || 'Unknown error'), 'error');
+    }
+  });
+}
+
+/* ===== Helpers ===== */
+function fmt(val) {
+  if (val === null || val === undefined) return '-';
+  return typeof val === 'number' ? val.toFixed(4) : val;
+}
+function fmtNum(val) {
+  if (val === null || val === undefined) return '-';
+  return typeof val === 'number' ? val.toFixed(1) : val;
+}
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escapeJs(str) {
+  if (!str) return '';
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"');
+}
+</script>
+</body>
+</html>

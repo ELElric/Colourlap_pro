@@ -17,7 +17,7 @@ from colorlab_pro.database.models import Base
 SessionMaker = sessionmaker
 
 # Bump this when a new migration step is added to ``_MIGRATIONS``.
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 
 # Name of the metadata table that records the applied schema version.
 _VERSION_TABLE = "schema_version"
@@ -144,12 +144,38 @@ def _migration_v3_to_v4(engine: Engine) -> None:
                 conn.execute(text(f"ALTER TABLE spectra ADD COLUMN {col_name} FLOAT"))
 
 
+def _migration_v4_to_v5(engine: Engine) -> None:
+    """v4 -> v5: create history table for calculation session snapshots."""
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS history ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  project_id INTEGER REFERENCES projects(id),"
+            "  name VARCHAR(255) NOT NULL,"
+            "  mode VARCHAR(50),"
+            "  channels_json TEXT,"
+            "  gamut_results_json TEXT,"
+            "  target_xy_x FLOAT,"
+            "  target_xy_y FLOAT,"
+            "  achieved_xy_x FLOAT,"
+            "  achieved_xy_y FLOAT,"
+            "  optimized_thickness_json TEXT,"
+            "  delta_xy FLOAT,"
+            "  meta_json TEXT,"
+            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+            "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_history_project_id ON history(project_id)"))
+
+
 # Ordered list of migrations; ``_MIGRATIONS[i]`` upgrades from version
 # ``i+1`` to version ``i+2``.
 _MIGRATIONS = [
-    _migration_v1_to_v2,  # v1 → v2
-    _migration_v2_to_v3,  # v2 → v3
-    _migration_v3_to_v4,  # v3 → v4
+    _migration_v1_to_v2,  # v1 -> v2
+    _migration_v2_to_v3,  # v2 -> v3
+    _migration_v3_to_v4,  # v3 -> v4
+    _migration_v4_to_v5,  # v4 -> v5
 ]
 
 

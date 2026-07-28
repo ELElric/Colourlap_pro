@@ -25,8 +25,10 @@ from colorlab_pro.controllers.color_controller import ColorController
 from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.controllers.optimization_controller import OptimizationController
 from colorlab_pro.controllers.spectrum_controller import SpectrumController
+from colorlab_pro.dto.history import HistorySnapshot
 from colorlab_pro.dto.spectrum import Spectrum
 from colorlab_pro.exporters.report_exporter import ReportExporter
+from colorlab_pro.services.history_service import HistoryService
 from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
 from colorlab_pro.utils.validation import validate_ratio, validate_spectrum_id, validate_xy
 
@@ -147,6 +149,9 @@ class ColorLabApi:
         self._spectrum_ctrl = SpectrumController(main_ctrl)
         self._color_ctrl = ColorController(main_ctrl)
         self._opt_ctrl = OptimizationController(main_ctrl)
+
+        # History service
+        self._history_service = HistoryService(main_ctrl.session_factory)
 
         # Optimizer state
         self._stop_event = threading.Event()
@@ -1254,5 +1259,157 @@ class ColorLabApi:
             if sid is None:
                 return {"error": "Failed to import pasted spectrum"}
             return {"id": sid}
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
+    # -------------------------------------------------------------- #
+    # History page methods
+    # -------------------------------------------------------------- #
+
+    def history_save(self, payload: dict) -> dict:
+        """Save a calculation snapshot to history.
+
+        Payload keys:
+            name, mode, channels (list of channel dicts),
+            gamut_results (list of gamut dicts),
+            target_xy_x, target_xy_y, achieved_xy_x, achieved_xy_y,
+            optimized_thickness_json, delta_xy, meta (dict)
+        """
+        try:
+            from colorlab_pro.dto.history import ChannelSnapshot, GamutSnapshot
+
+            channels = tuple(
+                ChannelSnapshot(**ch) for ch in payload.get("channels", [])
+            )
+            gamut_results = tuple(
+                GamutSnapshot(**g) for g in payload.get("gamut_results", [])
+            )
+            snapshot = HistorySnapshot(
+                name=payload.get("name", ""),
+                mode=payload.get("mode", ""),
+                channels=channels,
+                gamut_results=gamut_results,
+                target_xy_x=payload.get("target_xy_x"),
+                target_xy_y=payload.get("target_xy_y"),
+                achieved_xy_x=payload.get("achieved_xy_x"),
+                achieved_xy_y=payload.get("achieved_xy_y"),
+                optimized_thickness_json=payload.get("optimized_thickness_json"),
+                delta_xy=payload.get("delta_xy"),
+                project_id=payload.get("project_id"),
+                meta=payload.get("meta", {}),
+            )
+            record_id = self._history_service.save_snapshot(snapshot)
+            return {"ok": True, "id": record_id}
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
+    def history_list(self, payload: dict | None = None) -> list[dict] | dict:
+        """List history records, newest first. Returns summary dicts for the table."""
+        try:
+            project_id = None
+            limit = 100
+            if payload:
+                project_id = payload.get("project_id")
+                limit = payload.get("limit", 100)
+            snapshots = self._history_service.list_snapshots(
+                project_id=project_id, limit=limit
+            )
+            results = []
+            for s in snapshots:
+                results.append(
+                    {
+                        "id": s.meta.get("db_id", 0) if s.meta else 0,
+                        "name": s.name,
+                        "mode": s.mode,
+                        "created_at": s.meta.get("created_at", "") if s.meta else "",
+                        "channel_count": len(s.channels),
+                        "has_gamut": len(s.gamut_results) > 0,
+                        "has_optimization": (
+                            s.target_xy_x is not None or s.optimized_thickness_json is not None
+                        ),
+                    }
+                )
+            return results
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
+    def history_load(self, payload: dict) -> dict:
+        """Load a history record by ID and return full detail data."""
+        try:
+            history_id = int(payload["id"])
+            snapshot = self._history_service.load_snapshot(history_id)
+            if snapshot is None:
+                return {"ok": False, "error": "History record not found"}
+
+            channels = []
+            for ch in snapshot.channels:
+                channels.append(
+                    {
+                        "name": ch.name,
+                        "spectrum_name": ch.spectrum_name,
+                        "xy": [ch.xy_x, ch.xy_y],
+                        "uv": [ch.uv_u, ch.uv_v],
+                        "peak_wavelength": ch.peak_wavelength,
+                        "fwhm": ch.fwhm,
+                        "dominant_wavelength": ch.dominant_wavelength,
+                        "purity": ch.purity,
+                        "cf_name": ch.cf_name,
+                        "cf_thickness_um": ch.cf_thickness_um,
+                    }
+                )
+
+            gamut_results = []
+            for g in snapshot.gamut_results:
+                gamut_results.append(
+                    {
+                        "standard_name": g.standard_name,
+                        "coverage_1931": g.coverage_1931,
+                        "coverage_1976": g.coverage_1976,
+                        "match_1931": g.match_1931,
+                        "match_1976": g.match_1976,
+                    }
+                )
+
+            result: dict[str, Any] = {
+                "ok": True,
+                "id": history_id,
+                "name": snapshot.name,
+                "mode": snapshot.mode,
+                "created_at": snapshot.meta.get("created_at", "") if snapshot.meta else "",
+                "channels": channels,
+                "gamut_results": gamut_results,
+            }
+
+            if snapshot.target_xy_x is not None and snapshot.target_xy_y is not None:
+                result["target_xy"] = [snapshot.target_xy_x, snapshot.target_xy_y]
+            if snapshot.achieved_xy_x is not None and snapshot.achieved_xy_y is not None:
+                result["achieved_xy"] = [snapshot.achieved_xy_x, snapshot.achieved_xy_y]
+            if snapshot.delta_xy is not None:
+                result["delta_xy"] = snapshot.delta_xy
+            if snapshot.optimized_thickness_json:
+                import json as _json
+
+                result["optimized_thickness"] = _json.loads(snapshot.optimized_thickness_json)
+
+            return result
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
+    def history_rename(self, payload: dict) -> dict:
+        """Rename a history record."""
+        try:
+            history_id = int(payload["id"])
+            new_name = str(payload["name"])
+            ok = self._history_service.rename(history_id, new_name)
+            return {"ok": ok}
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
+    def history_delete(self, payload: dict) -> dict:
+        """Delete a history record."""
+        try:
+            history_id = int(payload["id"])
+            ok = self._history_service.delete(history_id)
+            return {"ok": ok}
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
