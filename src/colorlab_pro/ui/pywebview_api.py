@@ -1091,6 +1091,7 @@ class ColorLabApi:
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
+            self._opt_result = err
             self._push_js(
                 "window.updateOptResult && window.updateOptResult(" + _json.dumps(err) + ")"
             )

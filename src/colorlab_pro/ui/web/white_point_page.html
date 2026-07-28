@@ -272,6 +272,7 @@ function checkBackend() {
     } else {
         setBackendReady(false);
         logStatus('Backend not ready');
+        setLoading(false);
     }
 }
 function scheduleCalculate() {
