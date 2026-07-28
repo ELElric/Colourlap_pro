@@ -1136,6 +1136,9 @@ class ColorLabApi:
             points = sensitivity_analysis(
                 sources, cfs, bounds, base, channel_idx, target,
                 target_standard=target_standard, steps=21,
+                progress_callback=lambda pct: self._push_js(
+                    f"window.updateProgress && window.updateProgress({pct})"
+                ),
                 cancel_check=lambda: self._stop_event.is_set(),
             )
             return {"channel": vary_channel, "points": points}
@@ -1161,6 +1164,9 @@ class ColorLabApi:
             results = sensitivity_all_channels(
                 sources, cfs, bounds, base,
                 target_standard=target_standard, steps=21,
+                progress_callback=lambda pct: self._push_js(
+                    f"window.updateProgress && window.updateProgress({pct})"
+                ),
                 cancel_check=lambda: self._stop_event.is_set(),
             )
             return {"results": results, "base": base}

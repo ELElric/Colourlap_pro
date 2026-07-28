@@ -264,7 +264,7 @@ def compute_leakage_ratio(
     if denom < 1e-20:
         return 0.0
 
-    return float(np.sum(qd_blue * b_blue) / denom)
+    return max(0.0, float(np.sum(qd_blue * b_blue) / denom))
 
 
 def separate_qd_spectrum(

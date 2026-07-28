@@ -369,14 +369,28 @@ def _prepare_grid_inputs(
     src_vals = [_resample(s) for s in sources]
     cf_vals = [_resample(c) for c in cfs]
 
-    def _transmittance_to_alpha(t: NDArray[np.float64]) -> NDArray[np.float64]:
+    def _transmittance_to_alpha(t: NDArray[np.float64], meta: dict | None = None) -> NDArray[np.float64]:
         t = np.asarray(t, dtype=float)
-        if np.max(t) > 1.5:
+        # Check meta for explicit format hint first.
+        is_percent = False
+        if meta and meta.get("transmittance_unit", "").lower() in ("percent", "%", "0-100"):
+            is_percent = True
+        # Heuristic: if any value > 1.5, assume percentage (0-100 scale).
+        if not is_percent and np.max(t) > 1.5:
+            is_percent = True
+        # If max <= 1.5 but min is very small (e.g. < 0.015), and values
+        # span a wide range, they might still be percentages of very
+        # absorbing filters. Check if the ratio max/min > 100 as a hint.
+        if not is_percent and np.min(t) > 0:
+            ratio = np.max(t) / np.min(t)
+            if ratio > 100 and np.max(t) > 0.15:
+                is_percent = True
+        if is_percent:
             t = t / 100.0
         t = np.clip(t, 1e-6, 1.0)
         return -np.log10(t)
 
-    alphas = [_transmittance_to_alpha(v) for v in cf_vals]
+    alphas = [_transmittance_to_alpha(v, c.meta) for v, c in zip(cf_vals, cfs, strict=False)]
     return wavelengths, src_vals, alphas, sources[0].unit
 
 
@@ -652,31 +666,69 @@ def select_cf_materials(
 
     if not cf_r_list or not cf_g_list or not cf_b_list:
         raise ValueError("CF library must contain non-empty lists for R, G, B")
+    if len(sources) != 3:
+        raise ValueError(f"Expected 3 source spectra, got {len(sources)}")
+    if len(thicknesses) != 3:
+        raise ValueError(f"Expected 3 thicknesses, got {len(thicknesses)}")
+
+    # Pre-compute the common wavelength grid from sources and all CF candidates.
+    all_cfs = cf_r_list + cf_g_list + cf_b_list
+    wavelengths = sources[0].wavelengths.copy()
+    for s in sources[1:]:
+        wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+    for c in all_cfs:
+        wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+    if len(wavelengths) < 3:
+        raise ValueError("Insufficient common wavelength points between spectra")
+
+    def _resample(spec: Spectrum) -> NDArray[np.float64]:
+        return np.interp(wavelengths, spec.wavelengths, spec.values)
+
+    src_vals = [_resample(s) for s in sources]
+    unit = sources[0].unit
+
+    def _transmittance_to_alpha(t: NDArray[np.float64], meta: dict | None = None) -> NDArray[np.float64]:
+        t = np.asarray(t, dtype=float)
+        is_percent = False
+        if meta and meta.get("transmittance_unit", "").lower() in ("percent", "%", "0-100"):
+            is_percent = True
+        if not is_percent and np.max(t) > 1.5:
+            is_percent = True
+        if not is_percent and np.min(t) > 0:
+            ratio = np.max(t) / np.min(t)
+            if ratio > 100 and np.max(t) > 0.15:
+                is_percent = True
+        if is_percent:
+            t = t / 100.0
+        t = np.clip(t, 1e-6, 1.0)
+        return -np.log10(t)
+
+    # Pre-compute alpha for all CF candidates (avoid redundant _prepare_grid_inputs calls).
+    alpha_r_list = [_transmittance_to_alpha(_resample(c), c.meta) for c in cf_r_list]
+    alpha_g_list = [_transmittance_to_alpha(_resample(c), c.meta) for c in cf_g_list]
+    alpha_b_list = [_transmittance_to_alpha(_resample(c), c.meta) for c in cf_b_list]
 
     total = len(cf_r_list) * len(cf_g_list) * len(cf_b_list)
     candidates: list[dict] = []
     count = 0
 
-    for cf_r in cf_r_list:
-        for cf_g in cf_g_list:
-            for cf_b in cf_b_list:
+    for ir, (cf_r, alpha_r) in enumerate(zip(cf_r_list, alpha_r_list, strict=False)):
+        for ig, (cf_g, alpha_g) in enumerate(zip(cf_g_list, alpha_g_list, strict=False)):
+            for ib, (cf_b, alpha_b) in enumerate(zip(cf_b_list, alpha_b_list, strict=False)):
                 count += 1
                 if cancel_check and cancel_check():
                     return []
                 if progress_callback and count % 10 == 0:
                     progress_callback(int(100 * count / total))
 
-                cfs = [cf_r, cf_g, cf_b]
-                wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(
-                    sources, cfs,
-                )
+                alphas = [alpha_r, alpha_g, alpha_b]
                 result = _compute_single_candidate(
                     wavelengths, src_vals, alphas,
                     thicknesses, target_xy, target_gamut, unit,
                 )
-                result["cf_r_name"] = cf_r.meta.get("name", f"R-{count}")
-                result["cf_g_name"] = cf_g.meta.get("name", f"G-{count}")
-                result["cf_b_name"] = cf_b.meta.get("name", f"B-{count}")
+                result["cf_r_name"] = cf_r.meta.get("name", f"R-{ir}")
+                result["cf_g_name"] = cf_g.meta.get("name", f"G-{ig}")
+                result["cf_b_name"] = cf_b.meta.get("name", f"B-{ib}")
                 candidates.append(result)
 
     candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
