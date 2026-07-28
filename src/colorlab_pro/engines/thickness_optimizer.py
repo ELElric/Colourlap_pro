@@ -1,6 +1,7 @@
 """ThicknessOptimizer Engine.
 
-Provides three optimization strategies for color-filter (CF) thickness:
+Provides optimization strategies for color-filter (CF) thickness and
+emission spectrum adjustment:
 
 1. **Grid search** (``grid_search_optimize``, primary):
    Exhaustive grid search over 3-channel thickness space. Each channel is
@@ -19,6 +20,17 @@ Provides three optimization strategies for color-filter (CF) thickness:
        S_i(lambda) = source_i(lambda) * 10^(-alpha_i(lambda) * d_i)
        S(lambda) = sum_i S_i(lambda)
    Uses scipy.optimize.minimize (L-BFGS-B) for gradient-based optimization.
+
+4. **CF material selection** (``select_cf_materials``):
+   Given emission spectra and fixed thickness, enumerate all CF material
+   combinations from a library to find the best match for a target gamut.
+
+5. **Emission spectrum optimization** (``optimize_emission_spectra``):
+   Adjust R/G/B emission spectra (peak wavelength shift + FWHM scaling)
+   to maximise target gamut coverage.  QD-R and QD-G spectra have special
+   blue-leakage handling: only the QD emission peak is adjusted while the
+   blue leakage is preserved, unless the B-LED spectrum is also being
+   adjusted, in which case the leakage is updated proportionally.
 
 All models use Lambert-Beer law: T = 10^(-alpha * d), where alpha is the
 absorption coefficient (1/um) derived from CF transmittance via
@@ -592,3 +604,333 @@ def sensitivity_all_channels(
         results[channel_names[ch_idx]] = points
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Model 4: CF material selection (Filter 2)
+# ---------------------------------------------------------------------------
+
+
+def select_cf_materials(
+    sources: list[Spectrum],
+    cf_library: dict[str, list[Spectrum]],
+    thicknesses: list[float],
+    target_xy: XY,
+    target_standard: str = "BT2020",
+    *,
+    progress_callback: Callable[[int], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> list[dict]:
+    """Select the best CF material combination for a target gamut.
+
+    Given fixed emission spectra and CF thicknesses, this function
+    enumerates all combinations of R/G/B CF materials from the provided
+    library and ranks them by delta-xy (ascending) then coverage
+    (descending).
+
+    Args:
+        sources: Primary source spectra [R, G, B] (fixed).
+        cf_library: Dictionary mapping channel name to list of candidate
+            CF spectra.  Keys must include "R", "G", "B".  Each value is
+            a list of Spectrum objects (transmittance or absorption).
+        thicknesses: Fixed CF thicknesses [R, G, B] in μm.
+        target_xy: Target white-point chromaticity.
+        target_standard: Gamut standard name for coverage/match.
+        progress_callback: Invoked with 0-100 percent.
+        cancel_check: If returns True, aborts early.
+
+    Returns:
+        List of result dicts sorted by (delta_xy, -coverage), top 10.
+        Each dict has keys: cf_r_name, cf_g_name, cf_b_name,
+        white_xy, delta_xy, coverage, match, rank.
+    """
+    target_gamut = standard_gamuts(target_standard)
+
+    cf_r_list = cf_library.get("R", [])
+    cf_g_list = cf_library.get("G", [])
+    cf_b_list = cf_library.get("B", [])
+
+    if not cf_r_list or not cf_g_list or not cf_b_list:
+        raise ValueError("CF library must contain non-empty lists for R, G, B")
+
+    total = len(cf_r_list) * len(cf_g_list) * len(cf_b_list)
+    candidates: list[dict] = []
+    count = 0
+
+    for cf_r in cf_r_list:
+        for cf_g in cf_g_list:
+            for cf_b in cf_b_list:
+                count += 1
+                if cancel_check and cancel_check():
+                    return []
+                if progress_callback and count % 10 == 0:
+                    progress_callback(int(100 * count / total))
+
+                cfs = [cf_r, cf_g, cf_b]
+                wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(
+                    sources, cfs,
+                )
+                result = _compute_single_candidate(
+                    wavelengths, src_vals, alphas,
+                    thicknesses, target_xy, target_gamut, unit,
+                )
+                result["cf_r_name"] = cf_r.meta.get("name", f"R-{count}")
+                result["cf_g_name"] = cf_g.meta.get("name", f"G-{count}")
+                result["cf_b_name"] = cf_b.meta.get("name", f"B-{count}")
+                candidates.append(result)
+
+    candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+    top = candidates[:10]
+    for i, r in enumerate(top):
+        r["rank"] = i + 1
+    return top
+
+
+# ---------------------------------------------------------------------------
+# Model 5: Emission spectrum optimization (Filter 3)
+# ---------------------------------------------------------------------------
+
+from colorlab_pro.engines.spectrum_manipulator import (
+    adjust_qd_full,
+    scale_fwhm,
+    translate_spectrum,
+)
+
+
+def _adjust_single_emission(
+    source: Spectrum,
+    peak_delta: float,
+    fwhm_factor: float,
+    is_qd: bool,
+    b_led: Spectrum | None,
+    old_b_led: Spectrum | None,
+    new_b_led: Spectrum | None,
+    blue_cutoff: float = 500.0,
+) -> Spectrum:
+    """Adjust a single emission spectrum.
+
+    For non-QD spectra (e.g. B-LED), apply translate + scale directly.
+    For QD spectra, use ``adjust_qd_full`` to handle blue leakage.
+
+    Args:
+        source: Original emission spectrum.
+        peak_delta: Wavelength shift in nm.
+        fwhm_factor: FWHM scaling factor.
+        is_qd: Whether this is a QD spectrum (needs leakage handling).
+        b_led: B-LED spectrum (for QD separation, use original if no B-LED change).
+        old_b_led: Original B-LED (before adjustment), or None.
+        new_b_led: Adjusted B-LED, or None.
+        blue_cutoff: Wavelength separating blue leakage from QD emission.
+
+    Returns:
+        Adjusted Spectrum.
+    """
+    if not is_qd:
+        adjusted = source
+        if abs(peak_delta) > 1e-6:
+            adjusted = translate_spectrum(adjusted, peak_delta)
+        if abs(fwhm_factor - 1.0) > 1e-6:
+            adjusted = scale_fwhm(adjusted, fwhm_factor)
+        return adjusted
+
+    # QD spectrum: handle blue leakage.
+    if b_led is None:
+        # No B-LED available, treat as non-QD.
+        adjusted = source
+        if abs(peak_delta) > 1e-6:
+            adjusted = translate_spectrum(adjusted, peak_delta)
+        if abs(fwhm_factor - 1.0) > 1e-6:
+            adjusted = scale_fwhm(adjusted, fwhm_factor)
+        return adjusted
+
+    if new_b_led is not None and old_b_led is not None:
+        # Both QD emission and B-LED are being adjusted.
+        return adjust_qd_full(
+            source, old_b_led, new_b_led,
+            peak_delta=peak_delta,
+            fwhm_factor=fwhm_factor,
+            blue_cutoff=blue_cutoff,
+        )
+    else:
+        # Only QD emission is being adjusted, B-LED stays the same.
+        from colorlab_pro.engines.spectrum_manipulator import adjust_qd_emission
+
+        return adjust_qd_emission(
+            source, b_led,
+            peak_delta=peak_delta,
+            fwhm_factor=fwhm_factor,
+            blue_cutoff=blue_cutoff,
+        )
+
+
+def optimize_emission_spectra(
+    sources: list[Spectrum],
+    cfs: list[Spectrum],
+    thicknesses: list[float],
+    target_xy: XY,
+    target_standard: str = "BT2020",
+    peak_ranges: list[tuple[float, float]] | None = None,
+    fwhm_ranges: list[tuple[float, float]] | None = None,
+    is_qd: list[bool] | None = None,
+    blue_cutoff: float = 500.0,
+    steps: int = 5,
+    *,
+    progress_callback: Callable[[int], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> list[dict]:
+    """Optimise emission spectra by adjusting peak wavelength and FWHM.
+
+    Each of the R/G/B emission spectra can be independently adjusted:
+    - Peak wavelength shift via ``translate_spectrum``.
+    - FWHM scaling via ``scale_fwhm``.
+
+    For QD spectra (QD-R, QD-G), the blue leakage component is preserved
+    when only the QD emission is adjusted.  When the B-LED (blue emission)
+    spectrum is also adjusted, the QD blue leakage is updated
+    proportionally to the new B-LED shape.
+
+    The search is a grid search over (peak_delta, fwhm_factor) for each
+    channel.  With ``steps=5`` and 3 channels, the total is 5²×3 = 75
+    combinations per channel, but since channels are independent, the
+    total search space is (5²)³ = 15,625.  To keep computation feasible,
+    ``steps`` should be kept small (3-7).
+
+    Args:
+        sources: Original primary source spectra [R, G, B].
+        cfs: Color filter spectra [RCF, GCF, BCF].
+        thicknesses: Fixed CF thicknesses [R, G, B] in μm.
+        target_xy: Target white-point chromaticity.
+        target_standard: Gamut standard name.
+        peak_ranges: Per-channel (min_delta, max_delta) for peak shift
+            in nm.  Default: [(-10, 10), (-10, 10), (-10, 10)].
+        fwhm_ranges: Per-channel (min_factor, max_factor) for FWHM
+            scaling.  Default: [(0.7, 1.5), (0.7, 1.5), (0.7, 1.5)].
+        is_qd: Per-channel flag indicating QD spectra.  Default:
+            [True, True, False] (QD-R, QD-G, B-LED).
+        blue_cutoff: Wavelength separating blue leakage from QD emission.
+        steps: Grid resolution per parameter per channel.
+        progress_callback: Invoked with 0-100 percent.
+        cancel_check: If returns True, aborts early.
+
+    Returns:
+        List of result dicts sorted by (delta_xy, -coverage), top 10.
+        Each dict has keys: peak_deltas, fwhm_factors, white_xy,
+        delta_xy, coverage, match, rank.
+    """
+    target_gamut = standard_gamuts(target_standard)
+
+    if peak_ranges is None:
+        peak_ranges = [(-10.0, 10.0)] * 3
+    if fwhm_ranges is None:
+        fwhm_ranges = [(0.7, 1.5)] * 3
+    if is_qd is None:
+        is_qd = [True, True, False]
+
+    # Pre-compute CF alpha coefficients on common wavelength grid.
+    wavelengths, _, alphas, unit = _prepare_grid_inputs(sources, cfs)
+
+    # Generate grid points for each channel.
+    peak_grids = [
+        np.linspace(pr[0], pr[1], steps) for pr in peak_ranges
+    ]
+    fwhm_grids = [
+        np.linspace(fr[0], fr[1], steps) for fr in fwhm_ranges
+    ]
+
+    total = steps ** 6  # (peak × fwhm) ^ 3 channels
+    candidates: list[dict] = []
+    count = 0
+
+    # Store original B-LED for QD leakage handling.
+    original_b_led = sources[2] if len(sources) >= 3 else None
+
+    for pr in peak_grids[0]:
+        for fr in fwhm_grids[0]:
+            # Adjust R spectrum.
+            adj_r = _adjust_single_emission(
+                sources[0], pr, fr, is_qd[0],
+                b_led=original_b_led,
+                old_b_led=original_b_led,
+                new_b_led=None,  # B-LED not yet adjusted
+                blue_cutoff=blue_cutoff,
+            )
+            for pg in peak_grids[1]:
+                for fg in fwhm_grids[1]:
+                    # Adjust G spectrum.
+                    adj_g = _adjust_single_emission(
+                        sources[1], pg, fg, is_qd[1],
+                        b_led=original_b_led,
+                        old_b_led=original_b_led,
+                        new_b_led=None,
+                        blue_cutoff=blue_cutoff,
+                    )
+                    for pb in peak_grids[2]:
+                        for fb in fwhm_grids[2]:
+                            count += 1
+                            if cancel_check and cancel_check():
+                                return []
+                            if progress_callback and count % 50 == 0:
+                                progress_callback(int(100 * count / total))
+
+                            # Adjust B spectrum.
+                            adj_b = _adjust_single_emission(
+                                sources[2], pb, fb, is_qd[2],
+                                b_led=original_b_led,
+                                old_b_led=original_b_led,
+                                new_b_led=None,
+                                blue_cutoff=blue_cutoff,
+                            )
+
+                            # Now re-adjust QD-R and QD-G if B-LED changed
+                            # and they are QD spectra.
+                            if is_qd[0] and (abs(pb) > 1e-6 or abs(fb - 1.0) > 1e-6):
+                                adj_r_final = _adjust_single_emission(
+                                    sources[0], pr, fr, is_qd[0],
+                                    b_led=original_b_led,
+                                    old_b_led=original_b_led,
+                                    new_b_led=adj_b,
+                                    blue_cutoff=blue_cutoff,
+                                )
+                            else:
+                                adj_r_final = adj_r
+
+                            if is_qd[1] and (abs(pb) > 1e-6 or abs(fb - 1.0) > 1e-6):
+                                adj_g_final = _adjust_single_emission(
+                                    sources[1], pg, fg, is_qd[1],
+                                    b_led=original_b_led,
+                                    old_b_led=original_b_led,
+                                    new_b_led=adj_b,
+                                    blue_cutoff=blue_cutoff,
+                                )
+                            else:
+                                adj_g_final = adj_g
+
+                            # Compute filtered spectra and gamut.
+                            adj_sources = [adj_r_final, adj_g_final, adj_b]
+                            # Resample adjusted sources to common grid.
+                            adj_vals = [
+                                np.interp(wavelengths, s.wavelengths, s.values)
+                                for s in adj_sources
+                            ]
+
+                            result = _compute_single_candidate(
+                                wavelengths, adj_vals, alphas,
+                                thicknesses, target_xy, target_gamut, unit,
+                            )
+                            result["peak_deltas"] = [
+                                round(float(pr), 2),
+                                round(float(pg), 2),
+                                round(float(pb), 2),
+                            ]
+                            result["fwhm_factors"] = [
+                                round(float(fr), 3),
+                                round(float(fg), 3),
+                                round(float(fb), 3),
+                            ]
+                            candidates.append(result)
+
+    candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+    top = candidates[:10]
+    for i, r in enumerate(top):
+        r["rank"] = i + 1
+    return top

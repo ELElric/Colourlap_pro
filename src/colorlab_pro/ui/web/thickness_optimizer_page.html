@@ -57,6 +57,40 @@
 
   #sensitivity-chart { display: none; }
   .chart-placeholder { color: var(--text-faint); font-size: var(--font-md); text-align: center; padding: 40px; }
+
+  /* Filter Tab Navigation */
+  .filter-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: var(--gap-md); background: var(--bg-panel); border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 0 8px; }
+  .filter-tab { padding: 10px 24px; cursor: pointer; font-size: var(--font-md); color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; }
+  .filter-tab:hover { color: var(--text-primary); }
+  .filter-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+  .filter-content { display: none; }
+  .filter-content.active { display: block; }
+
+  /* Filter 2 - Material Selection */
+  .mat-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: var(--gap-md); }
+  .mat-table { width: 100%; border-collapse: collapse; font-size: var(--font-md); }
+  .mat-table th { color: var(--accent); padding: 8px 10px; text-align: left; font-weight: normal; border-bottom: 2px solid var(--border); font-size: var(--font-sm); }
+  .mat-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+  .mat-checkbox-group { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; padding: 4px 0; }
+  .mat-checkbox-group label { display: flex; align-items: center; gap: 4px; font-size: var(--font-sm); color: var(--text-secondary); cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); }
+  .mat-checkbox-group label:hover { border-color: var(--accent); }
+  .mat-checkbox-group input[type="checkbox"] { accent-color: var(--accent); }
+
+  /* Filter 3 - Emission Spectrum */
+  .emission-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: var(--gap-md); }
+  .emission-channel { margin-bottom: var(--gap-md); padding-bottom: var(--gap-sm); border-bottom: 1px solid var(--border-light); }
+  .emission-channel:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .emission-channel-title { color: var(--accent-light); font-weight: bold; font-size: var(--font-md); margin-bottom: 8px; }
+  .emission-controls { display: flex; align-items: center; gap: var(--gap-lg); flex-wrap: wrap; }
+  .emission-control-group { display: flex; align-items: center; gap: 6px; }
+  .emission-control-label { color: var(--text-muted); font-size: var(--font-sm); min-width: 80px; }
+  .emission-slider { width: 160px; accent-color: var(--accent); }
+  .emission-value { color: var(--text-primary); font-size: var(--font-sm); min-width: 50px; text-align: center; }
+  .emission-checkbox-label { display: flex; align-items: center; gap: 4px; font-size: var(--font-sm); color: var(--text-secondary); cursor: pointer; }
+  .emission-checkbox-label input { accent-color: var(--accent); }
+  .emission-preview-btn { background: var(--bg-base); border: 1px solid var(--border); color: var(--text-secondary); padding: 4px 12px; border-radius: var(--radius-sm); font-size: var(--font-sm); cursor: pointer; }
+  .emission-preview-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+  .mini-chart-container { width: 100%; height: 200px; margin-top: 8px; }
 </style>
 <script>
 // pywebview API bridge — works in both iframe and standalone mode
@@ -97,6 +131,16 @@ function waitForApi(callback, maxWait) {
 </script>
 </head>
 <body>
+
+<!-- Filter Tab Navigation -->
+<div class="filter-tabs">
+  <div class="filter-tab active" onclick="switchFilter('filter1', this)">Filter 1: Thickness Optimization</div>
+  <div class="filter-tab" onclick="switchFilter('filter2', this)">Filter 2: Material Selection</div>
+  <div class="filter-tab" onclick="switchFilter('filter3', this)">Filter 3: Emission Optimization</div>
+</div>
+
+<!-- Filter 1: CF Thickness Optimization (existing) -->
+<div class="filter-content active" id="filter1-content">
 
 <!-- Optimization Target -->
 <div class="target-section">
@@ -280,6 +324,280 @@ function waitForApi(callback, maxWait) {
   </div>
 </div>
 
+<!-- End Filter 1 -->
+</div>
+
+<!-- Filter 2: CF Material Selection -->
+<div class="filter-content" id="filter2-content">
+
+  <!-- Fixed Thickness Input -->
+  <div class="mat-section">
+    <div class="section-title">Fixed Thickness</div>
+    <table class="mat-table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Fixed Thickness (um)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="channel-tag channel-rcf">RCF</span></td>
+          <td><input type="text" class="range-field" id="mat-thickness-r" value="1.00"></td>
+        </tr>
+        <tr>
+          <td><span class="channel-tag channel-gcf">GCF</span></td>
+          <td><input type="text" class="range-field" id="mat-thickness-g" value="1.00"></td>
+        </tr>
+        <tr>
+          <td><span class="channel-tag channel-bcf">BCF</span></td>
+          <td><input type="text" class="range-field" id="mat-thickness-b" value="1.00"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Candidate CF Materials -->
+  <div class="mat-section">
+    <div class="section-title">Candidate CF Materials</div>
+    <table class="mat-table">
+      <thead>
+        <tr>
+          <th>R Channel CF</th>
+          <th>G Channel CF</th>
+          <th>B Channel CF</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="mat-checkbox-group" id="mat-candidates-r">
+              <label><input type="checkbox" value="">-- Select --</label>
+            </div>
+          </td>
+          <td>
+            <div class="mat-checkbox-group" id="mat-candidates-g">
+              <label><input type="checkbox" value="">-- Select --</label>
+            </div>
+          </td>
+          <td>
+            <div class="mat-checkbox-group" id="mat-candidates-b">
+              <label><input type="checkbox" value="">-- Select --</label>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Material Selection Buttons -->
+  <div class="button-row">
+    <button class="btn-start" id="btn-mat-start" onclick="startMaterialSelection()">Start Material Selection</button>
+  </div>
+
+  <!-- Material Selection Progress -->
+  <div class="progress-section">
+    <div class="progress-text" id="mat-progress-text">Ready to select materials</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="mat-progress-bar-fill"></div>
+    </div>
+    <div class="progress-summary" id="mat-progress-summary">Best result: -</div>
+  </div>
+
+  <!-- Material Selection Results -->
+  <div class="results-area">
+    <div class="result-panel">
+      <div class="result-header">
+        <div class="result-title">Material Selection Results</div>
+        <div class="result-count" id="mat-result-count">Top 0 / 0 results</div>
+      </div>
+      <div style="max-height: 380px; overflow-y: auto;">
+        <table class="result-table" id="mat-result-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>CF_R</th>
+              <th>CF_G</th>
+              <th>CF_B</th>
+              <th>Coverage</th>
+              <th>Match</th>
+              <th>Delta xy</th>
+              <th>White xy</th>
+            </tr>
+          </thead>
+          <tbody id="mat-result-tbody"><tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:12px;">No results</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="chart-title">Material Comparison</div>
+      </div>
+      <div id="mat-chart" style="width:100%;height:340px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Filter 3: Emission Spectrum Optimization -->
+<div class="filter-content" id="filter3-content">
+
+  <!-- Fixed Thickness & Search Ranges -->
+  <div class="input-section">
+    <div class="section-title">Fixed CF Thickness & Search Ranges</div>
+    <table class="input-table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Fixed Thickness (μm)</th>
+          <th>Peak Delta Range (nm)</th>
+          <th>FWHM Factor Range</th>
+          <th>Is QD</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="channel-tag channel-r">R</span></td>
+          <td><input type="text" class="range-field" id="em-thickness-r" value="2.00" style="width:60px;"></td>
+          <td><input type="text" class="range-field" id="em-peak-min-r" value="-10" style="width:50px;"> ~ <input type="text" class="range-field" id="em-peak-max-r" value="10" style="width:50px;"></td>
+          <td><input type="text" class="range-field" id="em-fwhm-min-r" value="0.7" style="width:50px;"> ~ <input type="text" class="range-field" id="em-fwhm-max-r" value="1.5" style="width:50px;"></td>
+          <td><input type="checkbox" id="em-qd-r-search" checked></td>
+        </tr>
+        <tr>
+          <td><span class="channel-tag channel-g">G</span></td>
+          <td><input type="text" class="range-field" id="em-thickness-g" value="2.00" style="width:60px;"></td>
+          <td><input type="text" class="range-field" id="em-peak-min-g" value="-10" style="width:50px;"> ~ <input type="text" class="range-field" id="em-peak-max-g" value="10" style="width:50px;"></td>
+          <td><input type="text" class="range-field" id="em-fwhm-min-g" value="0.7" style="width:50px;"> ~ <input type="text" class="range-field" id="em-fwhm-max-g" value="1.5" style="width:50px;"></td>
+          <td><input type="checkbox" id="em-qd-g-search" checked></td>
+        </tr>
+        <tr>
+          <td><span class="channel-tag channel-b">B</span></td>
+          <td><input type="text" class="range-field" id="em-thickness-b" value="2.00" style="width:60px;"></td>
+          <td><input type="text" class="range-field" id="em-peak-min-b" value="-10" style="width:50px;"> ~ <input type="text" class="range-field" id="em-peak-max-b" value="10" style="width:50px;"></td>
+          <td><input type="text" class="range-field" id="em-fwhm-min-b" value="0.7" style="width:50px;"> ~ <input type="text" class="range-field" id="em-fwhm-max-b" value="1.5" style="width:50px;"></td>
+          <td><input type="checkbox" id="em-qd-b-search"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Emission Spectrum Preview Adjustments -->
+  <div class="emission-section">
+    <div class="section-title">Emission Spectrum Preview (slide to preview individual channel)</div>
+
+    <!-- R Channel -->
+    <div class="emission-channel">
+      <div class="emission-channel-title">R Channel (Red)</div>
+      <div class="emission-controls">
+        <div class="emission-control-group">
+          <span class="emission-control-label">Peak Delta:</span>
+          <input type="range" class="emission-slider" id="em-peak-r" min="-20" max="20" step="1" value="0" oninput="updateEmissionSliderValue('em-peak-r', 'em-peak-r-val', 'nm')">
+          <span class="emission-value" id="em-peak-r-val">0 nm</span>
+        </div>
+        <div class="emission-control-group">
+          <span class="emission-control-label">FWHM Factor:</span>
+          <input type="range" class="emission-slider" id="em-fwhm-r" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateEmissionSliderValue('em-fwhm-r', 'em-fwhm-r-val', 'x')">
+          <span class="emission-value" id="em-fwhm-r-val">1.0x</span>
+        </div>
+        <label class="emission-checkbox-label">
+          <input type="checkbox" id="em-qd-r" checked> Is QD Spectrum
+        </label>
+        <button class="emission-preview-btn" onclick="previewEmissionSpectrum('R')">Preview</button>
+      </div>
+      <div class="mini-chart-container" id="em-chart-r" style="display:none;"></div>
+    </div>
+
+    <!-- G Channel -->
+    <div class="emission-channel">
+      <div class="emission-channel-title">G Channel (Green)</div>
+      <div class="emission-controls">
+        <div class="emission-control-group">
+          <span class="emission-control-label">Peak Delta:</span>
+          <input type="range" class="emission-slider" id="em-peak-g" min="-20" max="20" step="1" value="0" oninput="updateEmissionSliderValue('em-peak-g', 'em-peak-g-val', 'nm')">
+          <span class="emission-value" id="em-peak-g-val">0 nm</span>
+        </div>
+        <div class="emission-control-group">
+          <span class="emission-control-label">FWHM Factor:</span>
+          <input type="range" class="emission-slider" id="em-fwhm-g" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateEmissionSliderValue('em-fwhm-g', 'em-fwhm-g-val', 'x')">
+          <span class="emission-value" id="em-fwhm-g-val">1.0x</span>
+        </div>
+        <label class="emission-checkbox-label">
+          <input type="checkbox" id="em-qd-g" checked> Is QD Spectrum
+        </label>
+        <button class="emission-preview-btn" onclick="previewEmissionSpectrum('G')">Preview</button>
+      </div>
+      <div class="mini-chart-container" id="em-chart-g" style="display:none;"></div>
+    </div>
+
+    <!-- B Channel -->
+    <div class="emission-channel">
+      <div class="emission-channel-title">B Channel (Blue)</div>
+      <div class="emission-controls">
+        <div class="emission-control-group">
+          <span class="emission-control-label">Peak Delta:</span>
+          <input type="range" class="emission-slider" id="em-peak-b" min="-20" max="20" step="1" value="0" oninput="updateEmissionSliderValue('em-peak-b', 'em-peak-b-val', 'nm')">
+          <span class="emission-value" id="em-peak-b-val">0 nm</span>
+        </div>
+        <div class="emission-control-group">
+          <span class="emission-control-label">FWHM Factor:</span>
+          <input type="range" class="emission-slider" id="em-fwhm-b" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateEmissionSliderValue('em-fwhm-b', 'em-fwhm-b-val', 'x')">
+          <span class="emission-value" id="em-fwhm-b-val">1.0x</span>
+        </div>
+        <label class="emission-checkbox-label">
+          <input type="checkbox" id="em-qd-b"> Is QD Spectrum
+        </label>
+        <button class="emission-preview-btn" onclick="previewEmissionSpectrum('B')">Preview</button>
+      </div>
+      <div class="mini-chart-container" id="em-chart-b" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Emission Optimization Buttons -->
+  <div class="button-row">
+    <button class="btn-start" id="btn-em-start" onclick="startEmissionOptimization()">Start Emission Optimization</button>
+  </div>
+
+  <!-- Emission Optimization Progress -->
+  <div class="progress-section">
+    <div class="progress-text" id="em-progress-text">Ready to optimize emission</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="em-progress-bar-fill"></div>
+    </div>
+    <div class="progress-summary" id="em-progress-summary">Best result: -</div>
+  </div>
+
+  <!-- Emission Optimization Results -->
+  <div class="results-area">
+    <div class="result-panel">
+      <div class="result-header">
+        <div class="result-title">Emission Optimization Results</div>
+        <div class="result-count" id="em-result-count">Top 0 / 0 results</div>
+      </div>
+      <div style="max-height: 380px; overflow-y: auto;">
+        <table class="result-table" id="em-result-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Peak Deltas [R,G,B]</th>
+              <th>FWHM Factors [R,G,B]</th>
+              <th>Coverage</th>
+              <th>Match</th>
+              <th>Delta xy</th>
+            </tr>
+          </thead>
+          <tbody id="em-result-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:12px;">No results</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="chart-title">Emission Optimization Chart</div>
+      </div>
+      <div id="em-chart" style="width:100%;height:340px;"></div>
+    </div>
+  </div>
+
+</div>
 
 <script src="echarts.min.js"></script>
 <script>
@@ -730,6 +1048,445 @@ function formatError(res, defaultMsg) {
     if (err.indexOf('between 0 and 1') !== -1) return defaultMsg + ': coordinate out of range';
     return defaultMsg + ': ' + err;
 }
+
+/* ===== Filter Tab Switching ===== */
+function switchFilter(filterId, tabEl) {
+    document.querySelectorAll('.filter-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.filter-content').forEach(function(c) { c.classList.remove('active'); });
+    if (tabEl) tabEl.classList.add('active');
+    var content = document.getElementById(filterId + '-content');
+    if (content) content.classList.add('active');
+    // Resize charts when switching tabs
+    setTimeout(function() {
+        if (filterId === 'filter1') {
+            if (scanChart) scanChart.resize();
+            if (sensitivityChart) sensitivityChart.resize();
+        } else if (filterId === 'filter2') {
+            if (matChart) matChart.resize();
+        } else if (filterId === 'filter3') {
+            if (emChart) emChart.resize();
+            ['em-chart-r', 'em-chart-g', 'em-chart-b'].forEach(function(id) {
+                var c = miniCharts[id];
+                if (c) c.resize();
+            });
+        }
+    }, 100);
+}
+
+/* ===== Filter 2: CF Material Selection ===== */
+var matChart = null;
+var matLastResults = [];
+
+function populateMaterialCandidates(spectra) {
+    var configs = [
+        { containerId: 'mat-candidates-r', chMatch: function(ch) { return ch === 'R' || ch === 'RCF'; } },
+        { containerId: 'mat-candidates-g', chMatch: function(ch) { return ch === 'G' || ch === 'GCF'; } },
+        { containerId: 'mat-candidates-b', chMatch: function(ch) { return ch === 'B' || ch === 'BCF'; } }
+    ];
+    configs.forEach(function(cfg) {
+        var container = document.getElementById(cfg.containerId);
+        if (!container) return;
+        var filtered = (spectra || []).filter(function(s) {
+            var cat = (s.category || '').toUpperCase();
+            var ch = (s.channel || '').toUpperCase();
+            if (cat !== 'CF') return false;
+            if (!cfg.chMatch(ch)) return false;
+            return true;
+        });
+        var html = '';
+        filtered.forEach(function(s) {
+            html += '<label><input type="checkbox" value="' + s.id + '">' + s.name + '</label>';
+        });
+        if (!html) html = '<label style="color:var(--text-faint);border:none;">No CF materials available</label>';
+        container.innerHTML = html;
+    });
+}
+
+function getSelectedMaterials(containerId) {
+    var container = document.getElementById(containerId);
+    if (!container) return [];
+    var checked = container.querySelectorAll('input[type="checkbox"]:checked');
+    var ids = [];
+    checked.forEach(function(cb) { if (cb.value) ids.push(cb.value); });
+    return ids;
+}
+
+function setMatLoading(loading) {
+    var btn = document.getElementById('btn-mat-start');
+    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Selecting...' : 'Start Material Selection'; }
+}
+
+function updateMatProgress(percent, summary) {
+    var bar = document.getElementById('mat-progress-bar-fill');
+    var txt = document.getElementById('mat-progress-text');
+    var sum = document.getElementById('mat-progress-summary');
+    if (bar) bar.style.width = percent + '%';
+    if (txt) txt.textContent = percent === 0 ? 'Ready to select materials' : ('Progress: ' + percent + '%');
+    if (sum && summary) sum.textContent = summary;
+}
+
+function startMaterialSelection() {
+    var source_ids = ['source-r', 'source-g', 'source-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
+    var cf_r_ids = getSelectedMaterials('mat-candidates-r');
+    var cf_g_ids = getSelectedMaterials('mat-candidates-g');
+    var cf_b_ids = getSelectedMaterials('mat-candidates-b');
+    if (source_ids.length !== 3) { logStatus('Please select R/G/B emission spectra first (Filter 1)'); return; }
+    if (cf_r_ids.length === 0 || cf_g_ids.length === 0 || cf_b_ids.length === 0) { logStatus('Please select at least one CF candidate for each channel'); return; }
+    var thickness_r = parseFloat(document.getElementById('mat-thickness-r').value);
+    var thickness_g = parseFloat(document.getElementById('mat-thickness-g').value);
+    var thickness_b = parseFloat(document.getElementById('mat-thickness-b').value);
+    if (isNaN(thickness_r) || isNaN(thickness_g) || isNaN(thickness_b)) { logStatus('Invalid thickness values'); return; }
+    var targetSelect = document.getElementById('targetSelect');
+    var target_standard = targetSelect.value;
+    var target_xy = null;
+    if (target_standard === 'coord' || target_standard === 'white') {
+        var x = parseFloat(document.getElementById('coord-x').value);
+        var y = parseFloat(document.getElementById('coord-y').value);
+        if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
+        target_standard = 'BT2020';
+    } else {
+        var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
+        target_standard = nameMap[target_standard] || 'sRGB';
+    }
+    var payload = {
+        target_standard: target_standard,
+        target_xy: target_xy,
+        source_ids: source_ids,
+        thickness: [thickness_r, thickness_g, thickness_b],
+        candidate_cf_ids: { R: cf_r_ids, G: cf_g_ids, B: cf_b_ids }
+    };
+    setMatLoading(true);
+    updateMatProgress(0, 'Starting material selection...');
+    callApi('optimizer_select_cf_materials', payload).then(function(res) {
+        if (res && res.error) {
+            setMatLoading(false);
+            logStatus(formatError(res, 'Material selection failed'));
+            updateMatProgress(0);
+            return;
+        }
+    }).catch(function(err) {
+        setMatLoading(false);
+        logStatus('Error: ' + (err.message || err));
+        updateMatProgress(0);
+    });
+}
+
+window.updateCFMaterialsProgress = function(percent, message) {
+    updateMatProgress(percent, message);
+};
+
+window.updateCFMaterialsResult = function(result) {
+    setMatLoading(false);
+    if (!result) { logStatus('Material selection returned no result'); updateMatProgress(0); return; }
+    if (result.error) { logStatus(formatError(result, 'Material selection failed')); updateMatProgress(0); return; }
+    if (result.stopped) { logStatus('Material selection stopped'); updateMatProgress(0); return; }
+    renderMaterialResults(result.results || []);
+    var best = (result.results || [])[0];
+    updateMatProgress(100, 'Best coverage: ' + (best ? Number(best.coverage).toFixed(2) : '-') + '%');
+    logStatus('Material selection complete');
+};
+
+function renderMaterialResults(results) {
+    matLastResults = results || [];
+    var countEl = document.getElementById('mat-result-count');
+    if (countEl) countEl.textContent = matLastResults.length ? ('Top ' + matLastResults.length + ' results') : 'No results';
+    var tbody = document.getElementById('mat-result-tbody');
+    if (!tbody) return;
+    if (!matLastResults.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:12px;">No results</td></tr>';
+        if (matChart) { matChart.clear(); }
+        return;
+    }
+    var html = '';
+    matLastResults.forEach(function(r, idx) {
+        var bestClass = idx === 0 ? 'result-best' : '';
+        html += '<tr class="' + bestClass + '">' +
+            '<td class="result-rank">' + r.rank + '</td>' +
+            '<td class="result-value">' + (r.cf_r_name || '-') + '</td>' +
+            '<td class="result-value">' + (r.cf_g_name || '-') + '</td>' +
+            '<td class="result-value">' + (r.cf_b_name || '-') + '</td>' +
+            '<td class="result-value ' + (r.coverage >= 90 ? 'result-cov-high' : 'result-cov-medium') + '">' + Number(r.coverage).toFixed(2) + '%</td>' +
+            '<td class="result-value">' + Number(r.match).toFixed(2) + '%</td>' +
+            '<td class="result-value">' + (r.delta_xy !== undefined ? Number(r.delta_xy).toFixed(5) : '-') + '</td>' +
+            '<td class="result-value">' + (r.white_xy ? Number(r.white_xy[0]).toFixed(3) + ', ' + Number(r.white_xy[1]).toFixed(3) : '-') + '</td>' +
+            '</tr>';
+    });
+    tbody.innerHTML = html;
+    renderMaterialChart(matLastResults);
+}
+
+function renderMaterialChart(results) {
+    var dom = document.getElementById('mat-chart');
+    if (!dom) return;
+    if (!matChart) matChart = echarts.init(dom, 'dark');
+    var coverageData = [];
+    var names = [];
+    results.forEach(function(r) {
+        coverageData.push(r.coverage);
+        names.push((r.cf_r_name || '?') + '/' + (r.cf_g_name || '?') + '/' + (r.cf_b_name || '?'));
+    });
+    var option = {
+        backgroundColor: 'transparent',
+        title: { text: 'Material Combination Coverage', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        grid: { top: 40, right: 20, bottom: 80, left: 55 },
+        tooltip: { trigger: 'axis', formatter: function(params) {
+            return '<b>' + names[params[0].dataIndex] + '</b><br/>Coverage: ' + params[0].value.toFixed(2) + '%';
+        }},
+        xAxis: { type: 'category', data: names, axisLabel: { rotate: 45, color: '#aaa', fontSize: 10 }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Coverage (%)', nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: [{ name: 'Coverage', type: 'bar', data: coverageData, itemStyle: { color: '#66aaff' } }]
+    };
+    matChart.setOption(option, true);
+    setTimeout(function() { matChart.resize(); }, 50);
+}
+
+/* ===== Filter 3: Emission Spectrum Optimization ===== */
+var emChart = null;
+var emLastResults = [];
+var miniCharts = {};
+
+function updateEmissionSliderValue(sliderId, displayId, unit) {
+    var slider = document.getElementById(sliderId);
+    var display = document.getElementById(displayId);
+    if (slider && display) {
+        display.textContent = slider.value + ' ' + unit;
+    }
+}
+
+function getEmissionParams() {
+    return {
+        R: { peak_delta: parseInt(document.getElementById('em-peak-r').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-r').value), is_qd: document.getElementById('em-qd-r').checked },
+        G: { peak_delta: parseInt(document.getElementById('em-peak-g').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-g').value), is_qd: document.getElementById('em-qd-g').checked },
+        B: { peak_delta: parseInt(document.getElementById('em-peak-b').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-b').value), is_qd: document.getElementById('em-qd-b').checked }
+    };
+}
+
+function previewEmissionSpectrum(channel) {
+    var params = getEmissionParams();
+    var p = params[channel];
+    var source_id = document.getElementById('source-' + channel.toLowerCase()).value;
+    if (!source_id) { logStatus('Please select ' + channel + ' emission spectrum first (Filter 1)'); return; }
+    var payload = {
+        source_id: source_id,
+        channel: channel,
+        peak_delta: p.peak_delta,
+        fwhm_factor: p.fwhm_factor,
+        is_qd: p.is_qd
+    };
+    // For QD channels, pass the B-LED spectrum ID so the backend can
+    // separate blue leakage from QD emission.
+    if (p.is_qd) {
+        var b_led_id = document.getElementById('source-b').value;
+        if (!b_led_id) { logStatus('Please select B emission spectrum for QD leakage separation'); return; }
+        payload.b_led_id = b_led_id;
+    }
+    var chartDom = document.getElementById('em-chart-' + channel.toLowerCase());
+    if (chartDom) chartDom.style.display = 'block';
+    callApi('optimizer_preview_spectrum_adjust', payload).then(function(res) {
+        if (res && res.error) {
+            logStatus(formatError(res, 'Preview failed'));
+            return;
+        }
+        renderMiniChart(channel.toLowerCase(), res);
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
+    });
+}
+
+function renderMiniChart(channel, data) {
+    var dom = document.getElementById('em-chart-' + channel);
+    if (!dom) return;
+    if (!miniCharts[dom.id]) miniCharts[dom.id] = echarts.init(dom, 'dark');
+    var chart = miniCharts[dom.id];
+    var chColors = { r: '#ff6666', g: '#66ff66', b: '#6666ff' };
+    var series = [];
+    if (data.original_wavelengths && data.original_values) {
+        var origData = data.original_wavelengths.map(function(w, i) { return [w, data.original_values[i]]; });
+        series.push({ name: 'Original', type: 'line', smooth: true, showSymbol: false, data: origData, lineStyle: { width: 1, color: '#888', type: 'dashed' } });
+    }
+    if (data.adjusted_wavelengths && data.adjusted_values) {
+        var adjData = data.adjusted_wavelengths.map(function(w, i) { return [w, data.adjusted_values[i]]; });
+        series.push({ name: 'Adjusted', type: 'line', smooth: true, showSymbol: false, data: adjData, lineStyle: { width: 2, color: chColors[channel] || '#fff' } });
+    }
+    var option = {
+        backgroundColor: 'transparent',
+        title: { text: channel.toUpperCase() + ' Spectrum Preview', left: 'center', top: 0, textStyle: { color: '#ccc', fontSize: 11 } },
+        grid: { top: 25, right: 15, bottom: 30, left: 45 },
+        tooltip: { trigger: 'axis' },
+        legend: { data: series.map(function(s) { return s.name; }), textStyle: { color: '#aaa', fontSize: 10 }, top: 15, itemWidth: 15, itemHeight: 8 },
+        xAxis: { type: 'value', name: 'nm', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: series
+    };
+    chart.setOption(option, true);
+    setTimeout(function() { chart.resize(); }, 50);
+}
+
+function setEmLoading(loading) {
+    var btn = document.getElementById('btn-em-start');
+    if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Optimizing...' : 'Start Emission Optimization'; }
+}
+
+function updateEmProgress(percent, summary) {
+    var bar = document.getElementById('em-progress-bar-fill');
+    var txt = document.getElementById('em-progress-text');
+    var sum = document.getElementById('em-progress-summary');
+    if (bar) bar.style.width = percent + '%';
+    if (txt) txt.textContent = percent === 0 ? 'Ready to optimize emission' : ('Progress: ' + percent + '%');
+    if (sum && summary) sum.textContent = summary;
+}
+
+function startEmissionOptimization() {
+    var source_ids = ['source-r', 'source-g', 'source-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
+    var cf_ids = ['cf-r', 'cf-g', 'cf-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
+    if (source_ids.length !== 3) { logStatus('Please select R/G/B emission spectra first (Filter 1)'); return; }
+    if (cf_ids.length !== 3) { logStatus('Please select R/G/B CF spectra first (Filter 1)'); return; }
+    var thicknesses = [
+        parseFloat(document.getElementById('em-thickness-r').value),
+        parseFloat(document.getElementById('em-thickness-g').value),
+        parseFloat(document.getElementById('em-thickness-b').value)
+    ];
+    if (thicknesses.some(isNaN)) { logStatus('Please enter valid thickness values'); return; }
+    var peak_ranges = [
+        [parseFloat(document.getElementById('em-peak-min-r').value), parseFloat(document.getElementById('em-peak-max-r').value)],
+        [parseFloat(document.getElementById('em-peak-min-g').value), parseFloat(document.getElementById('em-peak-max-g').value)],
+        [parseFloat(document.getElementById('em-peak-min-b').value), parseFloat(document.getElementById('em-peak-max-b').value)]
+    ];
+    var fwhm_ranges = [
+        [parseFloat(document.getElementById('em-fwhm-min-r').value), parseFloat(document.getElementById('em-fwhm-max-r').value)],
+        [parseFloat(document.getElementById('em-fwhm-min-g').value), parseFloat(document.getElementById('em-fwhm-max-g').value)],
+        [parseFloat(document.getElementById('em-fwhm-min-b').value), parseFloat(document.getElementById('em-fwhm-max-b').value)]
+    ];
+    var is_qd = [
+        document.getElementById('em-qd-r-search').checked,
+        document.getElementById('em-qd-g-search').checked,
+        document.getElementById('em-qd-b-search').checked
+    ];
+    var targetSelect = document.getElementById('targetSelect');
+    var target_standard = targetSelect.value;
+    var target_xy = null;
+    if (target_standard === 'coord' || target_standard === 'white') {
+        var x = parseFloat(document.getElementById('coord-x').value);
+        var y = parseFloat(document.getElementById('coord-y').value);
+        if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
+        target_standard = 'BT2020';
+    } else {
+        var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
+        target_standard = nameMap[target_standard] || 'sRGB';
+    }
+    var payload = {
+        target_standard: target_standard,
+        target_xy: target_xy,
+        source_ids: source_ids,
+        cf_ids: cf_ids,
+        thicknesses: thicknesses,
+        peak_ranges: peak_ranges,
+        fwhm_ranges: fwhm_ranges,
+        is_qd: is_qd,
+        steps: 5
+    };
+    setEmLoading(true);
+    updateEmProgress(0, 'Starting emission optimization...');
+    callApi('optimizer_optimize_emission', payload).then(function(res) {
+        if (res && res.error) {
+            setEmLoading(false);
+            logStatus(formatError(res, 'Emission optimization failed'));
+            updateEmProgress(0);
+            return;
+        }
+    }).catch(function(err) {
+        setEmLoading(false);
+        logStatus('Error: ' + (err.message || err));
+        updateEmProgress(0);
+    });
+}
+
+window.updateEmissionProgress = function(percent, message) {
+    updateEmProgress(percent, message);
+};
+
+window.updateEmissionResult = function(result) {
+    setEmLoading(false);
+    if (!result) { logStatus('Emission optimization returned no result'); updateEmProgress(0); return; }
+    if (result.error) { logStatus(formatError(result, 'Emission optimization failed')); updateEmProgress(0); return; }
+    if (result.stopped) { logStatus('Emission optimization stopped'); updateEmProgress(0); return; }
+    renderEmissionResults(result.results || []);
+    var best = (result.results || [])[0];
+    updateEmProgress(100, 'Best coverage: ' + (best ? Number(best.coverage).toFixed(2) : '-') + '%');
+    logStatus('Emission optimization complete');
+};
+
+function renderEmissionResults(results) {
+    emLastResults = results || [];
+    var countEl = document.getElementById('em-result-count');
+    if (countEl) countEl.textContent = emLastResults.length ? ('Top ' + emLastResults.length + ' results') : 'No results';
+    var tbody = document.getElementById('em-result-tbody');
+    if (!tbody) return;
+    if (!emLastResults.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:12px;">No results</td></tr>';
+        if (emChart) { emChart.clear(); }
+        return;
+    }
+    var html = '';
+    emLastResults.forEach(function(r, idx) {
+        var bestClass = idx === 0 ? 'result-best' : '';
+        var pd = r.peak_deltas || [0, 0, 0];
+        var ff = r.fwhm_factors || [1, 1, 1];
+        html += '<tr class="' + bestClass + '">' +
+            '<td class="result-rank">' + r.rank + '</td>' +
+            '<td class="result-value">[' + pd.map(function(v) { return v + 'nm'; }).join(', ') + ']</td>' +
+            '<td class="result-value">[' + ff.map(function(v) { return v.toFixed(1) + 'x'; }).join(', ') + ']</td>' +
+            '<td class="result-value ' + (r.coverage >= 90 ? 'result-cov-high' : 'result-cov-medium') + '">' + Number(r.coverage).toFixed(2) + '%</td>' +
+            '<td class="result-value">' + Number(r.match).toFixed(2) + '%</td>' +
+            '<td class="result-value">' + (r.delta_xy !== undefined ? Number(r.delta_xy).toFixed(5) : '-') + '</td>' +
+            '</tr>';
+    });
+    tbody.innerHTML = html;
+    renderEmissionChart(emLastResults);
+}
+
+function renderEmissionChart(results) {
+    var dom = document.getElementById('em-chart');
+    if (!dom) return;
+    if (!emChart) emChart = echarts.init(dom, 'dark');
+    var coverageData = [];
+    var labels = [];
+    results.forEach(function(r, idx) {
+        coverageData.push(r.coverage);
+        var pd = r.peak_deltas || [0, 0, 0];
+        labels.push('#' + r.rank + ' [' + pd.join(', ') + ']');
+    });
+    var option = {
+        backgroundColor: 'transparent',
+        title: { text: 'Emission Optimization Coverage', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        grid: { top: 40, right: 20, bottom: 80, left: 55 },
+        tooltip: { trigger: 'axis', formatter: function(params) {
+            return '<b>' + labels[params[0].dataIndex] + '</b><br/>Coverage: ' + params[0].value.toFixed(2) + '%';
+        }},
+        xAxis: { type: 'category', data: labels, axisLabel: { rotate: 45, color: '#aaa', fontSize: 10 }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Coverage (%)', nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        series: [{ name: 'Coverage', type: 'bar', data: coverageData, itemStyle: { color: '#ffa500' } }]
+    };
+    emChart.setOption(option, true);
+    setTimeout(function() { emChart.resize(); }, 50);
+}
+
+/* Patch refreshData to also populate material candidates */
+var _origRefreshData = refreshData;
+refreshData = function() {
+    callApi('optimizer_get_initial_data').then(function(data) {
+        setLoading(false);
+        if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
+        populateSelectors(data.spectra, data.defaults);
+        populateMaterialCandidates(data.spectra);
+        if (typeof renderResults === 'function') renderResults(data.results, data.best);
+    }).catch(function(err) {
+        setLoading(false);
+        logStatus('Error: ' + (err.message || err));
+    });
+};
+
+
 </script>
 
 <script>

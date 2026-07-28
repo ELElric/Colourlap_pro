@@ -1183,6 +1183,287 @@ class ColorLabApi:
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
 
+    # ------------------------------------------------------------------ #
+    # Filter 2: CF material selection
+    # ------------------------------------------------------------------ #
+
+    def optimizer_select_cf_materials(self, payload: dict) -> dict:
+        """Start CF material selection in a background thread.
+
+        Payload keys:
+            source_ids: [R, G, B] source spectrum IDs.
+            cf_library: {"R": [id, ...], "G": [id, ...], "B": [id, ...]}
+            thicknesses: [R, G, B] fixed thicknesses in μm.
+            target_standard: e.g. "BT2020".
+            target_xy: optional [x, y].
+
+        Returns {started: True} immediately; progress and results are
+        pushed via window.updateCFMaterialsProgress / .updateCFMaterialsResult.
+        """
+        if self._opt_running:
+            return {"error": "Another optimization is running"}
+
+        self._stop_event.clear()
+        self._opt_running = True
+        self._opt_progress = 0
+
+        thread = threading.Thread(
+            target=self._cf_materials_worker, args=(payload,), daemon=True
+        )
+        thread.start()
+        return {"started": True}
+
+    def _cf_materials_worker(self, payload: dict) -> None:
+        """Background worker for CF material selection."""
+        import json as _json
+
+        try:
+            source_ids = [int(x) for x in payload["source_ids"]]
+            cf_id_library = payload["cf_library"]
+            thicknesses = payload["thicknesses"]
+            target_standard = payload.get("target_standard", "BT2020")
+            target_xy = payload.get("target_xy")
+
+            sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
+
+            # Build CF library from spectrum IDs.
+            cf_library: dict[str, list[Spectrum]] = {}
+            for ch, ids in cf_id_library.items():
+                cf_library[ch] = [
+                    self._spectrum_ctrl.get_spectrum(int(i)) for i in ids
+                ]
+
+            from colorlab_pro.dto.color import XY
+            from colorlab_pro.engines.gamut_calculator import standard_gamuts
+            from colorlab_pro.engines.thickness_optimizer import select_cf_materials
+
+            if target_xy is not None:
+                target = XY(float(target_xy[0]), float(target_xy[1]))
+            else:
+                wp = standard_gamuts(target_standard).white
+                target = XY(wp[0], wp[1])
+
+            results = select_cf_materials(
+                sources, cf_library, thicknesses, target,
+                target_standard=target_standard,
+                progress_callback=lambda pct: self._push_js(
+                    f"window.updateCFMaterialsProgress && window.updateCFMaterialsProgress({pct})"
+                ),
+                cancel_check=lambda: self._stop_event.is_set(),
+            )
+
+            result = {"results": results, "best": results[0] if results else None}
+            self._push_js(
+                "window.updateCFMaterialsResult && window.updateCFMaterialsResult("
+                + _json.dumps(result) + ")"
+            )
+        except Exception as exc:  # noqa: BLE001
+            err = _safe_error(exc)
+            self._push_js(
+                "window.updateCFMaterialsResult && window.updateCFMaterialsResult("
+                + _json.dumps(err) + ")"
+            )
+        finally:
+            self._opt_running = False
+
+    # ------------------------------------------------------------------ #
+    # Filter 3: Emission spectrum optimization
+    # ------------------------------------------------------------------ #
+
+    def optimizer_optimize_emission(self, payload: dict) -> dict:
+        """Start emission spectrum optimization in a background thread.
+
+        Payload keys:
+            source_ids: [R, G, B] source spectrum IDs.
+            cf_ids: [RCF, GCF, BCF] spectrum IDs.
+            thicknesses: [R, G, B] fixed thicknesses in μm.
+            target_standard: e.g. "BT2020".
+            target_xy: optional [x, y].
+            peak_ranges: optional [[min, max] × 3] peak shift ranges in nm.
+            fwhm_ranges: optional [[min, max] × 3] FWHM factor ranges.
+            is_qd: optional [bool × 3] QD flags.
+            blue_cutoff: optional float, default 500.0.
+            steps: optional int, default 5.
+
+        Returns {started: True} immediately; progress and results are
+        pushed via window.updateEmissionProgress / .updateEmissionResult.
+        """
+        if self._opt_running:
+            return {"error": "Another optimization is running"}
+
+        self._stop_event.clear()
+        self._opt_running = True
+        self._opt_progress = 0
+
+        thread = threading.Thread(
+            target=self._emission_worker, args=(payload,), daemon=True
+        )
+        thread.start()
+        return {"started": True}
+
+    def _emission_worker(self, payload: dict) -> None:
+        """Background worker for emission spectrum optimization."""
+        import json as _json
+
+        try:
+            source_ids = [int(x) for x in payload["source_ids"]]
+            cf_ids = [int(x) for x in payload["cf_ids"]]
+            thicknesses = payload["thicknesses"]
+            target_standard = payload.get("target_standard", "BT2020")
+            target_xy = payload.get("target_xy")
+            peak_ranges = payload.get("peak_ranges")
+            fwhm_ranges = payload.get("fwhm_ranges")
+            is_qd = payload.get("is_qd")
+            blue_cutoff = payload.get("blue_cutoff", 500.0)
+            steps = payload.get("steps", 5)
+
+            sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
+            cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
+
+            from colorlab_pro.dto.color import XY
+            from colorlab_pro.engines.gamut_calculator import standard_gamuts
+            from colorlab_pro.engines.thickness_optimizer import optimize_emission_spectra
+
+            if target_xy is not None:
+                target = XY(float(target_xy[0]), float(target_xy[1]))
+            else:
+                wp = standard_gamuts(target_standard).white
+                target = XY(wp[0], wp[1])
+
+            # Convert lists to tuples for engine.
+            if peak_ranges:
+                peak_ranges = [tuple(r) for r in peak_ranges]
+            if fwhm_ranges:
+                fwhm_ranges = [tuple(r) for r in fwhm_ranges]
+
+            results = optimize_emission_spectra(
+                sources, cfs, thicknesses, target,
+                target_standard=target_standard,
+                peak_ranges=peak_ranges,
+                fwhm_ranges=fwhm_ranges,
+                is_qd=is_qd,
+                blue_cutoff=blue_cutoff,
+                steps=steps,
+                progress_callback=lambda pct: self._push_js(
+                    f"window.updateEmissionProgress && window.updateEmissionProgress({pct})"
+                ),
+                cancel_check=lambda: self._stop_event.is_set(),
+            )
+
+            result = {"results": results, "best": results[0] if results else None}
+            self._push_js(
+                "window.updateEmissionResult && window.updateEmissionResult("
+                + _json.dumps(result) + ")"
+            )
+        except Exception as exc:  # noqa: BLE001
+            err = _safe_error(exc)
+            self._push_js(
+                "window.updateEmissionResult && window.updateEmissionResult("
+                + _json.dumps(err) + ")"
+            )
+        finally:
+            self._opt_running = False
+
+    # ------------------------------------------------------------------ #
+    # Spectrum preview (for Filter 3 preview before optimization)
+    # ------------------------------------------------------------------ #
+
+    def optimizer_preview_spectrum_adjust(
+        self, payload: dict
+    ) -> dict:
+        """Preview a single spectrum adjustment and return sampled data.
+
+        Payload keys:
+            spectrum_id: int
+            peak_delta: float (nm)
+            fwhm_factor: float
+            is_qd: bool
+            b_led_id: int (required if is_qd)
+            new_b_led_id: int (optional, if B-LED also adjusted)
+            new_b_led_peak_delta: float
+            new_b_led_fwhm_factor: float
+            blue_cutoff: float (default 500.0)
+
+        Returns:
+            {"data": [[wl, val], ...], "peak_nm": float, "fwhm_nm": float}
+        """
+        try:
+            from colorlab_pro.engines.spectrum_manipulator import (
+                adjust_qd_emission,
+                adjust_qd_full,
+                measure_fwhm,
+                peak_wavelength,
+                scale_fwhm,
+                translate_spectrum,
+            )
+
+            sid = int(payload["spectrum_id"])
+            peak_delta = float(payload.get("peak_delta", 0.0))
+            fwhm_factor = float(payload.get("fwhm_factor", 1.0))
+            is_qd = bool(payload.get("is_qd", False))
+            blue_cutoff = float(payload.get("blue_cutoff", 500.0))
+
+            spec = self._spectrum_ctrl.get_spectrum(sid)
+            if spec is None:
+                return {"error": "Spectrum not found"}
+
+            if not is_qd:
+                adjusted = spec
+                if abs(peak_delta) > 1e-6:
+                    adjusted = translate_spectrum(adjusted, peak_delta)
+                if abs(fwhm_factor - 1.0) > 1e-6:
+                    adjusted = scale_fwhm(adjusted, fwhm_factor)
+            else:
+                b_led_id = payload.get("b_led_id")
+                if b_led_id is None:
+                    return {"error": "b_led_id is required for QD spectra"}
+                b_led = self._spectrum_ctrl.get_spectrum(int(b_led_id))
+                if b_led is None:
+                    return {"error": "B-LED spectrum not found"}
+
+                new_b_led_id = payload.get("new_b_led_id")
+                if new_b_led_id is not None:
+                    new_b_led = self._spectrum_ctrl.get_spectrum(int(new_b_led_id))
+                    if new_b_led is None:
+                        return {"error": "New B-LED spectrum not found"}
+                    new_b_led_peak_delta = float(payload.get("new_b_led_peak_delta", 0.0))
+                    new_b_led_fwhm_factor = float(payload.get("new_b_led_fwhm_factor", 1.0))
+                    adj_b_led = new_b_led
+                    if abs(new_b_led_peak_delta) > 1e-6:
+                        adj_b_led = translate_spectrum(adj_b_led, new_b_led_peak_delta)
+                    if abs(new_b_led_fwhm_factor - 1.0) > 1e-6:
+                        adj_b_led = scale_fwhm(adj_b_led, new_b_led_fwhm_factor)
+                    adjusted = adjust_qd_full(
+                        spec, b_led, adj_b_led,
+                        peak_delta=peak_delta,
+                        fwhm_factor=fwhm_factor,
+                        blue_cutoff=blue_cutoff,
+                    )
+                else:
+                    adjusted = adjust_qd_emission(
+                        spec, b_led,
+                        peak_delta=peak_delta,
+                        fwhm_factor=fwhm_factor,
+                        blue_cutoff=blue_cutoff,
+                    )
+
+            def _sig2(v: float) -> float:
+                if v == 0:
+                    return 0.0
+                decimals = 5 - int(math.floor(math.log10(abs(v))))
+                return round(v, max(decimals, 0))
+
+            return {
+                "original_wavelengths": [round(float(w), 1) for w in spec.wavelengths[::5]],
+                "original_values": [_sig2(float(v)) for v in spec.values[::5]],
+                "adjusted_wavelengths": [round(float(w), 1) for w in adjusted.wavelengths[::5]],
+                "adjusted_values": [_sig2(float(v)) for v in adjusted.values[::5]],
+                "peak_nm": round(peak_wavelength(adjusted), 1),
+                "fwhm_nm": round(measure_fwhm(adjusted), 1),
+            }
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
     # -------------------------------------------------------------- #
     # History page methods
     # -------------------------------------------------------------- #

@@ -57,6 +57,12 @@ class OptimizationController(QObject):
     # Emitted when grid search completes with results.
     grid_search_ready = Signal(object)
 
+    # Emitted when CF material selection completes.
+    cf_materials_ready = Signal(object)
+
+    # Emitted when emission spectrum optimization completes.
+    emission_optimization_ready = Signal(object)
+
     def __init__(
         self,
         main_controller: MainController,
@@ -312,4 +318,74 @@ class OptimizationController(QObject):
             self.error_occurred.emit(f"Sensitivity all channels failed: {exc}")
             return None
 
+        return results
+
+    # ------------------------------------------------------------------ #
+    # CF material selection (Filter 2)
+    # ------------------------------------------------------------------ #
+
+    def select_cf_materials(
+        self,
+        sources: list[Spectrum],
+        cf_library: dict[str, list[Spectrum]],
+        thicknesses: list[float],
+        target_xy: XY,
+        target_standard: str = "BT2020",
+    ) -> list[dict] | None:
+        """Select the best CF material combination with progress signals.
+
+        Emits ``grid_search_progress`` during search and
+        ``cf_materials_ready`` with the result list on completion.
+        """
+        try:
+            results = self._service().select_cf_materials(
+                sources, cf_library, thicknesses, target_xy,
+                target_standard=target_standard,
+                progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.error_occurred.emit(f"CF material selection failed: {exc}")
+            return None
+
+        self.cf_materials_ready.emit(results)
+        return results
+
+    # ------------------------------------------------------------------ #
+    # Emission spectrum optimization (Filter 3)
+    # ------------------------------------------------------------------ #
+
+    def optimize_emission_spectra(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        thicknesses: list[float],
+        target_xy: XY,
+        target_standard: str = "BT2020",
+        peak_ranges: list[tuple[float, float]] | None = None,
+        fwhm_ranges: list[tuple[float, float]] | None = None,
+        is_qd: list[bool] | None = None,
+        blue_cutoff: float = 500.0,
+        steps: int = 5,
+    ) -> list[dict] | None:
+        """Optimise emission spectra with progress signals.
+
+        Emits ``grid_search_progress`` during search and
+        ``emission_optimization_ready`` with the result list on completion.
+        """
+        try:
+            results = self._service().optimize_emission_spectra(
+                sources, cfs, thicknesses, target_xy,
+                target_standard=target_standard,
+                peak_ranges=peak_ranges,
+                fwhm_ranges=fwhm_ranges,
+                is_qd=is_qd,
+                blue_cutoff=blue_cutoff,
+                steps=steps,
+                progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.error_occurred.emit(f"Emission spectrum optimization failed: {exc}")
+            return None
+
+        self.emission_optimization_ready.emit(results)
         return results

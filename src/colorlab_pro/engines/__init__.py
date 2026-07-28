@@ -39,6 +39,17 @@ __all__ = [
     # ThicknessOptimizer (T-06)
     "optimize_thickness",
     "CF_THICKNESS_BOUNDS_UM",
+    # SpectrumManipulator (T-07)
+    "translate_spectrum",
+    "scale_fwhm",
+    "peak_wavelength",
+    "measure_fwhm",
+    "compute_leakage_ratio",
+    "separate_qd_spectrum",
+    "recompose_qd_spectrum",
+    "update_qd_blue_leakage",
+    "adjust_qd_emission",
+    "adjust_qd_full",
 ]
 
 # Map of public names to (module_path, attribute_name).
@@ -85,6 +96,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
         "colorlab_pro.engines.thickness_optimizer",
         "CF_THICKNESS_BOUNDS_UM",
     ),
+    # SpectrumManipulator (T-07)
+    "translate_spectrum": ("colorlab_pro.engines.spectrum_manipulator", "translate_spectrum"),
+    "scale_fwhm": ("colorlab_pro.engines.spectrum_manipulator", "scale_fwhm"),
+    "peak_wavelength": ("colorlab_pro.engines.spectrum_manipulator", "peak_wavelength"),
+    "measure_fwhm": ("colorlab_pro.engines.spectrum_manipulator", "measure_fwhm"),
+    "compute_leakage_ratio": ("colorlab_pro.engines.spectrum_manipulator", "compute_leakage_ratio"),
+    "separate_qd_spectrum": ("colorlab_pro.engines.spectrum_manipulator", "separate_qd_spectrum"),
+    "recompose_qd_spectrum": ("colorlab_pro.engines.spectrum_manipulator", "recompose_qd_spectrum"),
+    "update_qd_blue_leakage": ("colorlab_pro.engines.spectrum_manipulator", "update_qd_blue_leakage"),
+    "adjust_qd_emission": ("colorlab_pro.engines.spectrum_manipulator", "adjust_qd_emission"),
+    "adjust_qd_full": ("colorlab_pro.engines.spectrum_manipulator", "adjust_qd_full"),
 }
 
 
