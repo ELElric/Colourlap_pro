@@ -538,6 +538,37 @@
             cursor: pointer;
         }
         .about-close:hover { background: var(--btn-primary-hover); }
+
+        /* ===== Help Overlay ===== */
+        .help-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-overlay);
+            display: none;
+            z-index: 20000;
+        }
+        .help-overlay.active { display: block; }
+        .help-overlay-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: var(--bg-base);
+        }
+        .help-close-btn {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            z-index: 20001;
+            padding: 6px 16px;
+            background: var(--btn-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-md);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        .help-close-btn:hover { background: var(--btn-primary-hover); }
     </style>
 </head>
 <body>
@@ -582,6 +613,7 @@
             <div class="menu-item" data-menu="help">
                 <span>Help</span>
                 <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" onclick="menuAction('help-doc')">Help Documentation<span class="menu-dropdown-shortcut">F1</span></div>
                     <div class="menu-dropdown-item" onclick="menuAction('about')">About ColorLab Pro</div>
                     <div class="menu-dropdown-item" onclick="menuAction('shortcuts')">Keyboard Shortcuts</div>
                     <div class="menu-dropdown-separator"></div>
@@ -703,6 +735,12 @@
             </div>
             <button class="about-close" onclick="closeDialog('about-overlay')">Close</button>
         </div>
+    </div>
+
+    <!-- Help Documentation Overlay -->
+    <div class="help-overlay" id="help-overlay">
+        <button class="help-close-btn" onclick="closeHelpOverlay()">✕ Close</button>
+        <iframe class="help-overlay-frame" id="help-overlay-frame" src="about:blank"></iframe>
     </div>
 
     <script>
@@ -840,6 +878,16 @@
                 e.preventDefault();
                 menuAction('import-spectrum');
             }
+            if (e.key === 'F1') {
+                e.preventDefault();
+                menuAction('help-doc');
+            }
+            if (e.key === 'Escape') {
+                var helpOvl = document.getElementById('help-overlay');
+                if (helpOvl && helpOvl.classList.contains('active')) {
+                    closeHelpOverlay();
+                }
+            }
         });
 
         /* ===== Menu Bar ===== */
@@ -867,6 +915,7 @@
                 case 'theme-dark': applyTheme('dark'); if (api) api.set_theme('dark'); break;
                 case 'theme-light': applyTheme('light'); if (api) api.set_theme('light'); break;
                 case 'about': showDialog('about-overlay'); break;
+                case 'help-doc': openHelpOverlay(); break;
                 case 'shortcuts': alert('Keyboard Shortcuts:\n\nAlt+1 — Spectrum Library\nAlt+2 — Gamut Calculator\nAlt+3 — White Point\nAlt+4 — Thickness Optimizer\nAlt+5 — History\nAlt+6 — Reference Data\nCtrl+I — Import Spectrum'); break;
                 case 'set-password': showSetPasswordDialog(); break;
                 case 'import-spectrum':
@@ -896,6 +945,18 @@
         }
         function closeDialog(id) {
             document.getElementById(id).classList.remove('active');
+        }
+
+        /* ===== Help Documentation Overlay ===== */
+        function openHelpOverlay() {
+            var frame = document.getElementById('help-overlay-frame');
+            if (frame.src.indexOf('help.html') === -1) {
+                frame.src = 'help.html';
+            }
+            document.getElementById('help-overlay').classList.add('active');
+        }
+        function closeHelpOverlay() {
+            document.getElementById('help-overlay').classList.remove('active');
         }
 
         /* ===== Password Protection ===== */

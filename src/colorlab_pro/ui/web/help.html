@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ColorLab Pro — Help / 帮助文档</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  .help-container { max-width: 960px; margin: 0 auto; padding-bottom: 40px; }
+  .help-header { text-align: center; padding: 24px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .help-title { font-size: var(--font-xl); font-weight: 700; color: var(--accent); }
+  .help-subtitle { color: var(--text-muted); font-size: var(--font-sm); margin-top: 4px; }
+
+  /* Language toggle */
+  .lang-toggle { display: flex; justify-content: center; gap: 0; margin-bottom: 24px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); overflow: hidden; width: fit-content; margin-left: auto; margin-right: auto; }
+  .lang-btn { padding: 6px 20px; font-size: var(--font-sm); cursor: pointer; background: var(--bg-panel); color: var(--text-secondary); border: none; transition: background 0.15s; }
+  .lang-btn.active { background: var(--accent); color: #fff; }
+
+  /* Table of contents */
+  .toc { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 24px; }
+  .toc-title { color: var(--accent); font-weight: bold; font-size: var(--font-md); margin-bottom: 8px; }
+  .toc ol { margin-left: 20px; }
+  .toc li { margin-bottom: 4px; }
+  .toc a { color: var(--accent-light); text-decoration: none; font-size: var(--font-sm); }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  .help-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px 24px; margin-bottom: 20px; }
+  .help-section h2 { color: var(--accent); font-size: var(--font-lg); font-weight: 700; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .help-section h3 { color: var(--accent-light); font-size: var(--font-md); font-weight: 600; margin-top: 16px; margin-bottom: 8px; }
+  .help-section p { color: var(--text-primary); line-height: 1.6; margin-bottom: 8px; font-size: var(--font-md); }
+  .help-section ul { margin-left: 20px; margin-bottom: 8px; }
+  .help-section li { color: var(--text-primary); line-height: 1.6; font-size: var(--font-md); margin-bottom: 4px; }
+
+  /* Tables */
+  .help-table { width: 100%; border-collapse: collapse; font-size: var(--font-sm); margin: 12px 0; }
+  .help-table th { background: var(--bg-base); color: var(--accent); padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); }
+  .help-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); }
+  .help-table td:first-child { color: var(--text-primary); font-weight: 500; }
+  .help-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+
+  /* Formula blocks */
+  .formula { background: var(--bg-deep); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 16px; margin: 10px 0; font-family: var(--font-mono); font-size: var(--font-sm); color: var(--accent-light); overflow-x: auto; }
+
+  /* Notes / warnings */
+  .note { background: rgba(255,159,10,0.08); border: 1px solid rgba(255,159,10,0.3); border-radius: var(--radius-sm); padding: 10px 14px; margin: 10px 0; }
+  .note-label { color: var(--warning); font-weight: bold; font-size: var(--font-sm); }
+  .note-text { color: var(--text-secondary); font-size: var(--font-sm); }
+
+  .tip { background: rgba(48,209,88,0.08); border: 1px solid rgba(48,209,88,0.3); border-radius: var(--radius-sm); padding: 10px 14px; margin: 10px 0; }
+  .tip-label { color: var(--success); font-weight: bold; font-size: var(--font-sm); }
+  .tip-text { color: var(--text-secondary); font-size: var(--font-sm); }
+
+  /* Badges */
+  .kbd { display: inline-block; background: var(--bg-deep); border: 1px solid var(--border-input); border-radius: 3px; padding: 1px 6px; font-family: var(--font-mono); font-size: var(--font-xs); color: var(--text-secondary); }
+  .ch-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: var(--font-xs); font-weight: bold; margin: 0 1px; }
+  .ch-r { background: #4a2020; color: #ff6666; }
+  .ch-g { background: #204a20; color: #66ff66; }
+  .ch-b { background: #20204a; color: #6666ff; }
+
+  /* Language content visibility */
+  .lang-zh { display: none; }
+  .lang-en { display: block; }
+  body.lang-zh-active .lang-zh { display: block; }
+  body.lang-zh-active .lang-en { display: none; }
+</style>
+</head>
+<body>
+
+<div class="help-container">
+  <div class="help-header">
+    <div class="help-title">ColorLab Pro — Help</div>
+    <div class="help-subtitle">Professional LED/QD/CF Display Color Gamut Analysis Tool</div>
+  </div>
+
+  <div class="lang-toggle">
+    <button class="lang-btn active" id="btn-en" onclick="setLang('en')">English</button>
+    <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">中文</button>
+  </div>
+
+  <!-- ==================== ENGLISH CONTENT ==================== -->
+  <div class="lang-en">
+
+  <div class="toc">
+    <div class="toc-title">Table of Contents</div>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#quick-start">Quick Start Guide</a></li>
+      <li><a href="#spectrum-library">Spectrum Library</a></li>
+      <li><a href="#gamut-calculator">Gamut Calculator</a></li>
+      <li><a href="#white-point">White Point Calculator</a></li>
+      <li><a href="#thickness-optimizer">Thickness Optimizer</a></li>
+      <li><a href="#reference-data">Reference Data</a></li>
+      <li><a href="#history">History Manager</a></li>
+      <li><a href="#theory">Calculation Principles</a></li>
+      <li><a href="#parameters">Parameter Reference</a></li>
+      <li><a href="#notes">Important Notes</a></li>
+      <li><a href="#shortcuts">Keyboard Shortcuts</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. Overview -->
+  <div class="help-section" id="overview">
+    <h2>1. Overview</h2>
+    <p>ColorLab Pro is a professional color science tool for LED, Quantum Dot (QD), and Color Filter (CF) display analysis. It provides spectral measurement, color gamut calculation, white point optimization, and thickness optimization capabilities based on CIE standards.</p>
+    <p>The application uses the CIE 1931 2° Standard Observer as the default color matching function, with D65 as the default reference illuminant. All chromaticity calculations follow international CIE standards.</p>
+    <p><strong>Core dependencies:</strong> colour-science (CIE colorimetry), shapely (gamut geometry), scipy (optimization), numpy (numerical computation).</p>
+  </div>
+
+  <!-- 2. Quick Start -->
+  <div class="help-section" id="quick-start">
+    <h2>2. Quick Start Guide</h2>
+    <h3>Typical Workflow</h3>
+    <ul>
+      <li><strong>Step 1:</strong> Go to <em>Spectrum Library</em> (<span class="kbd">Alt+1</span>), import your LED/QD/CF spectral data files.</li>
+      <li><strong>Step 2:</strong> Go to <em>Gamut Calculator</em> (<span class="kbd">Alt+2</span>), select R/G/B spectra and CF materials, adjust thickness, then click "Calculate Gamut".</li>
+      <li><strong>Step 3:</strong> (Optional) Click "Send to White Point" to forward RGB primaries to the White Point Calculator.</li>
+      <li><strong>Step 4:</strong> (Optional) Go to <em>Thickness Optimizer</em> (<span class="kbd">Alt+4</span>), run grid search to find optimal CF thicknesses.</li>
+      <li><strong>Step 5:</strong> Save results to History or export a report.</li>
+    </ul>
+    <h3>Navigation</h3>
+    <p>Use the left sidebar or <span class="kbd">Alt+1</span>–<span class="kbd">Alt+6</span> to switch between pages. The View menu also provides navigation. Theme can be toggled via the Theme menu or the sidebar footer button.</p>
+  </div>
+
+  <!-- 3. Spectrum Library -->
+  <div class="help-section" id="spectrum-library">
+    <h2>3. Spectrum Library</h2>
+    <p>Central management of all spectral data. Supports import, paste, edit, filter, delete, and export operations.</p>
+
+    <h3>Importing Spectra</h3>
+    <ul>
+      <li>Click <strong>Import</strong> or press <span class="kbd">Ctrl+I</span>. A category dialog will appear.</li>
+      <li>Select a category: <strong>LED</strong> (light-emitting diode), <strong>CF</strong> (color filter transmittance), <strong>QD</strong> (quantum dot), or <strong>W</strong> (white light).</li>
+      <li>Supported file formats: CSV, TXT. Each line should contain "wavelength value" (in nm and arbitrary units).</li>
+    </ul>
+
+    <h3>Pasting Spectra</h3>
+    <p>Click <strong>Paste</strong>, enter a name, then paste spectral data in the text area. Format: one "wavelength value" pair per line (space or tab separated).</p>
+
+    <h3>Editing</h3>
+    <p>Double-click any cell in the Name, Category, Channel, or Thickness column to edit inline. Press Enter to confirm, Esc to cancel.</p>
+
+    <h3>Displayed Metrics</h3>
+    <table class="help-table">
+      <thead><tr><th>Metric</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Peak (nm)</td><td>Wavelength at maximum intensity</td></tr>
+        <tr><td>FWHM (nm)</td><td>Full Width at Half Maximum of the spectral peak</td></tr>
+        <tr><td>CIE 1931 xy</td><td>Chromaticity coordinates in CIE 1931 xy space</td></tr>
+        <tr><td>CIE 1976 u'v'</td><td>Chromaticity coordinates in CIE 1976 u'v' space</td></tr>
+        <tr><td>Dominant λ</td><td>Dominant wavelength (for chromatic colors only)</td></tr>
+        <tr><td>Purity</td><td>Excitation purity (0–1)</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <span class="note-label">Note:</span>
+      <span class="note-text">CF (Color Filter) spectra only display xy coordinates. Peak/FWHM/Dominant λ/Purity are not shown because CF spectra represent transmittance, not emission.</span>
+    </div>
+  </div>
+
+  <!-- 4. Gamut Calculator -->
+  <div class="help-section" id="gamut-calculator">
+    <h2>4. Gamut Calculator</h2>
+    <p>Calculates device color gamut from RGB emission spectra + Color Filter (CF) transmittance + CF thickness, and compares against standard gamuts.</p>
+
+    <h3>Two Modes</h3>
+    <ul>
+      <li><strong>RGB + Color Filter:</strong> Select R/G/B emission spectra and their corresponding CF materials. Each channel's filtered spectrum = emission × T<sup>thickness</sup>.</li>
+      <li><strong>White + Color Filter:</strong> Select a single white light spectrum; the same white spectrum passes through R/G/B CFs separately.</li>
+    </ul>
+
+    <h3>Thickness & Lambert-Beer Law</h3>
+    <p>The CF thickness applies the Lambert-Beer law to modulate transmittance:</p>
+    <div class="formula">T(λ, d) = T₀(λ)<sup>d</sup> &nbsp; → &nbsp; S_filtered(λ) = S_emission(λ) × T₀(λ)<sup>d</sup></div>
+    <p>where <strong>d</strong> is the CF thickness in μm, and <strong>T₀(λ)</strong> is the normalized CF transmittance (0–1). A thickness of 0 means no filtering (passes through unchanged).</p>
+
+    <h3>Results</h3>
+    <table class="help-table">
+      <thead><tr><th>Metric</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Coverage (%)</td><td>Device gamut area / Target standard area × 100. Can exceed 100%.</td></tr>
+        <tr><td>Match (%)</td><td>Intersection area / Target standard area × 100. Always ≤ 100%.</td></tr>
+        <tr><td>White xy</td><td>Chromaticity of the sum of filtered R/G/B spectra</td></tr>
+        <tr><td>CCT (K)</td><td>Correlated Color Temperature of the white point (Hernandez 1999)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Supported Standards</h3>
+    <p>sRGB, NTSC, DCI-P3, Adobe RGB, BT2020 — each with CIE 1931 xy and CIE 1976 u'v' results.</p>
+
+    <div class="tip">
+      <span class="tip-label">Tip:</span>
+      <span class="tip-text">Adjusting CF thickness triggers automatic recalculation (500ms debounce). Use the "Send to White Point" button to forward RGB primaries to the White Point page.</span>
+    </div>
+  </div>
+
+  <!-- 5. White Point -->
+  <div class="help-section" id="white-point">
+    <h2>5. White Point Calculator</h2>
+    <p>Computes the white point from RGB primaries and mixing ratios, or reverse-solves RGB ratios for a target white point.</p>
+
+    <h3>Forward Mode (RGB → White)</h3>
+    <p>Enter R/G/B chromaticity coordinates (xy) and mixing ratios. The white point xy is computed as:</p>
+    <div class="formula">XYZ_mix = w_R × XYZ_R + w_G × XYZ_G + w_B × XYZ_B &nbsp; → &nbsp; xy_white = XYZ_mix normalized</div>
+
+    <h3>Reverse Mode (White → Ratio)</h3>
+    <p>Enter R/G/B xy and target white xy. The optimal non-negative mixing ratios are solved using Non-Negative Least Squares (NNLS):</p>
+    <div class="formula">minimize ‖A·w − b‖₂ &nbsp; subject to &nbsp; w ≥ 0</div>
+    <p>where A is the 3×3 matrix of XYZ columns and b is the target XYZ (with Y=1).</p>
+
+    <h3>Results</h3>
+    <p>Displays the white point xy, u'v', CCT, and gamut coverage/match against sRGB/NTSC/DCI-P3/BT2020 in both CIE 1931 and 1976 spaces.</p>
+  </div>
+
+  <!-- 6. Thickness Optimizer -->
+  <div class="help-section" id="thickness-optimizer">
+    <h2>6. Thickness Optimizer</h2>
+    <p>Three optimization modes to find optimal CF thicknesses, CF material combinations, or emission spectra parameters.</p>
+
+    <h3>Filter 1: CF Thickness Grid Search</h3>
+    <p>Performs an exhaustive grid search over R/G/B CF thickness ranges. For each thickness combination:</p>
+    <ul>
+      <li>Compute filtered spectra via Lambert-Beer law</li>
+      <li>Calculate white point and device gamut</li>
+      <li>Score by white point accuracy (Δxy) and gamut coverage</li>
+    </ul>
+    <p>Results are sorted by (Δxy ascending, coverage descending) and the top 5 are returned.</p>
+    <div class="formula">Steps: default 10 per channel → 10³ = 1000 combinations</div>
+
+    <h3>Filter 2: CF Material Selection</h3>
+    <p>With fixed thicknesses, enumerates all CF material combinations from the library. Returns the top 10 combinations by coverage/match.</p>
+
+    <h3>Filter 3: Emission Spectra Optimization</h3>
+    <p>Adjusts R/G/B emission spectra by peak wavelength shift (Δλ) and FWHM scaling factor. For QD channels, blue light leakage is separated and preserved.</p>
+    <div class="formula">Peak shift: λ' = λ + Δλ &nbsp; | &nbsp; FWHM scaling: FWHM' = FWHM × factor</div>
+    <p>FWHM scaling uses a power transform: normalized values raised to the power 1/factor².</p>
+
+    <h3>Sensitivity Analysis</h3>
+    <p>Scans one channel's thickness while holding others fixed, showing how coverage and white point drift. Supports single-channel or all-channels modes.</p>
+
+    <div class="note">
+      <span class="note-label">Note:</span>
+      <span class="note-text">Grid search complexity is O(steps³). Emission optimization is O(steps⁶). Use steps ≤ 7 for emission optimization to avoid excessive computation time.</span>
+    </div>
+  </div>
+
+  <!-- 7. Reference Data -->
+  <div class="help-section" id="reference-data">
+    <h2>7. Reference Data</h2>
+    <p>A read-only reference page displaying standard color science data:</p>
+    <ul>
+      <li><strong>Standard Gamut Primaries:</strong> R/G/B/W coordinates (xy and u'v') for sRGB, NTSC, DCI-P3, Adobe RGB, BT2020</li>
+      <li><strong>CIE 1931 Chromaticity Diagram:</strong> Spectrum locus with all gamut triangles and standard illuminant points overlaid</li>
+      <li><strong>CIE 1931 CMF:</strong> Color matching functions x̄(λ), ȳ(λ), z̄(λ) at 5nm intervals (360–830nm)</li>
+      <li><strong>V(λ):</strong> CIE 1924 photopic luminous efficiency function (peak = 1.0 at 555nm)</li>
+      <li><strong>Standard Illuminants:</strong> 17 illuminants (A, B, C, D50–D75, E, FL2/FL7/FL11, HP1–HP5) with xy, u'v', and CCT</li>
+    </ul>
+  </div>
+
+  <!-- 8. History -->
+  <div class="help-section" id="history">
+    <h2>8. History Manager</h2>
+    <p>Browses saved calculation results from the Gamut Calculator and Thickness Optimizer. Each record stores channel analysis, gamut comparison data, and optimization results.</p>
+    <ul>
+      <li><strong>View:</strong> Click any record to see full details (channel spectra, gamut metrics, optimized thicknesses)</li>
+      <li><strong>Rename:</strong> Double-click the name cell to rename</li>
+      <li><strong>Delete:</strong> Click the trash icon and confirm</li>
+    </ul>
+  </div>
+
+  <!-- 9. Theory -->
+  <div class="help-section" id="theory">
+    <h2>9. Calculation Principles</h2>
+
+    <h3>9.1 XYZ Tristimulus Values</h3>
+    <p>From a spectral power distribution S(λ) and the CIE 1931 2° color matching functions:</p>
+    <div class="formula">X = k × Σ S(λ)·x̄(λ)·Δλ &nbsp; Y = k × Σ S(λ)·ȳ(λ)·Δλ &nbsp; Z = k × Σ S(λ)·z̄(λ)·Δλ
+k = 100 / Σ ȳ(λ)·Δλ (for illuminant E)</div>
+
+    <h3>9.2 Chromaticity Coordinates</h3>
+    <div class="formula">x = X / (X+Y+Z) &nbsp; y = Y / (X+Y+Z)</div>
+
+    <h3>9.3 CIE 1976 u'v'</h3>
+    <div class="formula">u' = 4x / (−2x + 12y + 3) &nbsp; v' = 9y / (−2x + 12y + 3)</div>
+
+    <h3>9.4 Correlated Color Temperature (CCT)</h3>
+    <p>Computed using the Hernandez 1999 approximation (an improvement over McCamy 1992):</p>
+    <div class="formula">CCT ≈ f(x, y) via polynomial approximation</div>
+
+    <h3>9.5 Gamut Coverage and Match</h3>
+    <p>Gamut triangles are modeled as shapely Polygon objects in xy (or u'v') space:</p>
+    <div class="formula">
+      Coverage = Area(device) / Area(target) × 100%
+      Match = Area(device ∩ target) / Area(target) × 100%
+    </div>
+    <p>Coverage can exceed 100% if the device gamut is larger than the target. Match is always ≤ 100%.</p>
+
+    <h3>9.6 Lambert-Beer Law (CF Thickness)</h3>
+    <div class="formula">T(λ, d) = T₀(λ)<sup>d</sup> &nbsp; → &nbsp; S_filtered(λ) = S_source(λ) × T₀(λ)<sup>d</sup></div>
+    <p>where d is thickness (μm), T₀ is normalized transmittance (0–1). The absorption coefficient α = −log₁₀(T₀).</p>
+
+    <h3>9.7 QD Blue Light Leakage Separation</h3>
+    <p>QD spectra contain blue LED leakage. The leakage ratio k is estimated by least-squares:</p>
+    <div class="formula">k = Σ[QD(λ)·B_LED(λ)] / Σ[B_LED(λ)²] &nbsp; (for λ &lt; cutoff)</div>
+    <p>QD emission = max(QD_total − k × B_LED, 0). When adjusting QD emission (peak/FWHM), the blue leakage is preserved separately.</p>
+
+    <h3>9.8 FWHM Measurement and Scaling</h3>
+    <p>FWHM is measured by linear interpolation to find the half-maximum crossing points. Scaling uses a power transform: for a Gaussian peak, raising normalized values to power p scales FWHM by 1/√p.</p>
+    <div class="formula">FWHM' = FWHM × factor &nbsp; → &nbsp; p = 1/factor² &nbsp; → &nbsp; S'(λ) = peak × (S(λ)/peak)<sup>p</sup></div>
+
+    <h3>9.9 White Point Mixing (NNLS)</h3>
+    <p>Non-negative least squares to find optimal RGB mixing ratios for a target white point:</p>
+    <div class="formula">minimize ‖A·w − b‖₂ &nbsp; subject to &nbsp; w ≥ 0
+A = [XYZ_R | XYZ_G | XYZ_B], &nbsp; b = target XYZ (Y=1)</div>
+  </div>
+
+  <!-- 10. Parameters -->
+  <div class="help-section" id="parameters">
+    <h2>10. Parameter Reference</h2>
+
+    <h3>Standard Gamut Primaries (CIE 1931 xy)</h3>
+    <table class="help-table">
+      <thead><tr><th>Standard</th><th>Red (x, y)</th><th>Green (x, y)</th><th>Blue (x, y)</th><th>White</th></tr></thead>
+      <tbody>
+        <tr><td>sRGB</td><td>0.640, 0.330</td><td>0.300, 0.600</td><td>0.150, 0.060</td><td>D65</td></tr>
+        <tr><td>DCI-P3</td><td>0.680, 0.320</td><td>0.265, 0.690</td><td>0.150, 0.060</td><td>D65</td></tr>
+        <tr><td>Adobe RGB</td><td>0.640, 0.330</td><td>0.210, 0.710</td><td>0.150, 0.060</td><td>D65</td></tr>
+        <tr><td>NTSC</td><td>0.670, 0.330</td><td>0.210, 0.710</td><td>0.140, 0.080</td><td>C</td></tr>
+        <tr><td>BT2020</td><td>0.708, 0.292</td><td>0.170, 0.797</td><td>0.131, 0.046</td><td>D65</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Thickness Optimizer Parameters</h3>
+    <table class="help-table">
+      <thead><tr><th>Parameter</th><th>Default</th><th>Range</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Steps (grid search)</td><td>10</td><td>5–20</td><td>Grid points per channel. Total = steps³</td></tr>
+        <tr><td>Thickness bounds</td><td>0–5 μm</td><td>0.1–10 μm</td><td>Min/max CF thickness per channel</td></tr>
+        <tr><td>Peak shift range</td><td>−10 to +10 nm</td><td>±20 nm</td><td>Wavelength shift for emission optimization</td></tr>
+        <tr><td>FWHM factor range</td><td>0.7–1.5</td><td>0.5–2.0</td><td>FWHM scaling factor for emission optimization</td></tr>
+        <tr><td>Blue cutoff</td><td>500 nm</td><td>—</td><td>Wavelength below which QD leakage is estimated</td></tr>
+        <tr><td>Target standard</td><td>BT2020</td><td>5 standards</td><td>Reference gamut for coverage/match</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Spectrum Categories</h3>
+    <table class="help-table">
+      <thead><tr><th>Category</th><th>Description</th><th>Usage</th></tr></thead>
+      <tbody>
+        <tr><td>LED</td><td>Light-emitting diode emission spectrum</td><td>Source spectra for R/G/B channels</td></tr>
+        <tr><td>QD</td><td>Quantum dot emission spectrum (may contain blue leakage)</td><td>Source spectra; supports leakage separation</td></tr>
+        <tr><td>CF</td><td>Color filter transmittance (0–1 or 0–100%)</td><td>Filter spectra applied via Lambert-Beer law</td></tr>
+        <tr><td>W</td><td>White light spectrum</td><td>Used in White+CF mode</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 11. Notes -->
+  <div class="help-section" id="notes">
+    <h2>11. Important Notes</h2>
+
+    <div class="note">
+      <span class="note-label">CF Transmittance Format:</span>
+      <span class="note-text">The application auto-detects whether CF transmittance is in 0–1 or 0–100% format. If max value > 1.5, it is treated as percentage and divided by 100. Ensure your CF data does not have ambiguous scaling.</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">QD Blue Leakage:</span>
+      <span class="note-text">QD spectra typically contain blue LED leakage below ~500nm. When optimizing QD emission (peak/FWHM), the leakage component is separated and preserved. If the B-LED changes, leakage is recalculated using the stored ratio k. Always select the correct B-LED spectrum for QD channels in the emission optimizer.</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">Wavelength Range:</span>
+      <span class="note-text">The standard calculation grid is 380–780nm at 1nm resolution (401 points). Spectra outside this range are automatically interpolated. Ensure your spectra cover at least the visible range for accurate results.</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">Coverage vs Match:</span>
+      <span class="note-text">Coverage can exceed 100% (device gamut larger than target). Match is always ≤ 100% (intersection area). A high coverage with low match indicates the device gamut is large but misaligned with the target.</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">CCT Accuracy:</span>
+      <span class="note-text">CCT is computed via the Hernandez 1999 approximation. For chromaticities far from the Planckian locus (Duv > 0.05), CCT may not be meaningful. Always check Duv alongside CCT.</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">Computation Time:</span>
+      <span class="note-text">Grid search with steps=10 takes ~1–2 seconds. Emission optimization with steps=5 evaluates 15,625 combinations and may take 10–30 seconds. Use the Stop button to cancel long-running optimizations.</span>
+    </div>
+
+    <div class="tip">
+      <span class="tip-label">Best Practice:</span>
+      <span class="tip-text">For accurate results, import spectra with 1nm or 5nm resolution. Avoid spectra with fewer than 50 data points. Always verify the spectrum category (LED/QD/CF/W) during import, as this affects how the spectrum is processed.</span>
+    </div>
+  </div>
+
+  <!-- 12. Shortcuts -->
+  <div class="help-section" id="shortcuts">
+    <h2>12. Keyboard Shortcuts</h2>
+    <table class="help-table">
+      <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><span class="kbd">Alt+1</span></td><td>Go to Spectrum Library</td></tr>
+        <tr><td><span class="kbd">Alt+2</span></td><td>Go to Gamut Calculator</td></tr>
+        <tr><td><span class="kbd">Alt+3</span></td><td>Go to White Point</td></tr>
+        <tr><td><span class="kbd">Alt+4</span></td><td>Go to Thickness Optimizer</td></tr>
+        <tr><td><span class="kbd">Alt+5</span></td><td>Go to History</td></tr>
+        <tr><td><span class="kbd">Alt+6</span></td><td>Go to Reference Data</td></tr>
+        <tr><td><span class="kbd">Ctrl+I</span></td><td>Import Spectrum</td></tr>
+        <tr><td><span class="kbd">Ctrl+E</span></td><td>Export Report (from Gamut Calculator)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  </div><!-- /lang-en -->
+
+  <!-- ==================== CHINESE CONTENT ==================== -->
+  <div class="lang-zh">
+
+  <div class="toc">
+    <div class="toc-title">目录</div>
+    <ol>
+      <li><a href="#overview-zh">概述</a></li>
+      <li><a href="#quick-start-zh">快速入门</a></li>
+      <li><a href="#spectrum-library-zh">光谱库</a></li>
+      <li><a href="#gamut-calculator-zh">色域计算器</a></li>
+      <li><a href="#white-point-zh">白点计算器</a></li>
+      <li><a href="#thickness-optimizer-zh">膜厚优化器</a></li>
+      <li><a href="#reference-data-zh">参考数据</a></li>
+      <li><a href="#history-zh">历史记录</a></li>
+      <li><a href="#theory-zh">计算原理</a></li>
+      <li><a href="#parameters-zh">参数说明</a></li>
+      <li><a href="#notes-zh">注意事项</a></li>
+      <li><a href="#shortcuts-zh">快捷键</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. 概述 -->
+  <div class="help-section" id="overview-zh">
+    <h2>1. 概述</h2>
+    <p>ColorLab Pro 是一款专业的颜色科学工具，用于 LED、量子点（QD）和彩色滤光片（CF）显示器分析。基于 CIE 国际标准，提供光谱测量、色域计算、白点优化和膜厚优化功能。</p>
+    <p>应用程序默认使用 CIE 1931 2° 标准观察者作为颜色匹配函数，D65 作为默认参考光源。所有色度计算均遵循 CIE 国际标准。</p>
+    <p><strong>核心依赖库：</strong> colour-science（CIE 色度学）、shapely（色域几何运算）、scipy（优化求解）、numpy（数值计算）。</p>
+  </div>
+
+  <!-- 2. 快速入门 -->
+  <div class="help-section" id="quick-start-zh">
+    <h2>2. 快速入门</h2>
+    <h3>典型工作流程</h3>
+    <ul>
+      <li><strong>第 1 步：</strong>进入「光谱库」<span class="kbd">Alt+1</span>，导入 LED/QD/CF 光谱数据文件。</li>
+      <li><strong>第 2 步：</strong>进入「色域计算器」<span class="kbd">Alt+2</span>，选择 R/G/B 光谱和 CF 材料，调整厚度，点击"Calculate Gamut"。</li>
+      <li><strong>第 3 步：</strong>（可选）点击"Send to White Point"将 RGB 基色坐标传给白点计算器。</li>
+      <li><strong>第 4 步：</strong>（可选）进入「膜厚优化器」<span class="kbd">Alt+4</span>，运行网格搜索寻找最优 CF 厚度。</li>
+      <li><strong>第 5 步：</strong>保存结果到历史记录或导出报告。</li>
+    </ul>
+    <h3>页面导航</h3>
+    <p>使用左侧侧边栏或按 <span class="kbd">Alt+1</span>–<span class="kbd">Alt+6</span> 切换页面。View 菜单也提供导航功能。主题可通过 Theme 菜单或侧边栏底部按钮切换。</p>
+  </div>
+
+  <!-- 3. 光谱库 -->
+  <div class="help-section" id="spectrum-library-zh">
+    <h2>3. 光谱库</h2>
+    <p>集中管理所有光谱数据，支持导入、粘贴、编辑、筛选、删除和导出操作。</p>
+
+    <h3>导入光谱</h3>
+    <ul>
+      <li>点击 <strong>Import</strong> 或按 <span class="kbd">Ctrl+I</span>，弹出分类选择对话框。</li>
+      <li>选择分类：<strong>LED</strong>（发光二极管）、<strong>CF</strong>（彩色滤光片透过率）、<strong>QD</strong>（量子点）、<strong>W</strong>（白光）。</li>
+      <li>支持文件格式：CSV、TXT。每行包含"波长 值"（单位为 nm 和任意单位）。</li>
+    </ul>
+
+    <h3>粘贴光谱</h3>
+    <p>点击 <strong>Paste</strong>，输入名称后在文本框中粘贴光谱数据。格式：每行一个"波长 值"对（空格或制表符分隔）。</p>
+
+    <h3>编辑</h3>
+    <p>双击 Name、Category、Channel 或 Thickness 列的单元格进行行内编辑。回车确认，Esc 取消。</p>
+
+    <h3>显示指标</h3>
+    <table class="help-table">
+      <thead><tr><th>指标</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>Peak (nm)</td><td>最大强度对应的波长</td></tr>
+        <tr><td>FWHM (nm)</td><td>半高全宽（光谱峰的宽度）</td></tr>
+        <tr><td>CIE 1931 xy</td><td>CIE 1931 xy 色度坐标</td></tr>
+        <tr><td>CIE 1976 u'v'</td><td>CIE 1976 u'v' 色度坐标</td></tr>
+        <tr><td>Dominant λ</td><td>主波长（仅对彩色光有意义）</td></tr>
+        <tr><td>Purity</td><td>激发纯度（0–1）</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <span class="note-label">注意：</span>
+      <span class="note-text">CF（彩色滤光片）光谱仅显示 xy 坐标，不显示 Peak/FWHM/主波长/纯度，因为 CF 光谱代表透过率而非发射光谱。</span>
+    </div>
+  </div>
+
+  <!-- 4. 色域计算器 -->
+  <div class="help-section" id="gamut-calculator-zh">
+    <h2>4. 色域计算器</h2>
+    <p>基于 RGB 发射光谱 + 彩色滤光片（CF）透过率 + CF 厚度，计算设备色域三角形，并与标准色域对比。</p>
+
+    <h3>两种模式</h3>
+    <ul>
+      <li><strong>RGB + Color Filter：</strong>分别选择 R/G/B 发射光谱及对应的 CF 材料。每个通道的滤光后光谱 = 发射光谱 × T<sup>厚度</sup>。</li>
+      <li><strong>White + Color Filter：</strong>选择一个白光光谱，同一白光分别通过 R/G/B 滤光片。</li>
+    </ul>
+
+    <h3>厚度与朗伯-比尔定律</h3>
+    <p>CF 厚度通过朗伯-比尔定律调制透过率：</p>
+    <div class="formula">T(λ, d) = T₀(λ)<sup>d</sup> &nbsp; → &nbsp; S_滤光后(λ) = S_发射(λ) × T₀(λ)<sup>d</sup></div>
+    <p>其中 <strong>d</strong> 为 CF 厚度（μm），<strong>T₀(λ)</strong> 为归一化 CF 透过率（0–1）。厚度为 0 时无滤光效果（原样通过）。</p>
+
+    <h3>结果说明</h3>
+    <table class="help-table">
+      <thead><tr><th>指标</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>Coverage (%)</td><td>设备色域面积 / 目标标准面积 × 100。可超过 100%。</td></tr>
+        <tr><td>Match (%)</td><td>交集面积 / 目标标准面积 × 100。恒 ≤ 100%。</td></tr>
+        <tr><td>White xy</td><td>R/G/B 滤光后光谱之和的色度坐标</td></tr>
+        <tr><td>CCT (K)</td><td>白点的相关色温（Hernandez 1999 法）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>支持的标准</h3>
+    <p>sRGB、NTSC、DCI-P3、Adobe RGB、BT2020 — 每个标准均提供 CIE 1931 xy 和 CIE 1976 u'v' 结果。</p>
+
+    <div class="tip">
+      <span class="tip-label">提示：</span>
+      <span class="tip-text">调整 CF 厚度会自动触发重算（500ms 防抖）。点击"Send to White Point"按钮可将 RGB 基色坐标传给白点计算器。</span>
+    </div>
+  </div>
+
+  <!-- 5. 白点计算器 -->
+  <div class="help-section" id="white-point-zh">
+    <h2>5. 白点计算器</h2>
+    <p>根据 RGB 基色和混合比例计算白点坐标（正向），或反推达到目标白点所需的 RGB 比例（反向）。</p>
+
+    <h3>正向模式（RGB → 白点）</h3>
+    <p>输入 R/G/B 色度坐标（xy）和混合比例，白点 xy 计算公式：</p>
+    <div class="formula">XYZ_混合 = w_R × XYZ_R + w_G × XYZ_G + w_B × XYZ_B &nbsp; → &nbsp; xy_白点 = XYZ_混合归一化</div>
+
+    <h3>反向模式（白点 → 比例）</h3>
+    <p>输入 R/G/B xy 和目标白点 xy，使用非负最小二乘法（NNLS）求解最优非负混合比例：</p>
+    <div class="formula">最小化 ‖A·w − b‖₂ &nbsp; 约束 &nbsp; w ≥ 0</div>
+    <p>其中 A 为 3×3 的 XYZ 列矩阵，b 为目标 XYZ（Y=1）。</p>
+
+    <h3>结果说明</h3>
+    <p>显示白点 xy、u'v'、CCT，以及与 sRGB/NTSC/DCI-P3/BT2020 的色域覆盖率和匹配度（CIE 1931 和 1976 空间）。</p>
+  </div>
+
+  <!-- 6. 膜厚优化器 -->
+  <div class="help-section" id="thickness-optimizer-zh">
+    <h2>6. 膜厚优化器</h2>
+    <p>提供三种优化模式：CF 厚度网格搜索、CF 材料组合选择、发射光谱参数优化。</p>
+
+    <h3>Filter 1：CF 厚度网格搜索</h3>
+    <p>对 R/G/B CF 厚度范围进行穷举网格搜索。对每组厚度组合：</p>
+    <ul>
+      <li>通过朗伯-比尔定律计算滤光后光谱</li>
+      <li>计算白点和设备色域</li>
+      <li>按白点精度（Δxy）和色域覆盖率评分</li>
+    </ul>
+    <p>结果按（Δxy 升序，覆盖率降序）排序，返回前 5 个最优结果。</p>
+    <div class="formula">步数：默认每通道 10 步 → 10³ = 1000 种组合</div>
+
+    <h3>Filter 2：CF 材料选择</h3>
+    <p>在固定厚度下，枚举 CF 库中所有材料组合。返回覆盖率/匹配度前 10 的组合。</p>
+
+    <h3>Filter 3：发射光谱优化</h3>
+    <p>通过峰值波长平移（Δλ）和 FWHM 缩放因子调整 R/G/B 发射光谱。对于 QD 通道，蓝光泄漏被分离并保留。</p>
+    <div class="formula">峰值平移：λ' = λ + Δλ &nbsp; | &nbsp; FWHM 缩放：FWHM' = FWHM × factor</div>
+    <p>FWHM 缩放采用幂变换：归一化值取 1/factor² 次幂。</p>
+
+    <h3>灵敏度分析</h3>
+    <p>固定其他通道，扫描某一通道的厚度，展示覆盖率和白点漂移趋势。支持单通道和全通道模式。</p>
+
+    <div class="note">
+      <span class="note-label">注意：</span>
+      <span class="note-text">网格搜索复杂度为 O(steps³)。发射光谱优化复杂度为 O(steps⁶)。发射光谱优化建议 steps ≤ 7，以避免计算时间过长。</span>
+    </div>
+  </div>
+
+  <!-- 7. 参考数据 -->
+  <div class="help-section" id="reference-data-zh">
+    <h2>7. 参考数据</h2>
+    <p>只读参考信息页面，展示标准颜色科学数据：</p>
+    <ul>
+      <li><strong>标准色域基色：</strong>sRGB、NTSC、DCI-P3、Adobe RGB、BT2020 的 R/G/B/W 坐标（xy 和 u'v'）</li>
+      <li><strong>CIE 1931 色度图：</strong>光谱轨迹上叠加所有色域三角形和标准光源点</li>
+      <li><strong>CIE 1931 色匹配函数：</strong>x̄(λ)、ȳ(λ)、z̄(λ)，5nm 间隔（360–830nm）</li>
+      <li><strong>V(λ)：</strong>CIE 1924 明视觉光谱光视效率函数（峰值 = 1.0 @ 555nm）</li>
+      <li><strong>标准光源：</strong>17 种光源（A、B、C、D50–D75、E、FL2/FL7/FL11、HP1–HP5）的 xy、u'v' 和 CCT</li>
+    </ul>
+  </div>
+
+  <!-- 8. 历史记录 -->
+  <div class="help-section" id="history-zh">
+    <h2>8. 历史记录</h2>
+    <p>浏览色域计算器和膜厚优化器保存的计算结果。每条记录包含通道分析、色域对比和优化结果数据。</p>
+    <ul>
+      <li><strong>查看：</strong>点击任意记录查看完整详情（通道光谱、色域指标、优化厚度）</li>
+      <li><strong>重命名：</strong>双击名称单元格进行重命名</li>
+      <li><strong>删除：</strong>点击删除图标并确认</li>
+    </ul>
+  </div>
+
+  <!-- 9. 计算原理 -->
+  <div class="help-section" id="theory-zh">
+    <h2>9. 计算原理</h2>
+
+    <h3>9.1 XYZ 三刺激值</h3>
+    <p>由光谱功率分布 S(λ) 和 CIE 1931 2° 颜色匹配函数计算：</p>
+    <div class="formula">X = k × Σ S(λ)·x̄(λ)·Δλ &nbsp; Y = k × Σ S(λ)·ȳ(λ)·Δλ &nbsp; Z = k × Σ S(λ)·z̄(λ)·Δλ
+k = 100 / Σ ȳ(λ)·Δλ（等能光源 E 时）</div>
+
+    <h3>9.2 色度坐标</h3>
+    <div class="formula">x = X / (X+Y+Z) &nbsp; y = Y / (X+Y+Z)</div>
+
+    <h3>9.3 CIE 1976 u'v'</h3>
+    <div class="formula">u' = 4x / (−2x + 12y + 3) &nbsp; v' = 9y / (−2x + 12y + 3)</div>
+
+    <h3>9.4 相关色温（CCT）</h3>
+    <p>使用 Hernandez 1999 近似法计算（McCamy 1992 的改进版）：</p>
+    <div class="formula">CCT ≈ f(x, y) 多项式近似</div>
+
+    <h3>9.5 色域覆盖率和匹配度</h3>
+    <p>色域三角形在 xy（或 u'v'）空间中建模为 shapely Polygon 多边形：</p>
+    <div class="formula">
+      覆盖率 = 设备色域面积 / 目标色域面积 × 100%
+      匹配度 = 交集面积 / 目标色域面积 × 100%
+    </div>
+    <p>覆盖率可超过 100%（设备色域大于目标时）。匹配度恒 ≤ 100%。</p>
+
+    <h3>9.6 朗伯-比尔定律（CF 厚度）</h3>
+    <div class="formula">T(λ, d) = T₀(λ)<sup>d</sup> &nbsp; → &nbsp; S_滤光后(λ) = S_光源(λ) × T₀(λ)<sup>d</sup></div>
+    <p>其中 d 为厚度（μm），T₀ 为归一化透过率（0–1）。吸收系数 α = −log₁₀(T₀)。</p>
+
+    <h3>9.7 QD 蓝光泄漏分离</h3>
+    <p>QD 光谱中通常含有蓝光 LED 泄漏。泄漏比 k 通过最小二乘法估计：</p>
+    <div class="formula">k = Σ[QD(λ)·B_LED(λ)] / Σ[B_LED(λ)²] &nbsp;（λ &lt; 截止波长时）</div>
+    <p>QD 发射 = max(QD_总 − k × B_LED, 0)。调整 QD 发射（峰值/FWHM）时，蓝光泄漏被分离保留。</p>
+
+    <h3>9.8 FWHM 测量与缩放</h3>
+    <p>FWHM 通过线性插值找到半高交叉点测量。缩放采用幂变换：对于高斯峰，归一化值取 p 次幂后 FWHM 变为原来的 1/√p。</p>
+    <div class="formula">FWHM' = FWHM × factor &nbsp; → &nbsp; p = 1/factor² &nbsp; → &nbsp; S'(λ) = peak × (S(λ)/peak)<sup>p</sup></div>
+
+    <h3>9.9 白点混合（NNLS）</h3>
+    <p>使用非负最小二乘法求解达到目标白点的最优 RGB 混合比例：</p>
+    <div class="formula">最小化 ‖A·w − b‖₂ &nbsp; 约束 &nbsp; w ≥ 0
+A = [XYZ_R | XYZ_G | XYZ_B], &nbsp; b = 目标 XYZ (Y=1)</div>
+  </div>
+
+  <!-- 10. 参数说明 -->
+  <div class="help-section" id="parameters-zh">
+    <h2>10. 参数说明</h2>
+
+    <h3>标准色域基色（CIE 1931 xy）</h3>
+    <table class="help-table">
+      <thead><tr><th>标准</th><th>红 (x, y)</th><th>绿 (x, y)</th><th>蓝 (x, y)</th><th>白点</th></tr></thead>
+      <tbody>
+        <tr><td>sRGB</td><td>0.640, 0.330</td><td>0.300, 0.600</td><td>0.150, 0.060</td><td>D65</td></tr>
+        <tr><td>DCI-P3</td><td>0.680, 0.320</td><td>0.265, 0.690</td><td>0.150, 0.060</td><td>D65</td></tr>
+        <tr><td>Adobe RGB</td><td>0.640, 0.330</td><td>0.210, 0.710</td><td>0.150, 0.060</td><td>D65</td></tr>
+        <tr><td>NTSC</td><td>0.670, 0.330</td><td>0.210, 0.710</td><td>0.140, 0.080</td><td>C</td></tr>
+        <tr><td>BT2020</td><td>0.708, 0.292</td><td>0.170, 0.797</td><td>0.131, 0.046</td><td>D65</td></tr>
+      </tbody>
+    </table>
+
+    <h3>膜厚优化器参数</h3>
+    <table class="help-table">
+      <thead><tr><th>参数</th><th>默认值</th><th>范围</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>步数（网格搜索）</td><td>10</td><td>5–20</td><td>每通道网格点数。总数 = steps³</td></tr>
+        <tr><td>厚度范围</td><td>0–5 μm</td><td>0.1–10 μm</td><td>每通道 CF 厚度最小/最大值</td></tr>
+        <tr><td>峰值平移范围</td><td>−10 ~ +10 nm</td><td>±20 nm</td><td>发射光谱优化的波长平移量</td></tr>
+        <tr><td>FWHM 缩放范围</td><td>0.7–1.5</td><td>0.5–2.0</td><td>发射光谱优化的 FWHM 缩放因子</td></tr>
+        <tr><td>蓝光截止波长</td><td>500 nm</td><td>—</td><td>低于此波长时估计 QD 蓝光泄漏</td></tr>
+        <tr><td>目标标准</td><td>BT2020</td><td>5 种标准</td><td>用于计算覆盖率/匹配度的参考色域</td></tr>
+      </tbody>
+    </table>
+
+    <h3>光谱分类</h3>
+    <table class="help-table">
+      <thead><tr><th>分类</th><th>说明</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td>LED</td><td>发光二极管发射光谱</td><td>R/G/B 通道的源光谱</td></tr>
+        <tr><td>QD</td><td>量子点发射光谱（可能含蓝光泄漏）</td><td>源光谱；支持泄漏分离</td></tr>
+        <tr><td>CF</td><td>彩色滤光片透过率（0–1 或 0–100%）</td><td>通过朗伯-比尔定律应用的滤光片光谱</td></tr>
+        <tr><td>W</td><td>白光光谱</td><td>用于白光+CF 模式</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 11. 注意事项 -->
+  <div class="help-section" id="notes-zh">
+    <h2>11. 注意事项</h2>
+
+    <div class="note">
+      <span class="note-label">CF 透过率格式：</span>
+      <span class="note-text">应用程序自动检测 CF 透过率是 0–1 还是 0–100% 格式。如果最大值 > 1.5，则视为百分比并除以 100。请确保 CF 数据的缩放方式不会产生歧义。</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">QD 蓝光泄漏：</span>
+      <span class="note-text">QD 光谱通常在 500nm 以下含有蓝光 LED 泄漏。在优化 QD 发射（峰值/FWHM）时，泄漏成分会被分离并保留。如果 B-LED 发生变化，将使用存储的泄漏比 k 重新计算泄漏。在发射光谱优化器中，请始终为 QD 通道选择正确的 B-LED 光谱。</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">波长范围：</span>
+      <span class="note-text">标准计算网格为 380–780nm，1nm 分辨率（401 个点）。超出此范围的光谱会自动插值。请确保光谱至少覆盖可见光范围以获得准确结果。</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">覆盖率 vs 匹配度：</span>
+      <span class="note-text">覆盖率可以超过 100%（设备色域大于目标时）。匹配度恒 ≤ 100%（交集面积）。高覆盖率但低匹配度说明设备色域虽大但与目标不对齐。</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">CCT 精度：</span>
+      <span class="note-text">CCT 通过 Hernandez 1999 近似法计算。对于远离普朗克轨迹的色度（Duv > 0.05），CCT 可能无意义。请同时检查 Duv 值。</span>
+    </div>
+
+    <div class="note">
+      <span class="note-label">计算时间：</span>
+      <span class="note-text">网格搜索 steps=10 约需 1–2 秒。发射光谱优化 steps=5 需评估 15,625 种组合，可能需要 10–30 秒。可使用 Stop 按钮取消长时间运行的优化。</span>
+    </div>
+
+    <div class="tip">
+      <span class="tip-label">最佳实践：</span>
+      <span class="tip-text">为获得准确结果，建议导入 1nm 或 5nm 分辨率的光谱。避免使用少于 50 个数据点的光谱。导入时务必核实光谱分类（LED/QD/CF/W），因为分类会影响光谱的处理方式。</span>
+    </div>
+  </div>
+
+  <!-- 12. 快捷键 -->
+  <div class="help-section" id="shortcuts-zh">
+    <h2>12. 快捷键</h2>
+    <table class="help-table">
+      <thead><tr><th>快捷键</th><th>功能</th></tr></thead>
+      <tbody>
+        <tr><td><span class="kbd">Alt+1</span></td><td>切换到光谱库</td></tr>
+        <tr><td><span class="kbd">Alt+2</span></td><td>切换到色域计算器</td></tr>
+        <tr><td><span class="kbd">Alt+3</span></td><td>切换到白点计算器</td></tr>
+        <tr><td><span class="kbd">Alt+4</span></td><td>切换到膜厚优化器</td></tr>
+        <tr><td><span class="kbd">Alt+5</span></td><td>切换到历史记录</td></tr>
+        <tr><td><span class="kbd">Alt+6</span></td><td>切换到参考数据</td></tr>
+        <tr><td><span class="kbd">Ctrl+I</span></td><td>导入光谱</td></tr>
+        <tr><td><span class="kbd">Ctrl+E</span></td><td>导出报告（从色域计算器）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  </div><!-- /lang-zh -->
+
+</div>
+
+<script>
+function setLang(lang) {
+    if (lang === 'zh') {
+        document.body.classList.add('lang-zh-active');
+        document.getElementById('btn-zh').classList.add('active');
+        document.getElementById('btn-en').classList.remove('active');
+    } else {
+        document.body.classList.remove('lang-zh-active');
+        document.getElementById('btn-en').classList.add('active');
+        document.getElementById('btn-zh').classList.remove('active');
+    }
+}
+
+// Smooth scroll for TOC links
+document.querySelectorAll('.toc a').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+});
+</script>
+</body>
+</html>
