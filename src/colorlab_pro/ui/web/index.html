@@ -567,6 +567,7 @@
                     <div class="menu-dropdown-item" onclick="menuAction('goto-whitepoint')">White Point<span class="menu-dropdown-shortcut">Alt+3</span></div>
                     <div class="menu-dropdown-item" onclick="menuAction('goto-optimizer')">Thickness Optimizer<span class="menu-dropdown-shortcut">Alt+4</span></div>
                     <div class="menu-dropdown-item" onclick="menuAction('goto-history')">History<span class="menu-dropdown-shortcut">Alt+5</span></div>
+                    <div class="menu-dropdown-item" onclick="menuAction('goto-reference')">Reference Data<span class="menu-dropdown-shortcut">Alt+6</span></div>
                 </div>
             </div>
 
@@ -623,6 +624,10 @@
                     <button class="nav-item" data-page="4" onclick="navigateTo(4)">
                         <span class="nav-icon">&#128196;</span>
                         <span class="nav-label">History</span>
+                    </button>
+                    <button class="nav-item" data-page="5" onclick="navigateTo(5)">
+                        <span class="nav-icon">&#128218;</span>
+                        <span class="nav-label">Reference Data</span>
                     </button>
                 </nav>
 
@@ -707,9 +712,10 @@
             'gamut_calculator_page.html',
             'white_point_page.html',
             'thickness_optimizer_page.html',
-            'history_page.html'
+            'history_page.html',
+            'reference_page.html'
         ];
-        var pageNames = ['Spectrum Library', 'Gamut Calculator', 'White Point', 'Thickness Optimizer', 'History'];
+        var pageNames = ['Spectrum Library', 'Gamut Calculator', 'White Point', 'Thickness Optimizer', 'History', 'Reference Data'];
         var currentPage = 0;
         var loadingTimer = null;
         var currentTheme = 'dark';
@@ -826,7 +832,7 @@
 
         /* ===== Keyboard Navigation ===== */
         document.addEventListener('keydown', function (e) {
-            if (e.altKey && e.key >= '1' && e.key <= '5') {
+            if (e.altKey && e.key >= '1' && e.key <= '6') {
                 e.preventDefault();
                 navigateTo(parseInt(e.key) - 1);
             }
@@ -857,10 +863,11 @@
                 case 'goto-whitepoint': navigateTo(2); break;
                 case 'goto-optimizer': navigateTo(3); break;
                 case 'goto-history': navigateTo(4); break;
+                case 'goto-reference': navigateTo(5); break;
                 case 'theme-dark': applyTheme('dark'); if (api) api.set_theme('dark'); break;
                 case 'theme-light': applyTheme('light'); if (api) api.set_theme('light'); break;
                 case 'about': showDialog('about-overlay'); break;
-                case 'shortcuts': alert('Keyboard Shortcuts:\n\nAlt+1 — Spectrum Library\nAlt+2 — Gamut Calculator\nAlt+3 — White Point\nAlt+4 — Thickness Optimizer\nAlt+5 — History\nCtrl+I — Import Spectrum'); break;
+                case 'shortcuts': alert('Keyboard Shortcuts:\n\nAlt+1 — Spectrum Library\nAlt+2 — Gamut Calculator\nAlt+3 — White Point\nAlt+4 — Thickness Optimizer\nAlt+5 — History\nAlt+6 — Reference Data\nCtrl+I — Import Spectrum'); break;
                 case 'set-password': showSetPasswordDialog(); break;
                 case 'import-spectrum':
                     navigateTo(0);

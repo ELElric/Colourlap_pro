@@ -1641,3 +1641,16 @@ class ColorLabApi:
             return {"ok": ok}
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
+
+    # ================================================================== #
+    # Reference Data Page
+    # ================================================================== #
+
+    def reference_get_data(self) -> dict:
+        """Return all reference data for the reference page."""
+        try:
+            from colorlab_pro.engines.reference_data import get_reference_data
+
+            return get_reference_data()
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)

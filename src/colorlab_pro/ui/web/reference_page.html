@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reference Data</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  .ref-container { max-width: 1200px; margin: 0 auto; }
+  .ref-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--gap-lg); }
+  .ref-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .ref-section-title { color: var(--accent); font-weight: bold; font-size: var(--font-md); }
+  .ref-section-body { padding: 12px 16px; }
+
+  /* Gamut table */
+  .gamut-ref-table { width: 100%; border-collapse: collapse; font-size: var(--font-sm); }
+  .gamut-ref-table th { background: var(--bg-base); color: var(--accent); padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid var(--border); }
+  .gamut-ref-table td { padding: 6px 10px; text-align: center; border-bottom: 1px solid var(--border-light); font-family: var(--font-mono); color: #b0b0b0; }
+  .gamut-ref-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+  .gamut-ref-table tbody tr:hover { background: var(--bg-hover); }
+  .gamut-name-cell { font-weight: bold; color: var(--text-primary); font-family: var(--font-family); }
+  .channel-label { font-weight: bold; font-size: var(--font-xs); }
+  .ch-r-text { color: var(--ch-r); }
+  .ch-g-text { color: var(--ch-g); }
+  .ch-b-text { color: var(--ch-b); }
+  .ch-w-text { color: var(--ch-w); }
+
+  /* Chart containers */
+  .chart-container { height: 320px; background: var(--chart-bg); border-radius: var(--radius-sm); }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-md); }
+
+  /* Illuminant table */
+  .illuminant-table { width: 100%; border-collapse: collapse; font-size: var(--font-sm); }
+  .illuminant-table th { background: var(--bg-base); color: var(--accent); padding: 8px 10px; text-align: center; font-weight: normal; border-bottom: 2px solid var(--border); }
+  .illuminant-table td { padding: 6px 10px; text-align: center; border-bottom: 1px solid var(--border-light); font-family: var(--font-mono); color: #b0b0b0; }
+  .illuminant-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+  .illuminant-table tbody tr:hover { background: var(--bg-hover); }
+  .illuminant-name { font-weight: bold; color: var(--text-primary); font-family: var(--font-family); }
+  .cct-value { color: var(--warning); }
+
+  /* Info banner */
+  .info-banner { background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: var(--gap-lg); display: flex; align-items: center; gap: 10px; }
+  .info-icon { font-size: 18px; }
+  .info-text { color: var(--text-secondary); font-size: var(--font-sm); }
+
+  /* CIE diagram */
+  .cie-diagram-container { height: 360px; background: var(--chart-bg); border-radius: var(--radius-sm); }
+
+  /* Loading state */
+  .ref-loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-muted); }
+</style>
+<script src="echarts.min.js"></script>
+<script src="cie_chromaticity_data.js?v=3"></script>
+<script>
+// pywebview API bridge
+var api = (window.pywebview && window.pywebview.api) ||
+          (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+
+function callApi(method) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (!api) { return Promise.reject(new Error('API not available')); }
+    return Promise.resolve(api[method].apply(api, args));
+}
+
+function waitForApi(callback, maxWait) {
+    maxWait = maxWait || 30000;
+    var start = Date.now();
+    function check() {
+        if (api) { callback(); return; }
+        api = (window.pywebview && window.pywebview.api) ||
+              (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+        if (api) { callback(); return; }
+        if (Date.now() - start > maxWait) { callback(); return; }
+        setTimeout(check, 200);
+    }
+    check();
+}
+</script>
+</head>
+<body>
+<div class="ref-container">
+  <div class="info-banner">
+    <span class="info-icon">&#128218;</span>
+    <span class="info-text">Reference data for color science: CIE 1931 standard observer, V(λ) photopic function, standard illuminants, and gamut primaries. All values are based on CIE standards.</span>
+  </div>
+
+  <!-- Gamut Standards -->
+  <div class="ref-section">
+    <div class="ref-section-header">
+      <span class="ref-section-title">Standard Gamut Primaries</span>
+      <span class="ref-section-hint" style="color: var(--text-muted); font-size: var(--font-xs);">CIE 1931 xy &amp; CIE 1976 u'v'</span>
+    </div>
+    <div class="ref-section-body">
+      <table class="gamut-ref-table" id="gamut-table">
+        <thead>
+          <tr>
+            <th rowspan="2">Standard</th>
+            <th colspan="2">Red</th>
+            <th colspan="2">Green</th>
+            <th colspan="2">Blue</th>
+            <th colspan="2">White</th>
+          </tr>
+          <tr>
+            <th>x / y</th><th>u' / v'</th>
+            <th>x / y</th><th>u' / v'</th>
+            <th>x / y</th><th>u' / v'</th>
+            <th>x / y</th><th>u' / v'</th>
+          </tr>
+        </thead>
+        <tbody id="gamut-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CIE 1931 Chromaticity Diagram with Gamut Triangles -->
+  <div class="ref-section">
+    <div class="ref-section-header">
+      <span class="ref-section-title">CIE 1931 Chromaticity Diagram &mdash; Gamut Triangles &amp; Illuminants</span>
+    </div>
+    <div class="ref-section-body">
+      <div class="cie-diagram-container" id="cie-diagram"></div>
+    </div>
+  </div>
+
+  <!-- CIE Color Matching Functions -->
+  <div class="ref-section">
+    <div class="ref-section-header">
+      <span class="ref-section-title">CIE 1931 2&deg; Standard Observer &mdash; Color Matching Functions</span>
+      <span style="color: var(--text-muted); font-size: var(--font-xs);">x&#772;(λ), y&#772;(λ), z&#772;(λ)</span>
+    </div>
+    <div class="ref-section-body">
+      <div class="chart-container" id="cmf-chart"></div>
+    </div>
+  </div>
+
+  <!-- V(λ) Photopic Luminous Efficiency -->
+  <div class="ref-section">
+    <div class="ref-section-header">
+      <span class="ref-section-title">V(λ) &mdash; CIE 1924 Photopic Luminous Efficiency Function</span>
+      <span style="color: var(--text-muted); font-size: var(--font-xs);">Peak = 1.0 at 555 nm</span>
+    </div>
+    <div class="ref-section-body">
+      <div class="chart-container" id="vlambda-chart"></div>
+    </div>
+  </div>
+
+  <!-- Standard Illuminants -->
+  <div class="ref-section">
+    <div class="ref-section-header">
+      <span class="ref-section-title">Standard Illuminants &mdash; Chromaticity &amp; CCT</span>
+      <span style="color: var(--text-muted); font-size: var(--font-xs);">CIE 1931 2&deg; Observer</span>
+    </div>
+    <div class="ref-section-body">
+      <table class="illuminant-table" id="illuminant-table">
+        <thead>
+          <tr>
+            <th>Illuminant</th>
+            <th>Description</th>
+            <th>x</th>
+            <th>y</th>
+            <th>u'</th>
+            <th>v'</th>
+            <th>CCT (K)</th>
+          </tr>
+        </thead>
+        <tbody id="illuminant-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+var refData = null;
+
+var ILLUMINANT_DESCRIPTIONS = {
+    'A':   'Tungsten / Incandescent',
+    'B':   'Direct sunlight (obsolete)',
+    'C':   'Average daylight (obsolete)',
+    'D50': 'Horizon light (printing)',
+    'D55': 'Mid-morning daylight',
+    'D60': '6000K daylight',
+    'D65': ' Noon daylight (sRGB standard)',
+    'D75': 'North-sky daylight',
+    'E':   'Equal-energy illuminant',
+    'FL2': 'Cool white fluorescent',
+    'FL7': 'Daylight fluorescent',
+    'FL11':'TL84 / Narrow tri-band',
+    'HP1': 'High-pressure sodium',
+    'HP2': 'High-pressure sodium',
+    'HP3': 'High-pressure sodium',
+    'HP4': 'High-pressure sodium',
+    'HP5': 'High-pressure sodium'
+};
+
+var GAMUT_COLORS = {
+    'sRGB':     '#ff6666',
+    'NTSC':     '#ffd700',
+    'DCI-P3':   '#30d158',
+    'Adobe RGB':'#ff8c00',
+    'BT2020':   '#5e5ce6'
+};
+
+function fmt(v) { return v !== null && v !== undefined ? v.toFixed(4) : '—'; }
+
+function renderGamutTable(gamuts) {
+    var tbody = document.getElementById('gamut-tbody');
+    var html = '';
+    var order = ['sRGB', 'NTSC', 'DCI-P3', 'Adobe RGB', 'BT2020'];
+    for (var i = 0; i < order.length; i++) {
+        var name = order[i];
+        var g = gamuts[name];
+        if (!g) continue;
+        var color = GAMUT_COLORS[name] || '#888';
+        html += '<tr>';
+        html += '<td class="gamut-name-cell" style="color:' + color + ';">' + name + '</td>';
+        var channels = [['r','R','ch-r-text'], ['g','G','ch-g-text'], ['b','B','ch-b-text'], ['w','W','ch-w-text']];
+        for (var j = 0; j < channels.length; j++) {
+            var key = channels[j][0];
+            var ch = channels[j][1];
+            var cls = channels[j][2];
+            var p = g[key];
+            html += '<td><span class="channel-label ' + cls + '">' + ch + '</span> ' + fmt(p.x) + ', ' + fmt(p.y) + '</td>';
+            html += '<td>' + fmt(p.u) + ', ' + fmt(p.v) + '</td>';
+        }
+        html += '</tr>';
+    }
+    tbody.innerHTML = html;
+}
+
+function renderIlluminantTable(illuminants) {
+    var tbody = document.getElementById('illuminant-tbody');
+    var html = '';
+    for (var i = 0; i < illuminants.length; i++) {
+        var ill = illuminants[i];
+        var desc = ILLUMINANT_DESCRIPTIONS[ill.name] || '';
+        html += '<tr>';
+        html += '<td class="illuminant-name">' + ill.name + '</td>';
+        html += '<td style="color: var(--text-muted); font-family: var(--font-family);">' + desc + '</td>';
+        html += '<td>' + fmt(ill.x) + '</td>';
+        html += '<td>' + fmt(ill.y) + '</td>';
+        html += '<td>' + fmt(ill.u) + '</td>';
+        html += '<td>' + fmt(ill.v) + '</td>';
+        html += '<td class="cct-value">' + (ill.cct ? Math.round(ill.cct) : '—') + '</td>';
+        html += '</tr>';
+    }
+    tbody.innerHTML = html;
+}
+
+function getCssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#555';
+}
+
+function renderCMFChart(cmf) {
+    var chart = echarts.init(document.getElementById('cmf-chart'));
+    var wl = cmf.map(function(r) { return r[0]; });
+    var xBar = cmf.map(function(r) { return r[1]; });
+    var yBar = cmf.map(function(r) { return r[2]; });
+    var zBar = cmf.map(function(r) { return r[3]; });
+
+    var axisColor = getCssVar('--echarts-axis');
+    var gridColor = getCssVar('--echarts-grid');
+    var textColor = getCssVar('--text-muted');
+
+    chart.setOption({
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis', backgroundColor: getCssVar('--tooltip-bg'), borderColor: getCssVar('--tooltip-border'), textStyle: { color: getCssVar('--tooltip-text') } },
+        legend: { data: ['x\u0304(λ)', 'y\u0304(λ)', 'z\u0304(λ)'], textStyle: { color: textColor }, top: 5 },
+        grid: { left: 50, right: 20, top: 40, bottom: 35 },
+        xAxis: { type: 'category', data: wl, name: 'λ (nm)', nameTextStyle: { color: textColor }, axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: textColor, fontSize: 10, interval: 9 } },
+        yAxis: { type: 'value', name: 'Value', nameTextStyle: { color: textColor }, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 10 } },
+        series: [
+            { name: 'x\u0304(λ)', type: 'line', data: xBar, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#ff4444' }, areaStyle: { color: 'rgba(255,68,68,0.08)' } },
+            { name: 'y\u0304(λ)', type: 'line', data: yBar, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#44dd44' }, areaStyle: { color: 'rgba(68,221,68,0.08)' } },
+            { name: 'z\u0304(λ)', type: 'line', data: zBar, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#4488ff' }, areaStyle: { color: 'rgba(68,136,255,0.08)' } }
+        ]
+    });
+    window.addEventListener('resize', function() { chart.resize(); });
+}
+
+function renderVLambdaChart(vlambda) {
+    var chart = echarts.init(document.getElementById('vlambda-chart'));
+    var wl = vlambda.map(function(r) { return r[0]; });
+    var vals = vlambda.map(function(r) { return r[1]; });
+
+    var axisColor = getCssVar('--echarts-axis');
+    var gridColor = getCssVar('--echarts-grid');
+    var textColor = getCssVar('--text-muted');
+
+    chart.setOption({
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis', backgroundColor: getCssVar('--tooltip-bg'), borderColor: getCssVar('--tooltip-border'), textStyle: { color: getCssVar('--tooltip-text') }, formatter: function(p) { return 'λ = ' + p[0].axisValue + ' nm<br/>V(λ) = ' + p[0].data.toFixed(6); } },
+        grid: { left: 50, right: 20, top: 20, bottom: 35 },
+        xAxis: { type: 'category', data: wl, name: 'λ (nm)', nameTextStyle: { color: textColor }, axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: textColor, fontSize: 10, interval: 9 } },
+        yAxis: { type: 'value', name: 'V(λ)', nameTextStyle: { color: textColor }, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 10 }, max: 1.0 },
+        series: [{ name: 'V(λ)', type: 'line', data: vals, smooth: true, symbol: 'none', lineStyle: { width: 2.5, color: '#ffcc00' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(255,204,0,0.25)' }, { offset: 1, color: 'rgba(255,204,0,0.02)' }]) }, markPoint: { data: [{ coord: ['555', 1.0], symbol: 'circle', symbolSize: 8, itemStyle: { color: '#ffcc00' }, label: { show: true, formatter: 'Peak 555nm', position: 'top', color: textColor, fontSize: 10 } }] } }]
+    });
+    window.addEventListener('resize', function() { chart.resize(); });
+}
+
+function renderCIEDiagram(gamuts, illuminants) {
+    var chart = echarts.init(document.getElementById('cie-diagram'));
+    var textColor = getCssVar('--text-muted');
+    var axisColor = getCssVar('--echarts-axis');
+
+    var series = [];
+
+    // Spectrum locus outline
+    if (typeof CIE_DATA !== 'undefined' && CIE_DATA.spectrum_locus_xy) {
+        series.push({
+            name: 'Spectrum Locus',
+            type: 'line',
+            data: CIE_DATA.spectrum_locus_xy,
+            symbol: 'none',
+            lineStyle: { color: '#666', width: 1.5 },
+            silent: true,
+            z: 1
+        });
+    }
+
+    // Gamut triangles
+    var order = ['sRGB', 'NTSC', 'DCI-P3', 'Adobe RGB', 'BT2020'];
+    for (var i = 0; i < order.length; i++) {
+        var name = order[i];
+        var g = gamuts[name];
+        if (!g) continue;
+        var color = GAMUT_COLORS[name] || '#888';
+        var triangle = [[g.r.x, g.r.y], [g.g.x, g.g.y], [g.b.x, g.b.y], [g.r.x, g.r.y]];
+        series.push({
+            name: name,
+            type: 'line',
+            data: triangle,
+            symbol: 'circle',
+            symbolSize: 5,
+            lineStyle: { color: color, width: 2 },
+            itemStyle: { color: color },
+            z: 3
+        });
+    }
+
+    // Illuminant points
+    var illData = [];
+    for (var j = 0; j < illuminants.length; j++) {
+        var ill = illuminants[j];
+        if (ill.name.startsWith('HP')) continue;
+        illData.push({ value: [ill.x, ill.y], name: ill.name });
+    }
+    series.push({
+        name: 'Illuminants',
+        type: 'scatter',
+        data: illData,
+        symbol: 'diamond',
+        symbolSize: 8,
+        itemStyle: { color: '#ffffff', borderColor: '#333', borderWidth: 1 },
+        label: { show: true, formatter: function(p) { return p.data.name; }, position: 'right', color: textColor, fontSize: 9 },
+        z: 5
+    });
+
+    chart.setOption({
+        backgroundColor: 'transparent',
+        tooltip: {
+            formatter: function(p) {
+                if (p.data.name) return p.data.name + ': (' + p.value[0].toFixed(4) + ', ' + p.value[1].toFixed(4) + ')';
+                return '(' + p.value[0].toFixed(4) + ', ' + p.value[1].toFixed(4) + ')';
+            },
+            backgroundColor: getCssVar('--tooltip-bg'),
+            borderColor: getCssVar('--tooltip-border'),
+            textStyle: { color: getCssVar('--tooltip-text') }
+        },
+        legend: { data: order, textStyle: { color: textColor, fontSize: 10 }, top: 5, type: 'scroll' },
+        grid: { left: 60, right: 30, top: 40, bottom: 40 },
+        xAxis: { type: 'value', name: 'x', nameTextStyle: { color: textColor }, min: 0, max: 0.8, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: '#333' } }, axisLabel: { color: textColor, fontSize: 10 } },
+        yAxis: { type: 'value', name: 'y', nameTextStyle: { color: textColor }, min: 0, max: 0.9, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: '#333' } }, axisLabel: { color: textColor, fontSize: 10 } },
+        series: series
+    });
+    window.addEventListener('resize', function() { chart.resize(); });
+}
+
+function renderAll(data) {
+    refData = data;
+    renderGamutTable(data.gamuts);
+    renderIlluminantTable(data.illuminants);
+    renderCMFChart(data.cmf);
+    renderVLambdaChart(data.vlambda);
+    renderCIEDiagram(data.gamuts, data.illuminants);
+}
+
+waitForApi(function() {
+    if (!api) {
+        document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">API not available. Please restart the application.</div>';
+        return;
+    }
+    callApi('reference_get_data').then(function(data) {
+        if (data && data.error) {
+            document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">Error: ' + data.error + '</div>';
+            return;
+        }
+        renderAll(data);
+    }).catch(function(err) {
+        document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">Failed to load: ' + err.message + '</div>';
+    });
+});
+
+// Theme message listener
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'theme') {
+        // Re-render charts to pick up new theme colors
+        if (refData) {
+            setTimeout(function() { renderAll(refData); }, 100);
+        }
+    }
+});
+</script>
+</body>
+</html>
