@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ColorLab Pro — Help / 帮助文档</title>
 <link rel="stylesheet" href="theme.css">
 <style>
@@ -62,6 +63,18 @@
   .lang-en { display: block; }
   body.lang-zh-active .lang-zh { display: block; }
   body.lang-zh-active .lang-en { display: none; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .help-container { padding: 0 12px; }
+    .help-header { padding: 16px 0 12px; }
+    .help-section { padding: 14px 16px; }
+    .help-table { font-size: var(--font-xs); }
+    .help-table th, .help-table td { padding: 4px 6px; }
+    .formula { font-size: var(--font-xs); padding: 8px 12px; }
+    .toc { padding: 12px 14px; }
+    .toc ol { margin-left: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -73,8 +86,8 @@
   </div>
 
   <div class="lang-toggle">
-    <button class="lang-btn active" id="btn-en" onclick="setLang('en')">English</button>
-    <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">中文</button>
+    <button class="lang-btn active" id="btn-en" onclick="setLang('en')" aria-label="English" aria-pressed="true">English</button>
+    <button class="lang-btn" id="btn-zh" onclick="setLang('zh')" aria-label="中文" aria-pressed="false">中文</button>
   </div>
 
   <!-- ==================== ENGLISH CONTENT ==================== -->
@@ -755,14 +768,20 @@ A = [XYZ_R | XYZ_G | XYZ_B], &nbsp; b = 目标 XYZ (Y=1)</div>
 
 <script>
 function setLang(lang) {
+    var btnEn = document.getElementById('btn-en');
+    var btnZh = document.getElementById('btn-zh');
     if (lang === 'zh') {
         document.body.classList.add('lang-zh-active');
-        document.getElementById('btn-zh').classList.add('active');
-        document.getElementById('btn-en').classList.remove('active');
+        btnZh.classList.add('active');
+        btnZh.setAttribute('aria-pressed', 'true');
+        btnEn.classList.remove('active');
+        btnEn.setAttribute('aria-pressed', 'false');
     } else {
         document.body.classList.remove('lang-zh-active');
-        document.getElementById('btn-en').classList.add('active');
-        document.getElementById('btn-zh').classList.remove('active');
+        btnEn.classList.add('active');
+        btnEn.setAttribute('aria-pressed', 'true');
+        btnZh.classList.remove('active');
+        btnZh.setAttribute('aria-pressed', 'false');
     }
 }
 
@@ -771,7 +790,12 @@ document.querySelectorAll('.toc a').forEach(function(link) {
     link.addEventListener('click', function(e) {
         e.preventDefault();
         var target = document.querySelector(this.getAttribute('href'));
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            // Fallback: update hash for native browser navigation
+            window.location.hash = this.getAttribute('href');
+        }
     });
 });
 </script>

@@ -569,6 +569,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
         .help-close-btn:hover { background: var(--btn-primary-hover); }
+        body.theme-light .help-close-btn { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
     </style>
 </head>
 <body>
@@ -948,9 +949,14 @@
         }
 
         /* ===== Help Documentation Overlay ===== */
+        var helpFrameLoaded = false;
         function openHelpOverlay() {
             var frame = document.getElementById('help-overlay-frame');
-            if (frame.src.indexOf('help.html') === -1) {
+            if (!helpFrameLoaded) {
+                frame.onload = function() { helpFrameLoaded = true; };
+                frame.onerror = function() {
+                    alert('Failed to load help documentation. Please check if help.html exists.');
+                };
                 frame.src = 'help.html';
             }
             document.getElementById('help-overlay').classList.add('active');
