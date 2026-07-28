@@ -319,16 +319,16 @@ function setExportEnabled(enabled) {
     }
 }
 
-function populateSelectors(spectra) {
+function populateSelectors(spectra, defaults) {
     currentSpectra = spectra || [];
     var configs = [
-        { id: 'red-select',   catFilter: ['QD','LED'], chFilter: 'R' },
-        { id: 'green-select', catFilter: ['QD','LED'], chFilter: 'G' },
-        { id: 'blue-select',  catFilter: ['QD','LED'], chFilter: 'B' },
-        { id: 'white-select', catFilter: null,          chFilter: 'W' },
-        { id: 'rcf-select',   catFilter: ['CF'],        chFilter: 'R' },
-        { id: 'gcf-select',   catFilter: ['CF'],        chFilter: 'G' },
-        { id: 'bcf-select',   catFilter: ['CF'],        chFilter: 'B' }
+        { id: 'red-select',   catFilter: ['QD','LED'], chFilter: 'R', dftKey: 'red' },
+        { id: 'green-select', catFilter: ['QD','LED'], chFilter: 'G', dftKey: 'green' },
+        { id: 'blue-select',  catFilter: ['QD','LED'], chFilter: 'B', dftKey: 'blue' },
+        { id: 'white-select', catFilter: null,          chFilter: 'W', dftKey: null },
+        { id: 'rcf-select',   catFilter: ['CF'],        chFilter: 'R', dftKey: 'cf_red' },
+        { id: 'gcf-select',   catFilter: ['CF'],        chFilter: 'G', dftKey: 'cf_green' },
+        { id: 'bcf-select',   catFilter: ['CF'],        chFilter: 'B', dftKey: 'cf_blue' }
     ];
     configs.forEach(function(cfg) {
         var sel = document.getElementById(cfg.id);
@@ -350,7 +350,11 @@ function populateSelectors(spectra) {
             opt.textContent = s.name + ' (' + (s.category || '') + ')';
             sel.appendChild(opt);
         });
-        if (current) sel.value = current;
+        if (current) {
+            sel.value = current;
+        } else if (defaults && cfg.dftKey && defaults[cfg.dftKey]) {
+            sel.value = String(defaults[cfg.dftKey]);
+        }
     });
 }
 
@@ -1161,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function() {
         callApi('gamut_get_initial_data').then(function(data) {
             setLoading(false);
             if (data.error) { logStatus('Load failed: ' + data.error); return; }
-            populateSelectors(data.spectra);
+            populateSelectors(data.spectra, data.defaults);
         }).catch(function(err) {
             setLoading(false);
             logStatus('Error: ' + (err.message || err));

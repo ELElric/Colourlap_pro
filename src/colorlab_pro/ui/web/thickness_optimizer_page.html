@@ -319,14 +319,14 @@ function onSensChannelChange() {
     }
 }
 
-function populateSelectors(spectra) {
+function populateSelectors(spectra, defaults) {
     var configs = [
-        { id: 'source-r', catFilter: ['QD','LED','White'], chMatch: function(ch) { return ch === 'R'; } },
-        { id: 'source-g', catFilter: ['QD','LED','White'], chMatch: function(ch) { return ch === 'G'; } },
-        { id: 'source-b', catFilter: ['QD','LED','White'], chMatch: function(ch) { return ch === 'B'; } },
-        { id: 'cf-r',     catFilter: ['CF'],              chMatch: function(ch) { return ch === 'RCF' || ch === 'R'; } },
-        { id: 'cf-g',     catFilter: ['CF'],              chMatch: function(ch) { return ch === 'GCF' || ch === 'G'; } },
-        { id: 'cf-b',     catFilter: ['CF'],              chMatch: function(ch) { return ch === 'BCF' || ch === 'B'; } }
+        { id: 'source-r', catFilter: ['QD','LED','White'], chMatch: function(ch) { return ch === 'R'; }, dftKey: 'red' },
+        { id: 'source-g', catFilter: ['QD','LED','White'], chMatch: function(ch) { return ch === 'G'; }, dftKey: 'green' },
+        { id: 'source-b', catFilter: ['QD','LED','White'], chMatch: function(ch) { return ch === 'B'; }, dftKey: 'blue' },
+        { id: 'cf-r',     catFilter: ['CF'],              chMatch: function(ch) { return ch === 'RCF' || ch === 'R'; }, dftKey: 'cf_red' },
+        { id: 'cf-g',     catFilter: ['CF'],              chMatch: function(ch) { return ch === 'GCF' || ch === 'G'; }, dftKey: 'cf_green' },
+        { id: 'cf-b',     catFilter: ['CF'],              chMatch: function(ch) { return ch === 'BCF' || ch === 'B'; }, dftKey: 'cf_blue' }
     ];
     configs.forEach(function(cfg) {
         var sel = document.getElementById(cfg.id);
@@ -346,7 +346,11 @@ function populateSelectors(spectra) {
             opt.textContent = s.name + (s.category ? ' (' + s.category + ')' : '');
             sel.appendChild(opt);
         });
-        if (current) sel.value = current;
+        if (current) {
+            sel.value = current;
+        } else if (defaults && cfg.dftKey && defaults[cfg.dftKey]) {
+            sel.value = String(defaults[cfg.dftKey]);
+        }
     });
 }
 
@@ -729,7 +733,7 @@ function refreshData() {
     callApi('optimizer_get_initial_data').then(function(data) {
         setLoading(false);
         if (data.error) { logStatus(formatError(data, 'Refresh failed')); return; }
-        populateSelectors(data.spectra);
+        populateSelectors(data.spectra, data.defaults);
         if (typeof renderResults === 'function') renderResults(data.results, data.best);
     }).catch(function(err) {
         setLoading(false);

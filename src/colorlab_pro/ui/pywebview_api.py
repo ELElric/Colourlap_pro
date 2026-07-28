@@ -451,10 +451,51 @@ class ColorLabApi:
             for s in summaries
         ]
 
-    def gamut_get_initial_data(self) -> dict:
-        """Return spectra list and empty gamut results."""
+    def _default_selections(self) -> dict:
+        """Return default spectrum IDs by matching known names.
+
+        RGB sources: QD-R, QD-G, B-LED
+        CF spectra:  R110B-2, BD1-SC1000G, B150B-2
+        """
+        defaults: dict[str, int | None] = {
+            "red": None, "green": None, "blue": None,
+            "cf_red": None, "cf_green": None, "cf_blue": None,
+        }
+        name_map = {
+            "red":     [("QD-R", "QD_RED", "QD-RED"), ("cat", "QD", "ch", "R")],
+            "green":   [("QD-G", "QD_GREEN", "QD-GREEN"), ("cat", "QD", "ch", "G")],
+            "blue":    [("B-LED", "BLED", "B-LED", "LED-B"), ("cat", "LED", "ch", "B")],
+            "cf_red":  [("R110B-2", "R110B2"), ("cat", "CF", "ch", "R")],
+            "cf_green":[("BD1-SC1000G", "BD1SC1000G"), ("cat", "CF", "ch", "G")],
+            "cf_blue": [("B150B-2", "B150B2"), ("cat", "CF", "ch", "B")],
+        }
         try:
-            return {"spectra": self._gamut_spectra_json(), "results": []}
+            summaries = self._spectrum_ctrl.list_spectra()
+        except Exception:  # noqa: BLE001
+            return defaults
+
+        for key, (names, fallback) in name_map.items():
+            names_upper = [n.upper() for n in names]
+            for s in summaries:
+                sname = (s.name or "").upper().strip()
+                if sname in names_upper:
+                    defaults[key] = s.id
+                    break
+            if defaults[key] is None:
+                cat = (s.category or "").upper()
+                ch = (s.channel or "").upper()
+                if cat == fallback[1] and ch == fallback[3]:
+                    defaults[key] = s.id
+        return defaults
+
+    def gamut_get_initial_data(self) -> dict:
+        """Return spectra list, default selections, and empty gamut results."""
+        try:
+            return {
+                "spectra": self._gamut_spectra_json(),
+                "results": [],
+                "defaults": self._default_selections(),
+            }
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
 
@@ -922,7 +963,7 @@ class ColorLabApi:
     # -------------------------------------------------------------- #
 
     def optimizer_get_initial_data(self) -> dict:
-        """Return spectra list and empty optimization results."""
+        """Return spectra list, default selections, and empty optimization results."""
         try:
             summaries = self._spectrum_ctrl.list_spectra()
             spectra = [
@@ -934,7 +975,12 @@ class ColorLabApi:
                 }
                 for s in summaries
             ]
-            return {"spectra": spectra, "results": [], "best": None}
+            return {
+                "spectra": spectra,
+                "results": [],
+                "best": None,
+                "defaults": self._default_selections(),
+            }
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
 
