@@ -120,6 +120,7 @@ class OptimizationService:
         cfs: list[Spectrum],
         bounds: list[tuple[float, float]],
         base_thicknesses: list[float],
+        target_xy: XY,
         target_standard: str = "BT2020",
         steps: int = 21,
         *,
@@ -128,7 +129,7 @@ class OptimizationService:
     ) -> dict[str, list[dict]]:
         """Run sensitivity analysis for all three channels."""
         return sensitivity_all_channels(
-            sources, cfs, bounds, base_thicknesses,
+            sources, cfs, bounds, base_thicknesses, target_xy,
             target_standard=target_standard, steps=steps,
             progress_callback=progress_callback, cancel_check=cancel_check,
         )

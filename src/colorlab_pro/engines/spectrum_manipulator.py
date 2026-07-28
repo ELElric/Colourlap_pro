@@ -72,6 +72,8 @@ def measure_fwhm(spectrum: Spectrum) -> float:
     values = spectrum.values
     wavelengths = spectrum.wavelengths
     peak_val = float(np.max(values))
+    if peak_val <= 0:
+        return 0.0
     half_max = peak_val / 2.0
 
     peak_idx = int(np.argmax(values))
@@ -394,8 +396,8 @@ def update_qd_blue_leakage(
         New QD spectrum with updated blue leakage and preserved QD emission.
     """
     # Separate original spectrum to extract k and QD emission.
-    _, qd_emission = separate_qd_spectrum(qd_spectrum, old_b_led, blue_cutoff)
-    k = compute_leakage_ratio(qd_spectrum, old_b_led, blue_cutoff)
+    blue_leakage, qd_emission = separate_qd_spectrum(qd_spectrum, old_b_led, blue_cutoff)
+    k = blue_leakage.meta.get("leakage_ratio", 0.0)
 
     # New blue leakage = k * new_B_LED on the QD wavelength grid.
     new_b_led_vals = np.interp(

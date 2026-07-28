@@ -5,6 +5,7 @@ Mediates between the Optimize page and OptimizationService.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from colorlab_pro.utils.signal import QObject, Signal
@@ -255,6 +256,7 @@ class OptimizationController(QObject):
         target_xy: XY,
         target_standard: str = "BT2020",
         steps: int = 10,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> list[dict] | None:
         """Grid-search thickness optimization with progress signals.
 
@@ -266,6 +268,7 @@ class OptimizationController(QObject):
                 sources, cfs, bounds, target_xy,
                 target_standard=target_standard, steps=steps,
                 progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+                cancel_check=cancel_check,
             )
         except Exception as exc:  # noqa: BLE001
             self.error_occurred.emit(f"Grid search failed: {exc}")
@@ -284,6 +287,7 @@ class OptimizationController(QObject):
         target_xy: XY,
         target_standard: str = "BT2020",
         steps: int = 21,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> list[dict] | None:
         """Single-channel sensitivity analysis with progress signals."""
         try:
@@ -291,6 +295,7 @@ class OptimizationController(QObject):
                 sources, cfs, bounds, base_thicknesses, vary_channel, target_xy,
                 target_standard=target_standard, steps=steps,
                 progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+                cancel_check=cancel_check,
             )
         except Exception as exc:  # noqa: BLE001
             self.error_occurred.emit(f"Sensitivity analysis failed: {exc}")
@@ -304,15 +309,18 @@ class OptimizationController(QObject):
         cfs: list[Spectrum],
         bounds: list[tuple[float, float]],
         base_thicknesses: list[float],
+        target_xy: XY,
         target_standard: str = "BT2020",
         steps: int = 21,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> dict[str, list[dict]] | None:
         """Run sensitivity analysis for all three channels with progress signals."""
         try:
             results = self._service().sensitivity_all_channels(
-                sources, cfs, bounds, base_thicknesses,
+                sources, cfs, bounds, base_thicknesses, target_xy,
                 target_standard=target_standard, steps=steps,
                 progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+                cancel_check=cancel_check,
             )
         except Exception as exc:  # noqa: BLE001
             self.error_occurred.emit(f"Sensitivity all channels failed: {exc}")
@@ -331,6 +339,7 @@ class OptimizationController(QObject):
         thicknesses: list[float],
         target_xy: XY,
         target_standard: str = "BT2020",
+        cancel_check: Callable[[], bool] | None = None,
     ) -> list[dict] | None:
         """Select the best CF material combination with progress signals.
 
@@ -342,6 +351,7 @@ class OptimizationController(QObject):
                 sources, cf_library, thicknesses, target_xy,
                 target_standard=target_standard,
                 progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+                cancel_check=cancel_check,
             )
         except Exception as exc:  # noqa: BLE001
             self.error_occurred.emit(f"CF material selection failed: {exc}")
@@ -366,6 +376,7 @@ class OptimizationController(QObject):
         is_qd: list[bool] | None = None,
         blue_cutoff: float = 500.0,
         steps: int = 5,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> list[dict] | None:
         """Optimise emission spectra with progress signals.
 
@@ -382,6 +393,7 @@ class OptimizationController(QObject):
                 blue_cutoff=blue_cutoff,
                 steps=steps,
                 progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+                cancel_check=cancel_check,
             )
         except Exception as exc:  # noqa: BLE001
             self.error_occurred.emit(f"Emission spectrum optimization failed: {exc}")

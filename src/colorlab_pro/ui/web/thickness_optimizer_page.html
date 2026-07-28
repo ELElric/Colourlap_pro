@@ -856,16 +856,18 @@ function switchScanTab(tab, el) {
     var sensDom = document.getElementById('sensitivity-chart');
     var placeholder = document.getElementById('sensitivity-placeholder');
     if (tab === 'coverage') {
-        if (scanDom) scanDom.style.display = 'none';
-        if (sensDom) sensDom.style.display = 'block';
         if (placeholder) placeholder.style.display = 'none';
         if (allChannelData) {
+            if (scanDom) scanDom.style.display = 'none';
+            if (sensDom) sensDom.style.display = 'block';
             renderAllChannelChart(allChannelData);
+            if (sensitivityChart) setTimeout(function() { sensitivityChart.resize(); }, 50);
         } else {
+            if (scanDom) scanDom.style.display = 'block';
+            if (sensDom) sensDom.style.display = 'none';
             renderScanCharts(lastResults, lastBest);
+            if (scanChart) setTimeout(function() { scanChart.resize(); }, 50);
         }
-        if (sensitivityChart) setTimeout(function() { sensitivityChart.resize(); }, 50);
-        if (scanChart && scanDom && scanDom.style.display !== 'none') setTimeout(function() { scanChart.resize(); }, 50);
     } else if (tab === 'whitex' || tab === 'whitey') {
         if (scanDom) scanDom.style.display = 'none';
         var ch = document.getElementById('sens-channel').value || 'R';
@@ -1259,9 +1261,9 @@ function updateEmissionSliderValue(sliderId, displayId, unit) {
 
 function getEmissionParams() {
     return {
-        R: { peak_delta: parseInt(document.getElementById('em-peak-r').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-r').value), is_qd: document.getElementById('em-qd-r').checked },
-        G: { peak_delta: parseInt(document.getElementById('em-peak-g').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-g').value), is_qd: document.getElementById('em-qd-g').checked },
-        B: { peak_delta: parseInt(document.getElementById('em-peak-b').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-b').value), is_qd: document.getElementById('em-qd-b').checked }
+        R: { peak_delta: parseFloat(document.getElementById('em-peak-r').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-r').value), is_qd: document.getElementById('em-qd-r').checked },
+        G: { peak_delta: parseFloat(document.getElementById('em-peak-g').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-g').value), is_qd: document.getElementById('em-qd-g').checked },
+        B: { peak_delta: parseFloat(document.getElementById('em-peak-b').value), fwhm_factor: parseFloat(document.getElementById('em-fwhm-b').value), is_qd: document.getElementById('em-qd-b').checked }
     };
 }
 

@@ -40,6 +40,7 @@ alpha = -log10(T).
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -390,7 +391,7 @@ def _prepare_grid_inputs(
         t = np.clip(t, 1e-6, 1.0)
         return -np.log10(t)
 
-    alphas = [_transmittance_to_alpha(v, c.meta) for v, c in zip(cf_vals, cfs, strict=False)]
+    alphas = [_transmittance_to_alpha(v, c.meta) for v, c in zip(cf_vals, cfs, strict=True)]
     return wavelengths, src_vals, alphas, sources[0].unit
 
 
@@ -405,10 +406,10 @@ def _compute_single_candidate(
 ) -> dict:
     """Compute filtered spectra, white xy, delta, coverage, match for one thickness combo."""
     filtered = []
-    for src, alpha, d in zip(src_vals, alphas, thicknesses, strict=False):
+    for src, alpha, d in zip(src_vals, alphas, thicknesses, strict=True):
         t = np.power(10.0, -alpha * d)
         filtered.append(src * t)
-    white_spec = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=unit)
+    white_spec = Spectrum(wavelengths=wavelengths, values=np.sum(np.stack(filtered), axis=0), unit=unit)
     white_xy = spectrum_xy(white_spec)
     delta = float(np.hypot(white_xy.x - target.x, white_xy.y - target.y))
 
@@ -464,6 +465,12 @@ def grid_search_optimize(
         List of result dicts, sorted by (delta_xy, -coverage), limited to top 5.
         Each dict has keys: thickness_r/g/b, white_xy, delta_xy, coverage, match, rank.
     """
+    if len(sources) != 3:
+        raise ValueError(f"Expected 3 source spectra, got {len(sources)}")
+    if len(cfs) != 3:
+        raise ValueError(f"Expected 3 CF spectra, got {len(cfs)}")
+    if len(bounds) != 3:
+        raise ValueError(f"Expected 3 bounds, got {len(bounds)}")
     target_gamut = standard_gamuts(target_standard)
     wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
@@ -527,6 +534,10 @@ def sensitivity_analysis(
         List of dicts with keys: thickness, coverage, white_x, white_y.
     """
     target_gamut = standard_gamuts(target_standard)
+    if not 0 <= vary_channel < 3:
+        raise ValueError(f"vary_channel must be 0, 1, or 2, got {vary_channel}")
+    if len(bounds) != 3:
+        raise ValueError(f"Expected 3 bounds, got {len(bounds)}")
     wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
     lo, hi = bounds[vary_channel]
@@ -540,14 +551,14 @@ def sensitivity_analysis(
         ds = list(base_thicknesses)
         ds[vary_channel] = d
         filtered = []
-        for src, alpha, dd in zip(src_vals, alphas, ds, strict=False):
+        for src, alpha, dd in zip(src_vals, alphas, ds, strict=True):
             t = np.power(10.0, -alpha * dd)
             filtered.append(src * t)
         primaries_xy = [
             spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
             for v in filtered
         ]
-        white_spec = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=unit)
+        white_spec = Spectrum(wavelengths=wavelengths, values=np.sum(np.stack(filtered), axis=0), unit=unit)
         white_xy = spectrum_xy(white_spec)
         device = build_gamut_from_primaries(
             "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
@@ -567,6 +578,7 @@ def sensitivity_all_channels(
     cfs: list[Spectrum],
     bounds: list[tuple[float, float]],
     base_thicknesses: list[float],
+    target_xy: XY,
     target_standard: str = "BT2020",
     steps: int = 21,
     *,
@@ -575,48 +587,35 @@ def sensitivity_all_channels(
 ) -> dict[str, list[dict]]:
     """Run sensitivity analysis for all three channels.
 
+    Args:
+        sources: Primary source spectra [R, G, B].
+        cfs: Color filter spectra [RCF, GCF, BCF].
+        bounds: Per-channel (min, max) thickness bounds.
+        base_thicknesses: Best thicknesses [R, G, B] to fix the other channels.
+        target_xy: Target white-point chromaticity.
+        target_standard: Gamut standard for coverage.
+        steps: Number of sample points along the thickness range.
+        progress_callback: Invoked with 0-100 percent.
+        cancel_check: If returns True, aborts early.
+
     Returns:
         Dict mapping channel name ("R"/"G"/"B") to list of {thickness, coverage} dicts.
     """
-    target_gamut = standard_gamuts(target_standard)
-    wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
+    if len(bounds) != 3:
+        raise ValueError(f"Expected 3 bounds, got {len(bounds)}")
+    if len(base_thicknesses) != 3:
+        raise ValueError(f"Expected 3 base_thicknesses, got {len(base_thicknesses)}")
 
-    total = steps * 3
-    count = 0
-    channel_names = {0: "R", 1: "G", 2: "B"}
     results: dict[str, list[dict]] = {}
-
     for ch_idx in range(3):
-        lo, hi = bounds[ch_idx]
-        points: list[dict] = []
-        for _, d in enumerate(np.linspace(lo, hi, steps)):
-            if cancel_check and cancel_check():
-                break
-            count += 1
-            if progress_callback and count % 30 == 0:
-                progress_callback(int(100 * count / total))
-            ds = list(base_thicknesses)
-            ds[ch_idx] = d
-            filtered = []
-            for src, alpha, dd in zip(src_vals, alphas, ds, strict=False):
-                t = np.power(10.0, -alpha * dd)
-                filtered.append(src * t)
-            primaries_xy = [
-                spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
-                for v in filtered
-            ]
-            white_spec = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=unit)
-            white_xy = spectrum_xy(white_spec)
-            device = build_gamut_from_primaries(
-                "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
-            )
-            cov = coverage(target_gamut, device)
-            points.append({
-                "thickness": round(float(d), 3),
-                "coverage": round(float(cov), 1),
-            })
-        results[channel_names[ch_idx]] = points
-
+        ch_name = ["R", "G", "B"][ch_idx]
+        points = sensitivity_analysis(
+            sources, cfs, bounds, base_thicknesses, ch_idx, target_xy,
+            target_standard=target_standard, steps=steps,
+            progress_callback=progress_callback,
+            cancel_check=cancel_check,
+        )
+        results[ch_name] = points
     return results
 
 
@@ -712,9 +711,9 @@ def select_cf_materials(
     candidates: list[dict] = []
     count = 0
 
-    for ir, (cf_r, alpha_r) in enumerate(zip(cf_r_list, alpha_r_list, strict=False)):
-        for ig, (cf_g, alpha_g) in enumerate(zip(cf_g_list, alpha_g_list, strict=False)):
-            for ib, (cf_b, alpha_b) in enumerate(zip(cf_b_list, alpha_b_list, strict=False)):
+    for ir, (cf_r, alpha_r) in enumerate(zip(cf_r_list, alpha_r_list, strict=True)):
+        for ig, (cf_g, alpha_g) in enumerate(zip(cf_g_list, alpha_g_list, strict=True)):
+            for ib, (cf_b, alpha_b) in enumerate(zip(cf_b_list, alpha_b_list, strict=True)):
                 count += 1
                 if cancel_check and cancel_check():
                     return []
@@ -878,6 +877,20 @@ def optimize_emission_spectra(
     if is_qd is None:
         is_qd = [True, True, False]
 
+    # Validate inputs
+    if len(sources) != 3:
+        raise ValueError(f"Expected 3 source spectra, got {len(sources)}")
+    if len(cfs) != 3:
+        raise ValueError(f"Expected 3 CF spectra, got {len(cfs)}")
+    if len(thicknesses) != 3:
+        raise ValueError(f"Expected 3 thicknesses, got {len(thicknesses)}")
+    if len(peak_ranges) != 3:
+        raise ValueError(f"Expected 3 peak_ranges, got {len(peak_ranges)}")
+    if len(fwhm_ranges) != 3:
+        raise ValueError(f"Expected 3 fwhm_ranges, got {len(fwhm_ranges)}")
+    if len(is_qd) != 3:
+        raise ValueError(f"Expected 3 is_qd flags, got {len(is_qd)}")
+
     # Pre-compute CF alpha coefficients on common wavelength grid.
     wavelengths, _, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
@@ -889,33 +902,64 @@ def optimize_emission_spectra(
         np.linspace(fr[0], fr[1], steps) for fr in fwhm_ranges
     ]
 
-    total = steps ** 6  # (peak × fwhm) ^ 3 channels
+    total = steps ** 6
     candidates: list[dict] = []
     count = 0
 
     # Store original B-LED for QD leakage handling.
-    original_b_led = sources[2] if len(sources) >= 3 else None
+    original_b_led = sources[2]
+
+    # Import QD separation for optimization.
+    from colorlab_pro.engines.spectrum_manipulator import (
+        separate_qd_spectrum,
+        translate_spectrum,
+        scale_fwhm,
+        compute_leakage_ratio,
+    )
+
+    # Pre-separate QD spectra for R and G channels (only needed once).
+    qd_separated: dict[int, tuple] = {}  # {channel_idx: (blue_leakage, qd_emission, k)}
+    for ch_idx in [0, 1]:
+        if is_qd[ch_idx] and original_b_led is not None:
+            bl, qd_em = separate_qd_spectrum(sources[ch_idx], original_b_led, blue_cutoff)
+            k = bl.meta.get("leakage_ratio", 0.0)
+            qd_separated[ch_idx] = (bl, qd_em, k)
 
     for pr in peak_grids[0]:
         for fr in fwhm_grids[0]:
-            # Adjust R spectrum.
-            adj_r = _adjust_single_emission(
-                sources[0], pr, fr, is_qd[0],
-                b_led=original_b_led,
-                old_b_led=original_b_led,
-                new_b_led=None,  # B-LED not yet adjusted
-                blue_cutoff=blue_cutoff,
-            )
+            # Pre-compute adjusted QD emission for R (only depends on pr, fr).
+            if 0 in qd_separated:
+                _, qd_em_r, _ = qd_separated[0]
+                adj_qd_em_r = qd_em_r
+                if abs(pr) > 1e-6:
+                    adj_qd_em_r = translate_spectrum(adj_qd_em_r, pr)
+                if abs(fr - 1.0) > 1e-6:
+                    adj_qd_em_r = scale_fwhm(adj_qd_em_r, fr)
+            else:
+                # Non-QD: pre-compute adjusted R spectrum.
+                adj_r_base = sources[0]
+                if abs(pr) > 1e-6:
+                    adj_r_base = translate_spectrum(adj_r_base, pr)
+                if abs(fr - 1.0) > 1e-6:
+                    adj_r_base = scale_fwhm(adj_r_base, fr)
+
             for pg in peak_grids[1]:
                 for fg in fwhm_grids[1]:
-                    # Adjust G spectrum.
-                    adj_g = _adjust_single_emission(
-                        sources[1], pg, fg, is_qd[1],
-                        b_led=original_b_led,
-                        old_b_led=original_b_led,
-                        new_b_led=None,
-                        blue_cutoff=blue_cutoff,
-                    )
+                    # Pre-compute adjusted QD emission for G (only depends on pg, fg).
+                    if 1 in qd_separated:
+                        _, qd_em_g, _ = qd_separated[1]
+                        adj_qd_em_g = qd_em_g
+                        if abs(pg) > 1e-6:
+                            adj_qd_em_g = translate_spectrum(adj_qd_em_g, pg)
+                        if abs(fg - 1.0) > 1e-6:
+                            adj_qd_em_g = scale_fwhm(adj_qd_em_g, fg)
+                    else:
+                        adj_g_base = sources[1]
+                        if abs(pg) > 1e-6:
+                            adj_g_base = translate_spectrum(adj_g_base, pg)
+                        if abs(fg - 1.0) > 1e-6:
+                            adj_g_base = scale_fwhm(adj_g_base, fg)
+
                     for pb in peak_grids[2]:
                         for fb in fwhm_grids[2]:
                             count += 1
@@ -925,43 +969,75 @@ def optimize_emission_spectra(
                                 progress_callback(int(100 * count / total))
 
                             # Adjust B spectrum.
-                            adj_b = _adjust_single_emission(
-                                sources[2], pb, fb, is_qd[2],
-                                b_led=original_b_led,
-                                old_b_led=original_b_led,
-                                new_b_led=None,
-                                blue_cutoff=blue_cutoff,
-                            )
+                            adj_b = sources[2]
+                            if abs(pb) > 1e-6:
+                                adj_b = translate_spectrum(adj_b, pb)
+                            if abs(fb - 1.0) > 1e-6:
+                                adj_b = scale_fwhm(adj_b, fb)
 
-                            # Now re-adjust QD-R and QD-G if B-LED changed
-                            # and they are QD spectra.
-                            if is_qd[0] and (abs(pb) > 1e-6 or abs(fb - 1.0) > 1e-6):
-                                adj_r_final = _adjust_single_emission(
-                                    sources[0], pr, fr, is_qd[0],
-                                    b_led=original_b_led,
-                                    old_b_led=original_b_led,
-                                    new_b_led=adj_b,
-                                    blue_cutoff=blue_cutoff,
-                                )
-                            else:
-                                adj_r_final = adj_r
+                            b_led_changed = abs(pb) > 1e-6 or abs(fb - 1.0) > 1e-6
 
-                            if is_qd[1] and (abs(pb) > 1e-6 or abs(fb - 1.0) > 1e-6):
-                                adj_g_final = _adjust_single_emission(
-                                    sources[1], pg, fg, is_qd[1],
-                                    b_led=original_b_led,
-                                    old_b_led=original_b_led,
-                                    new_b_led=adj_b,
-                                    blue_cutoff=blue_cutoff,
-                                )
+                            # Compute final R spectrum.
+                            if 0 in qd_separated:
+                                _, _, k_r = qd_separated[0]
+                                if b_led_changed:
+                                    # New blue leakage = k_r * adj_b
+                                    new_bl_r_vals = k_r * np.interp(
+                                        sources[0].wavelengths,
+                                        adj_b.wavelengths,
+                                        adj_b.values,
+                                        left=0.0, right=0.0,
+                                    )
+                                    adj_r_final = Spectrum(
+                                        wavelengths=sources[0].wavelengths.copy(),
+                                        values=new_bl_r_vals + adj_qd_em_r.values,
+                                        unit=sources[0].unit,
+                                        meta={**sources[0].meta, "emission_adjusted": True},
+                                    )
+                                else:
+                                    # Use original blue leakage + adjusted QD emission.
+                                    bl_r, _, _ = qd_separated[0]
+                                    adj_r_final = Spectrum(
+                                        wavelengths=sources[0].wavelengths.copy(),
+                                        values=bl_r.values + adj_qd_em_r.values,
+                                        unit=sources[0].unit,
+                                        meta={**sources[0].meta, "emission_adjusted": True},
+                                    )
                             else:
-                                adj_g_final = adj_g
+                                adj_r_final = adj_r_base
+
+                            # Compute final G spectrum.
+                            if 1 in qd_separated:
+                                _, _, k_g = qd_separated[1]
+                                if b_led_changed:
+                                    new_bl_g_vals = k_g * np.interp(
+                                        sources[1].wavelengths,
+                                        adj_b.wavelengths,
+                                        adj_b.values,
+                                        left=0.0, right=0.0,
+                                    )
+                                    adj_g_final = Spectrum(
+                                        wavelengths=sources[1].wavelengths.copy(),
+                                        values=new_bl_g_vals + adj_qd_em_g.values,
+                                        unit=sources[1].unit,
+                                        meta={**sources[1].meta, "emission_adjusted": True},
+                                    )
+                                else:
+                                    bl_g, _, _ = qd_separated[1]
+                                    adj_g_final = Spectrum(
+                                        wavelengths=sources[1].wavelengths.copy(),
+                                        values=bl_g.values + adj_qd_em_g.values,
+                                        unit=sources[1].unit,
+                                        meta={**sources[1].meta, "emission_adjusted": True},
+                                    )
+                            else:
+                                adj_g_final = adj_g_base
 
                             # Compute filtered spectra and gamut.
                             adj_sources = [adj_r_final, adj_g_final, adj_b]
-                            # Resample adjusted sources to common grid.
                             adj_vals = [
-                                np.interp(wavelengths, s.wavelengths, s.values)
+                                np.interp(wavelengths, s.wavelengths, s.values,
+                                          left=0.0, right=0.0)
                                 for s in adj_sources
                             ]
 

@@ -59,7 +59,7 @@ def _sample_points(spectrum, step: int = 5) -> list[list[float]]:
 
     return [
         [round(float(w), 1), _sig(float(v))]
-        for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step], strict=False)
+        for w, v in zip(spectrum.wavelengths[::step], spectrum.values[::step], strict=True)
     ]
 
 
@@ -157,10 +157,11 @@ class ColorLabApi:
         self._history_service = HistoryService(main_ctrl.session_factory)
 
         # Optimizer state
-        self._stop_event = threading.Event()
         self._opt_progress: int = 0
         self._opt_result: dict | None = None
         self._opt_running: bool = False
+        self._current_stop_event: threading.Event | None = None
+        self._opt_lock = threading.Lock()
 
         # Gamut page state
         self._last_primaries: list[dict] = [
@@ -988,7 +989,9 @@ class ColorLabApi:
 
     def optimizer_stop(self) -> None:
         """Request cancellation of the running optimization."""
-        self._stop_event.set()
+        with self._opt_lock:
+            if self._current_stop_event:
+                self._current_stop_event.set()
 
     def optimizer_optimize(self, payload: dict) -> dict:
         """Start a grid-search thickness optimization in a background thread.
@@ -997,21 +1000,22 @@ class ColorLabApi:
         frontend via window.evaluate_js calls to ``window.updateOptProgress``
         and the final result via ``window.updateOptResult``.
         """
-        if self._opt_running:
-            return {"error": "Optimization already running"}
-
-        self._stop_event.clear()
-        self._opt_running = True
+        stop_event = threading.Event()
+        with self._opt_lock:
+            if self._opt_running:
+                return {"error": "Optimization already running"}
+            self._opt_running = True
+            self._current_stop_event = stop_event
         self._opt_progress = 0
         self._opt_result = None
 
         thread = threading.Thread(
-            target=self._optimize_worker, args=(payload,), daemon=True
+            target=self._optimize_worker, args=(payload, stop_event), daemon=True
         )
         thread.start()
         return {"started": True}
 
-    def _optimize_worker(self, payload: dict) -> None:
+    def _optimize_worker(self, payload: dict, stop_event: threading.Event) -> None:
         """Background worker: runs the grid search and pushes progress/result."""
         import json as _json
 
@@ -1051,14 +1055,13 @@ class ColorLabApi:
                 for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
                     for db in np.linspace(bounds[2][0], bounds[2][1], steps):
                         count += 1
-                        if self._stop_event.is_set():
+                        if stop_event.is_set():
                             self._push_js("window.updateOptProgress && window.updateOptProgress(0, 'Stopped')")
                             self._push_js(
                                 "window.updateOptResult && window.updateOptResult("
                                 + _json.dumps({"results": [], "best": None, "stopped": True})
                                 + ")"
                             )
-                            self._opt_running = False
                             return
                         # Push progress every 5%
                         if count % 50 == 0:
@@ -1096,7 +1099,9 @@ class ColorLabApi:
                 "window.updateOptResult && window.updateOptResult(" + _json.dumps(err) + ")"
             )
         finally:
-            self._opt_running = False
+            with self._opt_lock:
+                self._opt_running = False
+                self._current_stop_event = None
 
     def optimizer_get_progress(self) -> dict:
         """Return current optimization progress (fallback polling)."""
@@ -1131,7 +1136,7 @@ class ColorLabApi:
                 target = XY(wp[0], wp[1])
 
             channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
-            self._stop_event.clear()
+            stop_event = threading.Event()
 
             points = sensitivity_analysis(
                 sources, cfs, bounds, base, channel_idx, target,
@@ -1139,7 +1144,7 @@ class ColorLabApi:
                 progress_callback=lambda pct: self._push_js(
                     f"window.updateProgress && window.updateProgress({pct})"
                 ),
-                cancel_check=lambda: self._stop_event.is_set(),
+                cancel_check=lambda: stop_event.is_set(),
             )
             return {"channel": vary_channel, "points": points}
         except Exception as exc:  # noqa: BLE001
@@ -1153,21 +1158,30 @@ class ColorLabApi:
             cf_ids = [int(x) for x in payload["cf_ids"]]
             bounds = payload["bounds"]
             target_standard = payload.get("target_standard", "BT2020")
+            target_xy = payload.get("target_xy")
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
+            from colorlab_pro.dto.color import XY
+            from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import sensitivity_all_channels
 
-            self._stop_event.clear()
+            if target_xy is not None:
+                target = XY(float(target_xy[0]), float(target_xy[1]))
+            else:
+                wp = standard_gamuts(target_standard).white
+                target = XY(wp[0], wp[1])
+
+            stop_event = threading.Event()
 
             results = sensitivity_all_channels(
-                sources, cfs, bounds, base,
+                sources, cfs, bounds, base, target,
                 target_standard=target_standard, steps=21,
                 progress_callback=lambda pct: self._push_js(
                     f"window.updateProgress && window.updateProgress({pct})"
                 ),
-                cancel_check=lambda: self._stop_event.is_set(),
+                cancel_check=lambda: stop_event.is_set(),
             )
             return {"results": results, "base": base}
         except Exception as exc:  # noqa: BLE001
@@ -1206,20 +1220,21 @@ class ColorLabApi:
         Returns {started: True} immediately; progress and results are
         pushed via window.updateCFMaterialsProgress / .updateCFMaterialsResult.
         """
-        if self._opt_running:
-            return {"error": "Another optimization is running"}
-
-        self._stop_event.clear()
-        self._opt_running = True
+        stop_event = threading.Event()
+        with self._opt_lock:
+            if self._opt_running:
+                return {"error": "Another optimization is running"}
+            self._opt_running = True
+            self._current_stop_event = stop_event
         self._opt_progress = 0
 
         thread = threading.Thread(
-            target=self._cf_materials_worker, args=(payload,), daemon=True
+            target=self._cf_materials_worker, args=(payload, stop_event), daemon=True
         )
         thread.start()
         return {"started": True}
 
-    def _cf_materials_worker(self, payload: dict) -> None:
+    def _cf_materials_worker(self, payload: dict, stop_event: threading.Event) -> None:
         """Background worker for CF material selection."""
         import json as _json
 
@@ -1255,7 +1270,7 @@ class ColorLabApi:
                 progress_callback=lambda pct: self._push_js(
                     f"window.updateCFMaterialsProgress && window.updateCFMaterialsProgress({pct})"
                 ),
-                cancel_check=lambda: self._stop_event.is_set(),
+                cancel_check=lambda: stop_event.is_set(),
             )
 
             result = {"results": results, "best": results[0] if results else None}
@@ -1270,7 +1285,9 @@ class ColorLabApi:
                 + _json.dumps(err) + ")"
             )
         finally:
-            self._opt_running = False
+            with self._opt_lock:
+                self._opt_running = False
+                self._current_stop_event = None
 
     # ------------------------------------------------------------------ #
     # Filter 3: Emission spectrum optimization
@@ -1294,20 +1311,21 @@ class ColorLabApi:
         Returns {started: True} immediately; progress and results are
         pushed via window.updateEmissionProgress / .updateEmissionResult.
         """
-        if self._opt_running:
-            return {"error": "Another optimization is running"}
-
-        self._stop_event.clear()
-        self._opt_running = True
+        stop_event = threading.Event()
+        with self._opt_lock:
+            if self._opt_running:
+                return {"error": "Another optimization is running"}
+            self._opt_running = True
+            self._current_stop_event = stop_event
         self._opt_progress = 0
 
         thread = threading.Thread(
-            target=self._emission_worker, args=(payload,), daemon=True
+            target=self._emission_worker, args=(payload, stop_event), daemon=True
         )
         thread.start()
         return {"started": True}
 
-    def _emission_worker(self, payload: dict) -> None:
+    def _emission_worker(self, payload: dict, stop_event: threading.Event) -> None:
         """Background worker for emission spectrum optimization."""
         import json as _json
 
@@ -1353,7 +1371,7 @@ class ColorLabApi:
                 progress_callback=lambda pct: self._push_js(
                     f"window.updateEmissionProgress && window.updateEmissionProgress({pct})"
                 ),
-                cancel_check=lambda: self._stop_event.is_set(),
+                cancel_check=lambda: stop_event.is_set(),
             )
 
             result = {"results": results, "best": results[0] if results else None}
@@ -1368,7 +1386,9 @@ class ColorLabApi:
                 + _json.dumps(err) + ")"
             )
         finally:
-            self._opt_running = False
+            with self._opt_lock:
+                self._opt_running = False
+                self._current_stop_event = None
 
     # ------------------------------------------------------------------ #
     # Spectrum preview (for Filter 3 preview before optimization)
