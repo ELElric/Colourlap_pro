@@ -100,6 +100,7 @@ def main():
     mirror = "https://pypi.tuna.tsinghua.edu.cn/simple"
     trusted = "pypi.tuna.tsinghua.edu.cn"
     site_pkgs = runtime_dir / "Lib" / "site-packages"
+    failed_deps: list[str] = []
     for i, dep in enumerate(DEPS):
         print(f"   [{i+1}/{len(DEPS)}] Installing {dep}...")
         result = subprocess.run(
@@ -112,8 +113,16 @@ def main():
         )
         if result.returncode != 0:
             print(f"   WARNING: {dep} failed: {result.stderr[:200]}")
+            failed_deps.append(dep)
         else:
             print(f"   OK: {dep}")
+
+    if failed_deps:
+        print(f"\nERROR: {len(failed_deps)} dependency(ies) failed to install:")
+        for d in failed_deps:
+            print(f"   - {d}")
+        print("Aborting build. Please fix the failing dependencies and retry.")
+        return 1
 
     # 5. 清理 + 打包
     print("[5/5] Creating runtime.7z")

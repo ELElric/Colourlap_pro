@@ -794,7 +794,8 @@ function saveToHistory() {
         };
     });
     var payload = {
-        mode: mode === 'rgbcf' ? 'cf_fixed' : 'cf_optimized',
+        name: 'Gamut ' + new Date().toLocaleString(),
+        mode: 'cf_fixed',
         channels: channels,
         gamut_results: gamutResults
     };

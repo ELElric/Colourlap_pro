@@ -160,6 +160,8 @@ def match_spectrum(
             target_spectrum_xy.y - sample_spectrum_xy.y,
         )
     )
+    if saturation <= 0:
+        raise ValueError("saturation must be positive")
     score = (1.0 - delta / saturation) * 100.0
     return float(max(0.0, min(100.0, score)))
 

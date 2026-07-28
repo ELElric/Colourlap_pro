@@ -482,10 +482,12 @@ class ColorLabApi:
                     defaults[key] = s.id
                     break
             if defaults[key] is None:
-                cat = (s.category or "").upper()
-                ch = (s.channel or "").upper()
-                if cat == fallback[1] and ch == fallback[3]:
-                    defaults[key] = s.id
+                for s in summaries:
+                    cat = (s.category or "").upper()
+                    ch = (s.channel or "").upper()
+                    if cat == fallback[1] and ch == fallback[3]:
+                        defaults[key] = s.id
+                        break
         return defaults
 
     def gamut_get_initial_data(self) -> dict:

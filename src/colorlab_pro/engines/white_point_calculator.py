@@ -63,6 +63,8 @@ def mixing_weights(
 
     achieved_xyz = design_matrix @ w
     total_achieved = np.sum(achieved_xyz)
+    if total_achieved <= 0:
+        raise ValueError("Achieved XYZ sum is zero; cannot compute chromaticity")
     achieved = XY(
         x=float(achieved_xyz[0] / total_achieved),
         y=float(achieved_xyz[1] / total_achieved),
