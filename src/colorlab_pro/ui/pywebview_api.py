@@ -1024,43 +1024,19 @@ class ColorLabApi:
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
             from colorlab_pro.dto.color import XY
-            from colorlab_pro.engines.gamut_calculator import (
-                build_gamut_from_primaries,
-                coverage,
-                match,
-                standard_gamuts,
+            from colorlab_pro.engines.gamut_calculator import standard_gamuts
+            from colorlab_pro.engines.thickness_optimizer import (
+                _compute_single_candidate,
+                _prepare_grid_inputs,
             )
-            from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
 
-            wavelengths = sources[0].wavelengths.copy()
-            for s in sources[1:]:
-                wavelengths = np.intersect1d(wavelengths, s.wavelengths)
-            for c in cfs:
-                wavelengths = np.intersect1d(wavelengths, c.wavelengths)
-            if len(wavelengths) < 3:
-                raise ValueError("Insufficient common wavelength points between spectra")
-
-            def resample(spec: Spectrum) -> Spectrum:
-                vals = np.interp(wavelengths, spec.wavelengths, spec.values)
-                return Spectrum(wavelengths=wavelengths, values=vals, unit=spec.unit)
-
-            sources = [resample(s) for s in sources]
-            cfs = [resample(c) for c in cfs]
-
-            def transmittance_to_alpha(t: np.ndarray) -> np.ndarray:
-                t = np.asarray(t, dtype=float)
-                if np.max(t) > 1.5:
-                    t = t / 100.0
-                t = np.clip(t, 1e-6, 1.0)
-                return -np.log10(t)
-
-            alphas = [transmittance_to_alpha(c.values) for c in cfs]
+            wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
             if target_xy is not None:
                 target = XY(float(target_xy[0]), float(target_xy[1]))
             else:
-                target = standard_gamuts(target_standard).white
-                target = XY(target[0], target[1])
+                wp = standard_gamuts(target_standard).white
+                target = XY(wp[0], wp[1])
 
             target_gamut = standard_gamuts(target_standard)
 
@@ -1089,35 +1065,11 @@ class ColorLabApi:
                             self._push_js(
                                 f"window.updateOptProgress && window.updateOptProgress({pct}, 'Running grid search...')"
                             )
-                        filtered = []
-                        for src, alpha, d in zip(sources, alphas, [dr, dg, db], strict=False):
-                            t = np.power(10.0, -alpha * d)
-                            filtered.append(src.values * t)
-                        white = Spectrum(
-                            wavelengths=wavelengths, values=sum(filtered), unit=sources[0].unit,
-                        )
-                        white_xy = spectrum_xy(white)
-                        delta = float(np.hypot(white_xy.x - target.x, white_xy.y - target.y))
-
-                        primaries_xy = [
-                            spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit))
-                            for v in filtered
-                        ]
-                        device = build_gamut_from_primaries(
-                            "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
-                        )
-                        cov = coverage(target_gamut, device)
-                        m = match(target_gamut, device)
                         candidates.append(
-                            {
-                                "thickness_r": round(float(dr), 3),
-                                "thickness_g": round(float(dg), 3),
-                                "thickness_b": round(float(db), 3),
-                                "white_xy": [round(white_xy.x, 4), round(white_xy.y, 4)],
-                                "delta_xy": round(delta, 4),
-                                "coverage": round(cov, 1),
-                                "match": round(m, 1),
-                            }
+                            _compute_single_candidate(
+                                wavelengths, src_vals, alphas,
+                                [dr, dg, db], target, target_gamut, unit,
+                            )
                         )
 
             candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
@@ -1161,73 +1113,29 @@ class ColorLabApi:
             cf_ids = [int(x) for x in payload["cf_ids"]]
             bounds = payload["bounds"]
             target_standard = payload.get("target_standard", "BT2020")
+            target_xy = payload.get("target_xy")
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
-            from colorlab_pro.engines.gamut_calculator import (
-                build_gamut_from_primaries,
-                coverage,
-                standard_gamuts,
-            )
-            from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
+            from colorlab_pro.dto.color import XY
+            from colorlab_pro.engines.gamut_calculator import standard_gamuts
+            from colorlab_pro.engines.thickness_optimizer import sensitivity_analysis
 
-            wavelengths = sources[0].wavelengths.copy()
-            for s in sources[1:]:
-                wavelengths = np.intersect1d(wavelengths, s.wavelengths)
-            for c in cfs:
-                wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+            if target_xy is not None:
+                target = XY(float(target_xy[0]), float(target_xy[1]))
+            else:
+                wp = standard_gamuts(target_standard).white
+                target = XY(wp[0], wp[1])
 
-            def resample(spec):
-                vals = np.interp(wavelengths, spec.wavelengths, spec.values)
-                return Spectrum(wavelengths=wavelengths, values=vals, unit=spec.unit)
-
-            sources = [resample(s) for s in sources]
-            cfs = [resample(c) for c in cfs]
-
-            def transmittance_to_alpha(t):
-                t = np.asarray(t, dtype=float)
-                if np.max(t) > 1.5:
-                    t = t / 100.0
-                t = np.clip(t, 1e-6, 1.0)
-                return -np.log10(t)
-
-            alphas = [transmittance_to_alpha(c.values) for c in cfs]
-            try:
-                target = standard_gamuts(target_standard)
-            except (ValueError, KeyError):
-                target = standard_gamuts("BT2020")
             channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
-            lo, hi = bounds[channel_idx]
-
-            points = []
             self._stop_event.clear()
-            steps = 21
-            for idx, d in enumerate(np.linspace(lo, hi, steps)):
-                if self._stop_event.is_set():
-                    break
-                ds = [base[0], base[1], base[2]]
-                ds[channel_idx] = d
-                filtered = []
-                for src, alpha, dd in zip(sources, alphas, ds, strict=False):
-                    t = np.power(10.0, -alpha * dd)
-                    filtered.append(src.values * t)
-                primaries_xy = [
-                    spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit))
-                    for v in filtered
-                ]
-                white = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=sources[0].unit)
-                white_xy = spectrum_xy(white)
-                device = build_gamut_from_primaries(
-                    "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
-                )
-                cov = coverage(target, device)
-                points.append({
-                    "thickness": round(float(d), 3),
-                    "coverage": round(float(cov), 1),
-                    "white_x": round(float(white_xy.x), 4),
-                    "white_y": round(float(white_xy.y), 4),
-                })
+
+            points = sensitivity_analysis(
+                sources, cfs, bounds, base, channel_idx, target,
+                target_standard=target_standard, steps=21,
+                cancel_check=lambda: self._stop_event.is_set(),
+            )
             return {"channel": vary_channel, "points": points}
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
@@ -1244,75 +1152,15 @@ class ColorLabApi:
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
-            from colorlab_pro.engines.gamut_calculator import (
-                build_gamut_from_primaries,
-                coverage,
-                standard_gamuts,
-            )
-            from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
+            from colorlab_pro.engines.thickness_optimizer import sensitivity_all_channels
 
-            wavelengths = sources[0].wavelengths.copy()
-            for s in sources[1:]:
-                wavelengths = np.intersect1d(wavelengths, s.wavelengths)
-            for c in cfs:
-                wavelengths = np.intersect1d(wavelengths, c.wavelengths)
-
-            def resample(spec):
-                vals = np.interp(wavelengths, spec.wavelengths, spec.values)
-                return Spectrum(wavelengths=wavelengths, values=vals, unit=spec.unit)
-
-            sources = [resample(s) for s in sources]
-            cfs = [resample(c) for c in cfs]
-
-            def transmittance_to_alpha(t):
-                t = np.asarray(t, dtype=float)
-                if np.max(t) > 1.5:
-                    t = t / 100.0
-                t = np.clip(t, 1e-6, 1.0)
-                return -np.log10(t)
-
-            alphas = [transmittance_to_alpha(c.values) for c in cfs]
-            try:
-                target = standard_gamuts(target_standard)
-            except (ValueError, KeyError):
-                target = standard_gamuts("BT2020")
-
-            steps = 21
             self._stop_event.clear()
-            total = steps * 3
-            count = 0
-            results: dict[str, list[dict]] = {}
-            for ch_name, ch_idx in [("R", 0), ("G", 1), ("B", 2)]:
-                lo, hi = bounds[ch_idx]
-                points = []
-                for _, d in enumerate(np.linspace(lo, hi, steps)):
-                    if self._stop_event.is_set():
-                        break
-                    count += 1
-                    if count % 30 == 0:
-                        time.sleep(0.001)
-                    ds = [base[0], base[1], base[2]]
-                    ds[ch_idx] = d
-                    filtered = []
-                    for src, alpha, dd in zip(sources, alphas, ds, strict=False):
-                        t = np.power(10.0, -alpha * dd)
-                        filtered.append(src.values * t)
-                    primaries_xy = [
-                        spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=sources[0].unit))
-                        for v in filtered
-                    ]
-                    white = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=sources[0].unit)
-                    white_xy = spectrum_xy(white)
-                    device = build_gamut_from_primaries(
-                        "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
-                    )
-                    cov = coverage(target, device)
-                    points.append({
-                        "thickness": round(float(d), 3),
-                        "coverage": round(float(cov), 1),
-                    })
-                results[ch_name] = points
 
+            results = sensitivity_all_channels(
+                sources, cfs, bounds, base,
+                target_standard=target_standard, steps=21,
+                cancel_check=lambda: self._stop_event.is_set(),
+            )
             return {"results": results, "base": base}
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)

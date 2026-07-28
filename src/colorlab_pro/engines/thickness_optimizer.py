@@ -1,22 +1,26 @@
 """ThicknessOptimizer Engine.
 
-Provides two physical models for color-filter (CF) thickness optimization:
+Provides three optimization strategies for color-filter (CF) thickness:
 
-1. **Stacked-filter model** (legacy, ``optimize_thickness``):
+1. **Grid search** (``grid_search_optimize``, primary):
+   Exhaustive grid search over 3-channel thickness space. Each channel is
+   sampled at ``steps`` points (default 10 → 1000 total combinations).
+   For each combination, the filtered white spectrum and device gamut are
+   computed, then results are ranked by delta-xy and coverage. This is the
+   method used by the Thickness Optimizer page.
+
+2. **Stacked-filter model** (``optimize_thickness``, legacy):
    A single source spectrum passes through a stack of filters.
        T(lambda) = prod_i 10^(-alpha_i(lambda) * d_i)
        S(lambda) = source(lambda) * T(lambda)
-   Suitable for a single light path with cascaded filters.
 
-2. **Display model** (``optimize_thickness_display``):
-   Each primary source (R/G/B) passes through its own CF, then the three
-   filtered spectra are mixed (summed) to form the white spectrum.
+3. **Display model** (``optimize_thickness_display``, L-BFGS-B):
+   Each primary source (R/G/B) passes through its own CF, then mixed.
        S_i(lambda) = source_i(lambda) * 10^(-alpha_i(lambda) * d_i)
        S(lambda) = sum_i S_i(lambda)
-   This matches the physical light path of an RGB display where each
-   emission channel has its own color filter.
+   Uses scipy.optimize.minimize (L-BFGS-B) for gradient-based optimization.
 
-Both models use Lambert-Beer law: T = 10^(-alpha * d), where alpha is the
+All models use Lambert-Beer law: T = 10^(-alpha * d), where alpha is the
 absorption coefficient (1/um) derived from CF transmittance via
 alpha = -log10(T).
 """
@@ -315,3 +319,276 @@ def optimize_thickness_display(
         iterations=int(res.nit),
         meta={"message": str(res.message), "model": "display"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Model 3: Grid search (primary method used by the Thickness Optimizer page)
+# ---------------------------------------------------------------------------
+
+from colorlab_pro.engines.gamut_calculator import (
+    build_gamut_from_primaries,
+    coverage,
+    match,
+    standard_gamuts,
+)
+from colorlab_pro.engines.spectrum_analyzer import xy as spectrum_xy
+
+
+def _prepare_grid_inputs(
+    sources: list[Spectrum],
+    cfs: list[Spectrum],
+) -> tuple[NDArray[np.float64], list[NDArray[np.float64]], list[NDArray[np.float64]], str]:
+    """Resample sources and CFs to a common wavelength grid, convert CF to alpha.
+
+    Returns:
+        (wavelengths, source_values_list, alpha_list, unit)
+    """
+    wavelengths = sources[0].wavelengths.copy()
+    for s in sources[1:]:
+        wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+    for c in cfs:
+        wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+    if len(wavelengths) < 3:
+        raise ValueError("Insufficient common wavelength points between spectra")
+
+    def _resample(spec: Spectrum) -> NDArray[np.float64]:
+        return np.interp(wavelengths, spec.wavelengths, spec.values)
+
+    src_vals = [_resample(s) for s in sources]
+    cf_vals = [_resample(c) for c in cfs]
+
+    def _transmittance_to_alpha(t: NDArray[np.float64]) -> NDArray[np.float64]:
+        t = np.asarray(t, dtype=float)
+        if np.max(t) > 1.5:
+            t = t / 100.0
+        t = np.clip(t, 1e-6, 1.0)
+        return -np.log10(t)
+
+    alphas = [_transmittance_to_alpha(v) for v in cf_vals]
+    return wavelengths, src_vals, alphas, sources[0].unit
+
+
+def _compute_single_candidate(
+    wavelengths: NDArray[np.float64],
+    src_vals: list[NDArray[np.float64]],
+    alphas: list[NDArray[np.float64]],
+    thicknesses: list[float],
+    target: XY,
+    target_gamut: Any,
+    unit: str,
+) -> dict:
+    """Compute filtered spectra, white xy, delta, coverage, match for one thickness combo."""
+    filtered = []
+    for src, alpha, d in zip(src_vals, alphas, thicknesses, strict=False):
+        t = np.power(10.0, -alpha * d)
+        filtered.append(src * t)
+    white_spec = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=unit)
+    white_xy = spectrum_xy(white_spec)
+    delta = float(np.hypot(white_xy.x - target.x, white_xy.y - target.y))
+
+    primaries_xy = [
+        spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
+        for v in filtered
+    ]
+    device = build_gamut_from_primaries(
+        "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
+    )
+    cov = coverage(target_gamut, device)
+    m = match(target_gamut, device)
+    return {
+        "thickness_r": round(float(thicknesses[0]), 3),
+        "thickness_g": round(float(thicknesses[1]), 3),
+        "thickness_b": round(float(thicknesses[2]), 3),
+        "white_xy": [round(white_xy.x, 4), round(white_xy.y, 4)],
+        "delta_xy": round(delta, 4),
+        "coverage": round(cov, 1),
+        "match": round(m, 1),
+    }
+
+
+def grid_search_optimize(
+    sources: list[Spectrum],
+    cfs: list[Spectrum],
+    bounds: list[tuple[float, float]],
+    target_xy: XY,
+    target_standard: str = "BT2020",
+    steps: int = 10,
+    *,
+    progress_callback: Callable[[int], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> list[dict]:
+    """Grid-search thickness optimization for 3-channel display model.
+
+    Samples each channel at ``steps`` points within the given bounds,
+    computes the device gamut and white point for each combination,
+    and returns results ranked by delta-xy (ascending) then coverage
+    (descending).
+
+    Args:
+        sources: Primary source spectra [R, G, B].
+        cfs: Color filter (absorber) spectra [RCF, GCF, BCF].
+        bounds: Per-channel (min, max) thickness bounds in μm.
+        target_xy: Target white-point chromaticity.
+        target_standard: Gamut standard name for coverage/match (default "BT2020").
+        steps: Grid resolution per channel (default 10 → 1000 combos).
+        progress_callback: Invoked with 0-100 percent during search.
+        cancel_check: If returns True, search is aborted early.
+
+    Returns:
+        List of result dicts, sorted by (delta_xy, -coverage), limited to top 5.
+        Each dict has keys: thickness_r/g/b, white_xy, delta_xy, coverage, match, rank.
+    """
+    target_gamut = standard_gamuts(target_standard)
+    wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
+
+    total = steps ** 3
+    candidates: list[dict] = []
+    count = 0
+
+    for dr in np.linspace(bounds[0][0], bounds[0][1], steps):
+        for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
+            for db in np.linspace(bounds[2][0], bounds[2][1], steps):
+                count += 1
+                if cancel_check and cancel_check():
+                    return []
+                if progress_callback and count % 50 == 0:
+                    progress_callback(int(100 * count / total))
+                candidates.append(
+                    _compute_single_candidate(
+                        wavelengths, src_vals, alphas,
+                        [dr, dg, db], target_xy, target_gamut, unit,
+                    )
+                )
+
+    candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+    top = candidates[:5]
+    for i, r in enumerate(top):
+        r["rank"] = i + 1
+    return top
+
+
+def sensitivity_analysis(
+    sources: list[Spectrum],
+    cfs: list[Spectrum],
+    bounds: list[tuple[float, float]],
+    base_thicknesses: list[float],
+    vary_channel: int,
+    target_xy: XY,
+    target_standard: str = "BT2020",
+    steps: int = 21,
+    *,
+    progress_callback: Callable[[int], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> list[dict]:
+    """Single-channel sensitivity analysis.
+
+    Varies one channel's thickness while holding the other two fixed at
+    ``base_thicknesses``, returning coverage and white-point drift.
+
+    Args:
+        sources: Primary source spectra [R, G, B].
+        cfs: Color filter spectra [RCF, GCF, BCF].
+        bounds: Per-channel (min, max) thickness bounds.
+        base_thicknesses: Best thicknesses [R, G, B] to fix the other channels.
+        vary_channel: Index of the channel to vary (0=R, 1=G, 2=B).
+        target_xy: Target white point.
+        target_standard: Gamut standard for coverage.
+        steps: Number of sample points along the thickness range.
+        progress_callback: Invoked with 0-100 percent.
+        cancel_check: If returns True, aborts early.
+
+    Returns:
+        List of dicts with keys: thickness, coverage, white_x, white_y.
+    """
+    target_gamut = standard_gamuts(target_standard)
+    wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
+
+    lo, hi = bounds[vary_channel]
+    points: list[dict] = []
+
+    for idx, d in enumerate(np.linspace(lo, hi, steps)):
+        if cancel_check and cancel_check():
+            break
+        if progress_callback:
+            progress_callback(int(100 * (idx + 1) / steps))
+        ds = list(base_thicknesses)
+        ds[vary_channel] = d
+        filtered = []
+        for src, alpha, dd in zip(src_vals, alphas, ds, strict=False):
+            t = np.power(10.0, -alpha * dd)
+            filtered.append(src * t)
+        primaries_xy = [
+            spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
+            for v in filtered
+        ]
+        white_spec = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=unit)
+        white_xy = spectrum_xy(white_spec)
+        device = build_gamut_from_primaries(
+            "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
+        )
+        cov = coverage(target_gamut, device)
+        points.append({
+            "thickness": round(float(d), 3),
+            "coverage": round(float(cov), 1),
+            "white_x": round(float(white_xy.x), 4),
+            "white_y": round(float(white_xy.y), 4),
+        })
+    return points
+
+
+def sensitivity_all_channels(
+    sources: list[Spectrum],
+    cfs: list[Spectrum],
+    bounds: list[tuple[float, float]],
+    base_thicknesses: list[float],
+    target_standard: str = "BT2020",
+    steps: int = 21,
+    *,
+    progress_callback: Callable[[int], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> dict[str, list[dict]]:
+    """Run sensitivity analysis for all three channels.
+
+    Returns:
+        Dict mapping channel name ("R"/"G"/"B") to list of {thickness, coverage} dicts.
+    """
+    target_gamut = standard_gamuts(target_standard)
+    wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
+
+    total = steps * 3
+    count = 0
+    channel_names = {0: "R", 1: "G", 2: "B"}
+    results: dict[str, list[dict]] = {}
+
+    for ch_idx in range(3):
+        lo, hi = bounds[ch_idx]
+        points: list[dict] = []
+        for _, d in enumerate(np.linspace(lo, hi, steps)):
+            if cancel_check and cancel_check():
+                break
+            count += 1
+            if progress_callback and count % 30 == 0:
+                progress_callback(int(100 * count / total))
+            ds = list(base_thicknesses)
+            ds[ch_idx] = d
+            filtered = []
+            for src, alpha, dd in zip(src_vals, alphas, ds, strict=False):
+                t = np.power(10.0, -alpha * dd)
+                filtered.append(src * t)
+            primaries_xy = [
+                spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
+                for v in filtered
+            ]
+            white_spec = Spectrum(wavelengths=wavelengths, values=sum(filtered), unit=unit)
+            white_xy = spectrum_xy(white_spec)
+            device = build_gamut_from_primaries(
+                "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
+            )
+            cov = coverage(target_gamut, device)
+            points.append({
+                "thickness": round(float(d), 3),
+                "coverage": round(float(cov), 1),
+            })
+        results[channel_names[ch_idx]] = points
+
+    return results

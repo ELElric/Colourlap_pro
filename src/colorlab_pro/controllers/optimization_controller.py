@@ -51,6 +51,12 @@ class OptimizationController(QObject):
     # Emitted on operation errors.
     error_occurred = Signal(str)
 
+    # Emitted during grid search / sensitivity (0-100 percent).
+    grid_search_progress = Signal(int)
+
+    # Emitted when grid search completes with results.
+    grid_search_ready = Signal(object)
+
     def __init__(
         self,
         main_controller: MainController,
@@ -230,3 +236,80 @@ class OptimizationController(QObject):
 
         self.optimization_saved.emit(opt_id)
         return opt_id
+
+    # ------------------------------------------------------------------ #
+    # Grid search & sensitivity
+    # ------------------------------------------------------------------ #
+
+    def grid_search_optimize(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        bounds: list[tuple[float, float]],
+        target_xy: XY,
+        target_standard: str = "BT2020",
+        steps: int = 10,
+    ) -> list[dict] | None:
+        """Grid-search thickness optimization with progress signals.
+
+        Emits ``grid_search_progress`` (0-100) during search and
+        ``grid_search_ready`` with the result list on completion.
+        """
+        try:
+            results = self._service().grid_search_optimize(
+                sources, cfs, bounds, target_xy,
+                target_standard=target_standard, steps=steps,
+                progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.error_occurred.emit(f"Grid search failed: {exc}")
+            return None
+
+        self.grid_search_ready.emit(results)
+        return results
+
+    def sensitivity_analysis(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        bounds: list[tuple[float, float]],
+        base_thicknesses: list[float],
+        vary_channel: int,
+        target_xy: XY,
+        target_standard: str = "BT2020",
+        steps: int = 21,
+    ) -> list[dict] | None:
+        """Single-channel sensitivity analysis with progress signals."""
+        try:
+            points = self._service().sensitivity_analysis(
+                sources, cfs, bounds, base_thicknesses, vary_channel, target_xy,
+                target_standard=target_standard, steps=steps,
+                progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.error_occurred.emit(f"Sensitivity analysis failed: {exc}")
+            return None
+
+        return points
+
+    def sensitivity_all_channels(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        bounds: list[tuple[float, float]],
+        base_thicknesses: list[float],
+        target_standard: str = "BT2020",
+        steps: int = 21,
+    ) -> dict[str, list[dict]] | None:
+        """Run sensitivity analysis for all three channels with progress signals."""
+        try:
+            results = self._service().sensitivity_all_channels(
+                sources, cfs, bounds, base_thicknesses,
+                target_standard=target_standard, steps=steps,
+                progress_callback=lambda pct: self.grid_search_progress.emit(pct),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.error_occurred.emit(f"Sensitivity all channels failed: {exc}")
+            return None
+
+        return results

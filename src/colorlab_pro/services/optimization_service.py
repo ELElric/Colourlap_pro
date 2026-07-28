@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from colorlab_pro.database.models import Optimization
 from colorlab_pro.dto.color import XY, OptimizationResult
 from colorlab_pro.dto.spectrum import Spectrum
-from colorlab_pro.engines.thickness_optimizer import optimize_thickness
+from colorlab_pro.engines.thickness_optimizer import (
+    grid_search_optimize,
+    optimize_thickness,
+    sensitivity_analysis,
+    sensitivity_all_channels,
+)
 from colorlab_pro.engines.white_point_calculator import (
     delta_xy_to_target,
     mixing_weights,
@@ -62,6 +67,69 @@ class OptimizationService:
     ) -> OptimizationResult:
         """Optimize color-filter thicknesses to match a target xy."""
         return optimize_thickness(target_xy, source_spectrum, absorbers, bounds_um=bounds_um)
+
+    # ------------------------------------------------------------------ #
+    # Grid search & sensitivity
+    # ------------------------------------------------------------------ #
+
+    def grid_search_optimize(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        bounds: list[tuple[float, float]],
+        target_xy: XY,
+        target_standard: str = "BT2020",
+        steps: int = 10,
+        *,
+        progress_callback: Callable[[int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> list[dict]:
+        """Grid-search thickness optimization for 3-channel display model."""
+        return grid_search_optimize(
+            sources, cfs, bounds, target_xy,
+            target_standard=target_standard, steps=steps,
+            progress_callback=progress_callback, cancel_check=cancel_check,
+        )
+
+    def sensitivity_analysis(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        bounds: list[tuple[float, float]],
+        base_thicknesses: list[float],
+        vary_channel: int,
+        target_xy: XY,
+        target_standard: str = "BT2020",
+        steps: int = 21,
+        *,
+        progress_callback: Callable[[int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> list[dict]:
+        """Single-channel sensitivity analysis."""
+        return sensitivity_analysis(
+            sources, cfs, bounds, base_thicknesses, vary_channel, target_xy,
+            target_standard=target_standard, steps=steps,
+            progress_callback=progress_callback, cancel_check=cancel_check,
+        )
+
+    def sensitivity_all_channels(
+        self,
+        sources: list[Spectrum],
+        cfs: list[Spectrum],
+        bounds: list[tuple[float, float]],
+        base_thicknesses: list[float],
+        target_standard: str = "BT2020",
+        steps: int = 21,
+        *,
+        progress_callback: Callable[[int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> dict[str, list[dict]]:
+        """Run sensitivity analysis for all three channels."""
+        return sensitivity_all_channels(
+            sources, cfs, bounds, base_thicknesses,
+            target_standard=target_standard, steps=steps,
+            progress_callback=progress_callback, cancel_check=cancel_check,
+        )
 
     def save_optimization(
         self,

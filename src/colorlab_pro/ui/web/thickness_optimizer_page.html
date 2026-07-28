@@ -416,7 +416,7 @@ function startOptimization() {
     setLoading(true);
     updateProgress(0, 'Starting grid search...');
     /* Async: optimizer_optimize starts a background thread and returns {started: true}.
-       Progress and results are polled via optimizer_get_progress. */
+       Progress and results are pushed via window.updateOptProgress / updateOptResult. */
     callApi('optimizer_optimize', data).then(function(res) {
         if (res && res.error) {
             setLoading(false);
@@ -424,38 +424,11 @@ function startOptimization() {
             updateProgress(0);
             return;
         }
-        /* If started successfully, begin polling for progress */
-        pollOptimizationProgress();
+        /* Progress and results are pushed via evaluate_js */
     }).catch(function(err) {
         setLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateProgress(0);
-    });
-}
-
-/* ===== Progress polling (replaces evaluate_js push) ===== */
-var _optPollTimer = null;
-function pollOptimizationProgress() {
-    if (_optPollTimer) clearTimeout(_optPollTimer);
-    callApi('optimizer_get_progress').then(function(data) {
-        if (!data) return;
-        if (data.progress !== undefined && data.progress > 0) {
-            updateProgress(data.progress, data.running ? 'Running grid search...' : 'Completed');
-        }
-        if (data.result) {
-            window.updateOptResult(data.result);
-        } else if (data.running) {
-            _optPollTimer = setTimeout(pollOptimizationProgress, 500);
-        } else {
-            // Not running and no result — might have been stopped
-            if (!data.result) {
-                setLoading(false);
-                logStatus('Optimization stopped or no result');
-                updateProgress(0);
-            }
-        }
-    }).catch(function(err) {
-        _optPollTimer = setTimeout(pollOptimizationProgress, 1000);
     });
 }
 
