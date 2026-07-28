@@ -458,13 +458,20 @@ class ColorLabApi:
         except Exception as exc:  # noqa: BLE001
             return _safe_error(exc)
 
-    @staticmethod
     def _apply_cf_filter(
+        self,
         spectrum: Spectrum,
         cf_spectrum: Spectrum | None,
         thickness: float,
     ) -> Spectrum:
-        """Apply Color Filter + thickness (Lambert-Beer) to a spectrum."""
+        """Apply Color Filter + thickness (Lambert-Beer) to a spectrum.
+
+        If the CF spectrum carries a ``thickness_um`` in its metadata (the
+        physical thickness at which the transmittance data was measured),
+        the transmittance is first normalised to unit-thickness before
+        applying the requested *thickness*.  This ensures correct results
+        regardless of the measurement thickness.
+        """
         if cf_spectrum is None:
             return spectrum
         wl = spectrum.wavelengths
@@ -473,7 +480,14 @@ class ColorLabApi:
         t = np.interp(wl, cf_wl, cf_val, left=1.0, right=1.0)
         t = np.where(t > 1.5, t / 100.0, t)
         t = np.clip(t, 1e-6, 1.0)
-        attenuation = np.power(t, max(thickness, 0.0))
+        # Normalise CF transmittance to unit thickness if measurement
+        # thickness is recorded in metadata.
+        measured_thickness = cf_spectrum.meta.get("thickness_um") if cf_spectrum.meta else None
+        if measured_thickness is not None and measured_thickness > 0 and thickness > 0:
+            t_unit = np.power(t, 1.0 / measured_thickness)
+            attenuation = np.power(t_unit, thickness)
+        else:
+            attenuation = np.power(t, max(thickness, 0.0))
         filtered = spectrum.values * attenuation
         return Spectrum(wavelengths=wl, values=filtered, unit=spectrum.unit, meta=spectrum.meta)
 
