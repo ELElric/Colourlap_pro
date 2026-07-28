@@ -14,6 +14,7 @@ from colorlab_pro.controllers.main_controller import MainController
 from colorlab_pro.dto.spectrum import Spectrum
 from colorlab_pro.importers.csv_importer import import_csv
 from colorlab_pro.importers.xlsx_importer import import_xlsx
+from colorlab_pro.engines.spectrum_analyzer import dominant_wavelength as _compute_dwl
 
 
 @dataclass(frozen=True)

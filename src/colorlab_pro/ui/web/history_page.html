@@ -81,11 +81,13 @@
   .detail-panel {
     background: var(--bg-panel); border: 1px solid var(--border);
     border-radius: var(--radius-md); overflow: hidden;
+    max-height: calc(100vh - 80px); overflow-y: auto;
   }
   .detail-header {
     display: flex; align-items: center; gap: var(--gap-md);
     padding: 12px 16px; border-bottom: 1px solid var(--border);
     background: var(--bg-base);
+    position: sticky; top: 0; z-index: 1;
   }
   .detail-title {
     color: var(--accent); font-weight: bold; font-size: var(--font-lg);
@@ -158,8 +160,6 @@
     padding: 40px 16px !important; font-size: var(--font-md) !important;
   }
 </style>
-<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-<script>if (typeof QWebChannel==='undefined'){window.QWebChannel=function(t,c){if(c)c({objects:{backend:null}});};}</script>
 </head>
 <body>
 
@@ -215,7 +215,7 @@
               <th>u'</th><th>v'</th>
               <th>Peak (nm)</th>
               <th>FWHM (nm)</th>
-              <th>Dom. λ (nm)</th>
+              <th>Dom. &lambda; (nm)</th>
               <th>Purity (%)</th>
               <th>CF Info</th>
             </tr>
@@ -268,7 +268,27 @@
 </div>
 
 <script>
-var backend = null;
+// ===== pywebview API bridge =====
+var api = (window.pywebview && window.pywebview.api) ||
+          (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+
+function waitForApi(callback, maxWait) {
+    maxWait = maxWait || 10000;
+    var start = Date.now();
+    function check() {
+        api = (window.pywebview && window.pywebview.api) ||
+              (window.parent && window.parent.pywebview && window.parent.pywebview.api) || null;
+        if (api) { callback(); return; }
+        if (Date.now() - start > maxWait) {
+            console.warn('pywebview API not ready after timeout');
+            callback();
+            return;
+        }
+        setTimeout(check, 100);
+    }
+    check();
+}
+
 var currentRecords = [];
 
 /* ===== Notification ===== */
@@ -295,6 +315,24 @@ function modeBadge(mode) {
   var label = labels[mode] || mode;
   var cls = classes[mode] || 'mode-nocf';
   return '<span class="mode-badge ' + cls + '">' + label + '</span>';
+}
+
+/* ===== Load History List ===== */
+function loadHistoryList() {
+  if (!api) {
+    document.getElementById('history-tbody').innerHTML =
+      '<tr class="table-empty"><td colspan="7">API not available</td></tr>';
+    return;
+  }
+  api.history_list(null).then(function(data) {
+    if (!data || !Array.isArray(data)) {
+      showNotification('Failed to load history', 'error');
+      return;
+    }
+    renderHistoryList(data);
+  }).catch(function(err) {
+    showNotification('Error: ' + err, 'error');
+  });
 }
 
 /* ===== Render History List ===== */
@@ -331,11 +369,10 @@ function renderHistoryList(records) {
 
 /* ===== Show Detail ===== */
 function showDetail(id) {
-  if (!backend) return;
-  backend.get_detail(id, function(json) {
-    var data = JSON.parse(json);
-    if (!data.ok) {
-      showNotification('Error: ' + data.error, 'error');
+  if (!api) return;
+  api.history_load({ id: id }).then(function(data) {
+    if (!data || !data.ok) {
+      showNotification('Error: ' + (data && data.error || 'Unknown'), 'error');
       return;
     }
     document.getElementById('list-view').style.display = 'none';
@@ -423,6 +460,8 @@ function showDetail(id) {
     } else {
       document.getElementById('optim-section').style.display = 'none';
     }
+  }).catch(function(err) {
+    showNotification('Error loading detail: ' + err, 'error');
   });
 }
 
@@ -465,14 +504,15 @@ function confirmRename(id, cell, oldName) {
     cancelRename(cell, oldName);
     return;
   }
-  if (!backend) return;
-  backend.rename(JSON.stringify({ id: id, name: newName }), function(json) {
-    var result = JSON.parse(json);
-    if (result.ok) {
+  if (!api) return;
+  api.history_rename({ id: id, name: newName }).then(function(result) {
+    if (result && result.ok) {
       showNotification('Renamed successfully', 'success');
     } else {
-      showNotification('Rename failed: ' + (result.error || 'Unknown error'), 'error');
+      showNotification('Rename failed: ' + (result && result.error || 'Unknown error'), 'error');
     }
+  }).catch(function(err) {
+    showNotification('Rename error: ' + err, 'error');
   });
 }
 
@@ -483,14 +523,15 @@ function cancelRename(cell, oldName) {
 /* ===== Delete ===== */
 function deleteRecord(id) {
   if (!confirm('Delete this history record? This action cannot be undone.')) return;
-  if (!backend) return;
-  backend.delete_record(id, function(json) {
-    var result = JSON.parse(json);
-    if (result.ok) {
+  if (!api) return;
+  api.history_delete({ id: id }).then(function(result) {
+    if (result && result.ok) {
       showNotification('Record deleted', 'success');
     } else {
-      showNotification('Delete failed: ' + (result.error || 'Unknown error'), 'error');
+      showNotification('Delete failed: ' + (result && result.error || 'Unknown error'), 'error');
     }
+  }).catch(function(err) {
+    showNotification('Delete error: ' + err, 'error');
   });
 }
 
@@ -511,6 +552,9 @@ function escapeJs(str) {
   if (!str) return '';
   return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"');
 }
+
+/* ===== Boot ===== */
+waitForApi(function() { loadHistoryList(); });
 </script>
 </body>
 </html>

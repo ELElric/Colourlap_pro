@@ -1,13 +1,17 @@
 """pywebview API 桥接类.
 
-将四个页面的 Backend 方法统一到一个类中，通过 pywebview 的 js_api 暴露给前端。
+将所有页面的 Backend 方法统一到一个类中，通过 pywebview 的 js_api 暴露给前端。
 
-关键差异 (vs 原有 QWebChannel Backend):
-- 方法名加前缀 (spectrum_ / gamut_ / whitepoint_ / optimizer_) 避免冲突
-- 去掉所有 @Slot 装饰器，使用 pywebview 原生调用
-- 去掉所有 json.dumps / json.loads（pywebview 自动处理 JSON 序列化）
-- QFileDialog 替换为 tkinter.filedialog
-- QCoreApplication.processEvents() 替换为 threading
+方法名前缀:
+  spectrum_   — 光谱库页面
+  gamut_      — 色域计算器页面
+  whitepoint_ — 白点计算器页面
+  optimizer_  — 膜厚优化页面
+  history_    — 历史记录页面
+
+pywebview 自动将 Python dict/list 序列化为 JSON，将 JSON 参数
+反序列化为 Python dict/list，因此不需要手动 json.dumps / json.loads。
+文件对话框使用 tkinter.filedialog 实现。
 """
 
 from __future__ import annotations
@@ -144,8 +148,7 @@ class ColorLabApi:
     def __init__(self, main_ctrl: MainController) -> None:
         self._main_ctrl = main_ctrl
 
-        # Create sub-controllers (they need QApplication.instance(), which
-        # app.py ensures exists before this point)
+        # Create sub-controllers
         self._spectrum_ctrl = SpectrumController(main_ctrl)
         self._color_ctrl = ColorController(main_ctrl)
         self._opt_ctrl = OptimizationController(main_ctrl)
@@ -626,6 +629,13 @@ class ColorLabApi:
                         "fwhm_nm": fwhm_nm,
                         "dominant_nm": dominant_nm,
                         "purity": round(purity, 1) if purity is not None else None,
+                        "spectrum_name": (
+                            (cast(Spectrum, specs[idx]).meta.get("name", "") if specs[idx].meta else "")
+                            if mode == "rgbcf" and specs and specs[idx]
+                            else (cast(Spectrum, white_spec).meta.get("name", "") if white_spec and white_spec.meta else "")
+                        ),
+                        "cf_name": (cf_specs[idx].meta.get("name", "") if cf_specs[idx] and cf_specs[idx].meta else None) if cf_specs[idx] else None,
+                        "cf_thickness": thicknesses[idx] if thicknesses[idx] > 0 else None,
                     }
                 )
             self._last_primaries = primaries

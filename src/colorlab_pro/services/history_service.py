@@ -9,7 +9,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from colorlab_pro.dto.color import XY
 from colorlab_pro.dto.history import (
     ChannelSnapshot,
     GamutSnapshot,
@@ -152,6 +151,11 @@ class HistoryService:
                 meta = json.loads(record.meta_json)
             except (json.JSONDecodeError, TypeError):
                 pass
+
+        # Inject database ID and timestamp so the UI can access them
+        meta["db_id"] = record.id
+        if record.created_at:
+            meta["created_at"] = record.created_at.strftime("%Y-%m-%d %H:%M")
 
         return HistorySnapshot(
             name=record.name,

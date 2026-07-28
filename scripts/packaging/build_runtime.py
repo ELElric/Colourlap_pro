@@ -1,6 +1,6 @@
 """Build runtime.7z — 打包 Python 嵌入版 + 所有依赖为离线安装包.
 
-用法: python scripts/packaging/build_runtime.7z
+用法: python scripts/packaging/build_runtime.py
 前置: pip install py7zr 或安装 7-Zip
 """
 

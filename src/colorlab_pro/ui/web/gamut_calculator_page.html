@@ -94,6 +94,7 @@ function waitForApi(callback, maxWait) {
       <div class="controls-actions">
         <button id="calculate-btn" class="btn btn-primary">Calculate Gamut</button>
         <button id="send-to-wp-btn" class="btn btn-secondary" disabled title="Calculate gamut first, then send RGB to White Point">Send to White Point</button>
+        <button id="save-history-btn" class="btn btn-secondary" disabled title="Calculate gamut first to enable save">Save to History</button>
         <button id="export-report-btn" class="btn btn-secondary" disabled title="Calculate gamut first to enable export">Export Report</button>
       </div>
     </div>
@@ -307,6 +308,14 @@ function setExportEnabled(enabled) {
     if (wpBtn) {
         wpBtn.disabled = !enabled;
         wpBtn.title = enabled ? 'Send RGB primaries to White Point page' : 'Calculate gamut first';
+    }
+    var sbtn = document.getElementById('save-history-btn');
+    if (sbtn) {
+        sbtn.disabled = !enabled;
+        sbtn.title = enabled ? 'Save results to history' : 'Calculate gamut first to enable save';
+        sbtn.style.color = enabled ? '#e0e0e0' : '#888';
+        sbtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+        sbtn.style.background = enabled ? '#0a84ff' : '#3c3c3c';
     }
 }
 
@@ -750,11 +759,59 @@ function exportReport() {
     });
 }
 
+function saveToHistory() {
+    if (!lastPrimaries || !lastPrimaries.length) { logStatus('No results to save'); return; }
+    var mode = document.getElementById('mode-select').value;
+    var channels = lastPrimaries.map(function(p) {
+        var uv = xyToUV(p.x, p.y);
+        return {
+            name: p.ch,
+            spectrum_id: null,
+            spectrum_name: p.spectrum_name || (p.ch + ' channel'),
+            xy_x: p.x,
+            xy_y: p.y,
+            uv_u: uv.u,
+            uv_v: uv.v,
+            peak_wavelength: p.peak_nm,
+            fwhm: p.fwhm_nm,
+            dominant_wavelength: p.dominant_nm,
+            purity: p.purity,
+            cf_name: p.cf_name || null,
+            cf_thickness_um: p.cf_thickness || null
+        };
+    });
+    var gamutResults = lastResults.map(function(r) {
+        return {
+            standard_name: r.standard,
+            coverage_1931: r.coverage_1931,
+            coverage_1976: r.coverage_1976,
+            match_1931: r.match_1931,
+            match_1976: r.match_1976
+        };
+    });
+    var payload = {
+        mode: mode === 'rgbcf' ? 'cf_fixed' : 'cf_optimized',
+        channels: channels,
+        gamut_results: gamutResults
+    };
+    callApi('history_save', payload).then(function(data) {
+        if (data && data.ok) {
+            logStatus('Saved to history');
+        } else {
+            logStatus('Save failed: ' + ((data && data.error) || 'Unknown error'));
+        }
+    }).catch(function(err) {
+        logStatus('Error: ' + (err.message || err));
+    });
+}
+
 (function() {
     var btn = document.getElementById('calculate-btn');
     if (btn) btn.addEventListener('click', calculateGamut);
     var exp = document.getElementById('export-report-btn');
     if (exp) exp.addEventListener('click', exportReport);
+    var sh = document.getElementById('save-history-btn');
+    if (sh) sh.addEventListener('click', saveToHistory);
     var wp = document.getElementById('send-to-wp-btn');
     if (wp) wp.addEventListener('click', sendToWhitePoint);
 })();
