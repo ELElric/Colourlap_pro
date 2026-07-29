@@ -185,14 +185,14 @@ function waitForApi(callback, maxWait) {
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-r">R</span>
-            <select id="source-r" class="spectrum-select"><option>-- Select --</option></select>
+            <select id="source-r" class="spectrum-select"><option value="">-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-rcf">RCF</span>
-            <select id="cf-r" class="spectrum-select"><option>-- Select --</option></select>
+            <select id="cf-r" class="spectrum-select"><option value="">-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
@@ -210,14 +210,14 @@ function waitForApi(callback, maxWait) {
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-g">G</span>
-            <select id="source-g" class="spectrum-select"><option>-- Select --</option></select>
+            <select id="source-g" class="spectrum-select"><option value="">-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-gcf">GCF</span>
-            <select id="cf-g" class="spectrum-select"><option>-- Select --</option></select>
+            <select id="cf-g" class="spectrum-select"><option value="">-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
@@ -235,14 +235,14 @@ function waitForApi(callback, maxWait) {
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-b">B</span>
-            <select id="source-b" class="spectrum-select"><option>-- Select --</option></select>
+            <select id="source-b" class="spectrum-select"><option value="">-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
         <td>
           <div class="selector-row">
             <span class="channel-tag channel-bcf">BCF</span>
-            <select id="cf-b" class="spectrum-select"><option>-- Select --</option></select>
+            <select id="cf-b" class="spectrum-select"><option value="">-- Select --</option></select>
             <button class="paste-btn" onclick="pasteSpectrumToSelect(this)">Paste</button>
           </div>
         </td>
@@ -659,6 +659,8 @@ function populateSelectors(spectra, defaults) {
         var sel = document.getElementById(cfg.id);
         if (!sel) return;
         var current = sel.value;
+        /* Treat empty string and "-- Select --" (placeholder without value attr) as "no selection" */
+        if (current === '-- Select --') current = '';
         sel.innerHTML = '<option value="">-- Select --</option>';
         var filtered = (spectra || []).filter(function(s) {
             var cat = (s.category || '').toUpperCase();
