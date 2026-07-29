@@ -1014,7 +1014,7 @@ function pasteSpectrumToSelect(btn) {
         return callApi('optimizer_get_initial_data');
     }).then(function(data) {
         if (!data || data.error) return;
-        populateSelectors(data.spectra);
+        populateSelectors(data.spectra, data.defaults);
         if (selectId && pastedId) {
             var sel = document.getElementById(selectId);
             if (sel) sel.value = String(pastedId);

@@ -290,9 +290,8 @@ function logStatus(msg) {
 function renderGamutResults(results) {
     var tbody = document.getElementById('gamut-results-body');
     if (!tbody || !results) return;
-    var selected = getRefGamuts();
     tbody.innerHTML = '';
-    results.filter(function(r) { return selected.indexOf(r.standard) >= 0; }).forEach(function(r) {
+    results.forEach(function(r) {
         var cov1931 = r.coverage_1931 || 0;
         var match1931 = r.match_1931 || 0;
         var cov1976 = r.coverage_1976 || 0;
@@ -568,8 +567,6 @@ function updateReferenceGamuts() {
             updateWpCIESeries(getWpBaseSeriesXY(), getWpBaseSeriesUV());
         }
     }
-    var lastData = window.lastWhitePointData;
-    if (lastData) renderGamutResults(lastData.results);
 }
 
 // Shared base chart options (axes, grid, title) — NOT including series

@@ -111,16 +111,6 @@ function waitForApi(callback, maxWait) {
     </div>
   </div>
 
-  <!-- CIE 1931 Chromaticity Diagram with Gamut Triangles -->
-  <div class="ref-section">
-    <div class="ref-section-header">
-      <span class="ref-section-title">CIE 1931 Chromaticity Diagram &mdash; Gamut Triangles &amp; Illuminants</span>
-    </div>
-    <div class="ref-section-body">
-      <div class="cie-diagram-container" id="cie-diagram"></div>
-    </div>
-  </div>
-
   <!-- CIE Color Matching Functions -->
   <div class="ref-section">
     <div class="ref-section-header">
@@ -129,17 +119,6 @@ function waitForApi(callback, maxWait) {
     </div>
     <div class="ref-section-body">
       <div class="chart-container" id="cmf-chart"></div>
-    </div>
-  </div>
-
-  <!-- V(λ) Photopic Luminous Efficiency -->
-  <div class="ref-section">
-    <div class="ref-section-header">
-      <span class="ref-section-title">V(λ) &mdash; CIE 1924 Photopic Luminous Efficiency Function</span>
-      <span style="color: var(--text-muted); font-size: var(--font-xs);">Peak = 1.0 at 555 nm</span>
-    </div>
-    <div class="ref-section-body">
-      <div class="chart-container" id="vlambda-chart"></div>
     </div>
   </div>
 
@@ -276,26 +255,6 @@ function renderCMFChart(cmf) {
     window.addEventListener('resize', function() { chart.resize(); });
 }
 
-function renderVLambdaChart(vlambda) {
-    var chart = echarts.init(document.getElementById('vlambda-chart'));
-    var wl = vlambda.map(function(r) { return r[0]; });
-    var vals = vlambda.map(function(r) { return r[1]; });
-
-    var axisColor = getCssVar('--echarts-axis');
-    var gridColor = getCssVar('--echarts-grid');
-    var textColor = getCssVar('--text-muted');
-
-    chart.setOption({
-        backgroundColor: 'transparent',
-        tooltip: { trigger: 'axis', backgroundColor: getCssVar('--tooltip-bg'), borderColor: getCssVar('--tooltip-border'), textStyle: { color: getCssVar('--tooltip-text') }, formatter: function(p) { return 'λ = ' + p[0].axisValue + ' nm<br/>V(λ) = ' + p[0].data.toFixed(6); } },
-        grid: { left: 50, right: 20, top: 20, bottom: 35 },
-        xAxis: { type: 'category', data: wl, name: 'λ (nm)', nameTextStyle: { color: textColor }, axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: textColor, fontSize: 10, interval: 9 } },
-        yAxis: { type: 'value', name: 'V(λ)', nameTextStyle: { color: textColor }, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 10 }, max: 1.0 },
-        series: [{ name: 'V(λ)', type: 'line', data: vals, smooth: true, symbol: 'none', lineStyle: { width: 2.5, color: '#ffcc00' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(255,204,0,0.25)' }, { offset: 1, color: 'rgba(255,204,0,0.02)' }]) }, markPoint: { data: [{ coord: ['555', 1.0], symbol: 'circle', symbolSize: 8, itemStyle: { color: '#ffcc00' }, label: { show: true, formatter: 'Peak 555nm', position: 'top', color: textColor, fontSize: 10 } }] } }]
-    });
-    window.addEventListener('resize', function() { chart.resize(); });
-}
-
 function renderCIEDiagram(gamuts, illuminants) {
     var chart = echarts.init(document.getElementById('cie-diagram'));
     var textColor = getCssVar('--text-muted');
@@ -379,8 +338,6 @@ function renderAll(data) {
     renderGamutTable(data.gamuts);
     renderIlluminantTable(data.illuminants);
     renderCMFChart(data.cmf);
-    renderVLambdaChart(data.vlambda);
-    renderCIEDiagram(data.gamuts, data.illuminants);
 }
 
 waitForApi(function() {

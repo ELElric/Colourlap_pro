@@ -263,6 +263,7 @@ def extract_offline_runtime(archive_path: Path, progress_callback=None) -> bool:
                 subprocess.run(
                     [str(seven_z), "x", str(archive_path), f"-o{RUNTIME_DIR}", "-y"],
                     capture_output=True, check=True, timeout=300,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 return PYTHON_EXE.is_file()
             except Exception as exc:
@@ -382,6 +383,7 @@ def ensure_pip(progress_callback=None) -> bool:
         subprocess.run(
             [str(PYTHON_EXE), str(get_pip_py), "-q"],
             check=True, capture_output=True, timeout=120,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return True
     except Exception as exc:
@@ -411,6 +413,7 @@ except Exception as e:
             [str(python_exe), "-c", script],
             capture_output=True, text=True, timeout=15,
             env={**os.environ, "PYTHONPATH": str(SITE_PACKAGES)},
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         output = result.stdout.strip()
         if not output:
@@ -509,7 +512,7 @@ def install_dependencies(progress_callback=None) -> bool:
             spec,
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, creationflags=subprocess.CREATE_NO_WINDOW)
             if result.returncode != 0:
                 stderr = result.stderr[:300] if result.stderr else "unknown"
                 print(f"[Launcher] Warning: install {spec} failed: {stderr}")
@@ -566,7 +569,7 @@ def launch_app() -> int:
     print(f"[Launcher] Starting: {' '.join(cmd)}")
     print(f"[Launcher] PYTHONPATH={env['PYTHONPATH']}")
 
-    proc = subprocess.Popen(cmd, env=env)
+    proc = subprocess.Popen(cmd, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
     proc.wait()
     return proc.returncode
 
