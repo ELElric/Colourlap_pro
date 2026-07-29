@@ -262,7 +262,7 @@ function waitForApi(callback, maxWait) {
 
 <!-- Buttons -->
 <div class="button-row">
-  <button class="btn-start" onclick="startOptimization()">Start Optimization</button>
+  <button class="btn-start" id="btn-start" onclick="startOptimization()">Start Optimization</button>
   <button class="btn-stop" id="stop-btn" onclick="stopOptimization()">Stop</button>
 </div>
 
@@ -712,7 +712,8 @@ function getInputs() {
 }
 
 function setLoading(loading) {
-    var btn = document.querySelector('.btn-start');
+    var btn = document.getElementById('btn-start');
+    if (!btn) { btn = document.querySelector('.filter-content.active .btn-start'); }
     if (btn) { btn.disabled = loading; btn.textContent = loading ? 'Optimizing...' : 'Start Optimization'; }
     var stop = document.getElementById('stop-btn');
     if (stop) stop.disabled = !loading;
@@ -742,10 +743,12 @@ function startOptimization() {
     }
     setLoading(true);
     updateProgress(0, 'Starting grid search...');
+    startOptPolling();
     /* Async: optimizer_optimize starts a background thread and returns {started: true}.
        Progress and results are pushed via window.updateOptProgress / updateOptResult. */
     callApi('optimizer_optimize', data).then(function(res) {
         if (res && res.error) {
+            stopOptPolling();
             setLoading(false);
             logStatus(formatError(res, 'Optimization failed'));
             updateProgress(0);
@@ -753,6 +756,7 @@ function startOptimization() {
         }
         /* Progress and results are pushed via evaluate_js */
     }).catch(function(err) {
+        stopOptPolling();
         setLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateProgress(0);
@@ -765,6 +769,7 @@ window.updateOptProgress = function(percent, message) {
 };
 
 window.updateOptResult = function(result) {
+    stopOptPolling();
     setLoading(false);
     if (!result) { logStatus('Optimization returned no result'); updateProgress(0); return; }
     if (result.error) { logStatus(formatError(result, 'Optimization failed')); updateProgress(0); return; }
@@ -1044,8 +1049,9 @@ function refreshData() {
 }
 
 function logStatus(msg) {
-    var el = document.querySelector('.status-left');
-    if (el) el.textContent = msg;
+    console.log('[Optimizer] ' + msg);
+    var els = document.querySelectorAll('.progress-text');
+    els.forEach(function(el) { el.textContent = msg; });
 }
 
 function formatError(res, defaultMsg) {
@@ -1170,14 +1176,17 @@ function startMaterialSelection() {
     };
     setMatLoading(true);
     updateMatProgress(0, 'Starting material selection...');
+    startOptPolling();
     callApi('optimizer_select_cf_materials', payload).then(function(res) {
         if (res && res.error) {
+            stopOptPolling();
             setMatLoading(false);
             logStatus(formatError(res, 'Material selection failed'));
             updateMatProgress(0);
             return;
         }
     }).catch(function(err) {
+        stopOptPolling();
         setMatLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateMatProgress(0);
@@ -1189,6 +1198,7 @@ window.updateCFMaterialsProgress = function(percent, message) {
 };
 
 window.updateCFMaterialsResult = function(result) {
+    stopOptPolling();
     setMatLoading(false);
     if (!result) { logStatus('Material selection returned no result'); updateMatProgress(0); return; }
     if (result.error) { logStatus(formatError(result, 'Material selection failed')); updateMatProgress(0); return; }
@@ -1402,14 +1412,17 @@ function startEmissionOptimization() {
     };
     setEmLoading(true);
     updateEmProgress(0, 'Starting emission optimization...');
+    startOptPolling();
     callApi('optimizer_optimize_emission', payload).then(function(res) {
         if (res && res.error) {
+            stopOptPolling();
             setEmLoading(false);
             logStatus(formatError(res, 'Emission optimization failed'));
             updateEmProgress(0);
             return;
         }
     }).catch(function(err) {
+        stopOptPolling();
         setEmLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateEmProgress(0);
@@ -1421,6 +1434,7 @@ window.updateEmissionProgress = function(percent, message) {
 };
 
 window.updateEmissionResult = function(result) {
+    stopOptPolling();
     setEmLoading(false);
     if (!result) { logStatus('Emission optimization returned no result'); updateEmProgress(0); return; }
     if (result.error) { logStatus(formatError(result, 'Emission optimization failed')); updateEmProgress(0); return; }
@@ -1501,6 +1515,49 @@ refreshData = function() {
     });
 };
 
+
+/* ===== Polling fallback for progress (in case evaluate_js fails) ===== */
+var _optPollTimer = null;
+var _optPollActive = false;
+
+function startOptPolling() {
+    if (_optPollTimer) clearInterval(_optPollTimer);
+    _optPollActive = true;
+    _optPollTimer = setInterval(function() {
+        if (!_optPollActive) return;
+        callApi('optimizer_get_progress').then(function(data) {
+            if (!data || data.error) return;
+            if (data.running && data.progress > 0) {
+                updateProgress(data.progress);
+                updateMatProgress(data.progress);
+                updateEmProgress(data.progress);
+            }
+            if (!data.running && data.result) {
+                _optPollActive = false;
+                clearInterval(_optPollTimer);
+                _optPollTimer = null;
+                var result = data.result;
+                if (result.results || result.error) {
+                    setLoading(false);
+                    setMatLoading(false);
+                    setEmLoading(false);
+                    if (result.error) {
+                        logStatus(formatError(result, 'Optimization failed'));
+                    } else {
+                        renderResults(result.results || [], result.best);
+                        updateProgress(100, 'Best coverage: ' + (result.best ? Number(result.best.coverage).toFixed(2) : '-') + '%');
+                        logStatus('Optimization complete');
+                    }
+                }
+            }
+        }).catch(function() {});
+    }, 1000);
+}
+
+function stopOptPolling() {
+    _optPollActive = false;
+    if (_optPollTimer) { clearInterval(_optPollTimer); _optPollTimer = null; }
+}
 
 </script>
 

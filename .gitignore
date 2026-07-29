@@ -67,3 +67,4 @@ ai_context/
 /colorlab-release-review/
 /code-review-report/
 /colorlab-pro-tech-doc/
+.pytest_tmp/

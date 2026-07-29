@@ -307,6 +307,13 @@ def separate_qd_spectrum(
     # QD emission = total − blue leakage (clipped to ≥ 0).
     qd_emission_vals = np.clip(qd_spectrum.values - blue_leakage_vals, 0.0, None)
 
+    # Zero out QD emission below blue_cutoff to prevent residual values
+    # in the blue region from being affected by translate/scale operations.
+    # This ensures that only the QD emission peak is adjusted, while the
+    # blue leakage component remains exactly preserved.
+    blue_mask = qd_spectrum.wavelengths < blue_cutoff
+    qd_emission_vals[blue_mask] = 0.0
+
     wl = qd_spectrum.wavelengths
     unit = qd_spectrum.unit
 

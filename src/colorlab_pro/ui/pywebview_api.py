@@ -1264,22 +1264,29 @@ class ColorLabApi:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
 
+            def _cf_progress_cb(pct):
+                self._opt_progress = pct
+                self._push_js(
+                    f"window.updateCFMaterialsProgress && window.updateCFMaterialsProgress({pct})"
+                )
+
             results = select_cf_materials(
                 sources, cf_library, thicknesses, target,
                 target_standard=target_standard,
-                progress_callback=lambda pct: self._push_js(
-                    f"window.updateCFMaterialsProgress && window.updateCFMaterialsProgress({pct})"
-                ),
+                progress_callback=_cf_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
             )
 
             result = {"results": results, "best": results[0] if results else None}
+            self._opt_result = result
+            self._opt_progress = 100
             self._push_js(
                 "window.updateCFMaterialsResult && window.updateCFMaterialsResult("
                 + _json.dumps(result) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
+            self._opt_result = err
             self._push_js(
                 "window.updateCFMaterialsResult && window.updateCFMaterialsResult("
                 + _json.dumps(err) + ")"
@@ -1360,6 +1367,12 @@ class ColorLabApi:
             if fwhm_ranges:
                 fwhm_ranges = [tuple(r) for r in fwhm_ranges]
 
+            def _em_progress_cb(pct):
+                self._opt_progress = pct
+                self._push_js(
+                    f"window.updateEmissionProgress && window.updateEmissionProgress({pct})"
+                )
+
             results = optimize_emission_spectra(
                 sources, cfs, thicknesses, target,
                 target_standard=target_standard,
@@ -1368,19 +1381,20 @@ class ColorLabApi:
                 is_qd=is_qd,
                 blue_cutoff=blue_cutoff,
                 steps=steps,
-                progress_callback=lambda pct: self._push_js(
-                    f"window.updateEmissionProgress && window.updateEmissionProgress({pct})"
-                ),
+                progress_callback=_em_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
             )
 
             result = {"results": results, "best": results[0] if results else None}
+            self._opt_result = result
+            self._opt_progress = 100
             self._push_js(
                 "window.updateEmissionResult && window.updateEmissionResult("
                 + _json.dumps(result) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
+            self._opt_result = err
             self._push_js(
                 "window.updateEmissionResult && window.updateEmissionResult("
                 + _json.dumps(err) + ")"
