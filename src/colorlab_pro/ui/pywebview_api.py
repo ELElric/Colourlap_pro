@@ -465,7 +465,7 @@ class ColorLabApi:
         name_map = {
             "red":     [("QD-R", "QD_RED", "QD-RED"), ("cat", "QD", "ch", "R")],
             "green":   [("QD-G", "QD_GREEN", "QD-GREEN"), ("cat", "QD", "ch", "G")],
-            "blue":    [("B-LED", "BLED", "B-LED", "LED-B"), ("cat", "LED", "ch", "B")],
+            "blue":    [("B-LED", "BLED", "B-LED", "LED-B"), ("cat", "LED", "ch", "B"), ("cat", "QD", "ch", "B")],
             "cf_red":  [("R110B-2", "R110B2"), ("cat", "CF", "ch", "R")],
             "cf_green":[("BD1-SC1000G", "BD1SC1000G"), ("cat", "CF", "ch", "G")],
             "cf_blue": [("B150B-2", "B150B2"), ("cat", "CF", "ch", "B")],
@@ -475,7 +475,9 @@ class ColorLabApi:
         except Exception:  # noqa: BLE001
             return defaults
 
-        for key, (names, fallback) in name_map.items():
+        for key, matchers in name_map.items():
+            names = matchers[0]
+            fallbacks = matchers[1:]
             names_upper = [n.upper() for n in names]
             for s in summaries:
                 sname = (s.name or "").upper().strip()
@@ -486,8 +488,11 @@ class ColorLabApi:
                 for s in summaries:
                     cat = (s.category or "").upper()
                     ch = (s.channel or "").upper()
-                    if cat == fallback[1] and ch == fallback[3]:
-                        defaults[key] = s.id
+                    for fb in fallbacks:
+                        if cat == fb[1] and ch == fb[3]:
+                            defaults[key] = s.id
+                            break
+                    if defaults[key] is not None:
                         break
         return defaults
 
