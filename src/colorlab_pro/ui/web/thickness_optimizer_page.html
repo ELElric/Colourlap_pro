@@ -91,6 +91,13 @@
   .emission-preview-btn { background: var(--bg-base); border: 1px solid var(--border); color: var(--text-secondary); padding: 4px 12px; border-radius: var(--radius-sm); font-size: var(--font-sm); cursor: pointer; }
   .emission-preview-btn:hover { border-color: var(--accent); color: var(--text-primary); }
   .mini-chart-container { width: 100%; height: 200px; margin-top: 8px; }
+
+  /* Progress Bar */
+  .progress-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: var(--gap-md); }
+  .progress-text { color: var(--text-secondary); font-size: var(--font-sm); margin-bottom: 8px; }
+  .progress-bar-bg { background: var(--bg-base); border-radius: var(--radius-sm); height: 12px; overflow: hidden; border: 1px solid var(--border-light); }
+  .progress-bar-fill { background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%); height: 100%; width: 0%; border-radius: var(--radius-sm); transition: width 0.3s ease; }
+  .progress-summary { color: var(--text-muted); font-size: var(--font-xs); margin-top: 8px; }
 </style>
 <script>
 // pywebview API bridge — works in both iframe and standalone mode
