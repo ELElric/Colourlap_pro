@@ -116,16 +116,34 @@ def measure_fwhm(spectrum: Spectrum) -> float:
 def translate_spectrum(
     spectrum: Spectrum,
     delta_nm: float,
+    *,
+    zoned: bool = True,
+    zone_bounds: tuple[float, float, float, float] | None = None,
 ) -> Spectrum:
     """Shift a spectrum along the wavelength axis by ``delta_nm``.
 
-    The output spectrum is resampled onto the original wavelength grid.
-    Values shifted beyond the grid boundaries are clipped to zero.
+    Two modes are supported:
+
+    * **Zoned mode** (default, ``zoned=True``):  The wavelength axis is
+      divided into three regions — blue (≤ 500 nm), green (500–580 nm),
+      and red (> 580 nm).  Only the region containing the spectral peak
+      is shifted; the other two regions are held fixed.  Gaps created
+      by the shift at zone boundaries are smoothly interpolated to
+      avoid discontinuities.  This preserves the blue-leakage region of
+      QD spectra and prevents edge clipping at the wavelength limits.
+
+    * **Global mode** (``zoned=False``):  The entire spectrum is shifted
+      uniformly and resampled onto the original grid.  Values beyond the
+      grid boundaries are clipped to zero.
 
     Args:
         spectrum: Input spectrum.
         delta_nm: Wavelength shift in nm. Positive = red-shift,
             negative = blue-shift.
+        zoned: If True, use zone-based shifting (default).
+        zone_bounds: Optional ``(blue_end, green_end, red_end,
+            extra_end)`` tuple defining zone boundaries.  Defaults to
+            ``(500, 580, 780, 830)``.
 
     Returns:
         New Spectrum with shifted values on the original wavelength grid.
@@ -138,24 +156,183 @@ def translate_spectrum(
             meta={**spectrum.meta, "translate_delta": 0.0},
         )
 
-    # Shifted wavelengths: each original value now sits at wl + delta.
-    shifted_wl = spectrum.wavelengths + delta_nm
+    if not zoned:
+        # Original global-shift implementation.
+        shifted_wl = spectrum.wavelengths + delta_nm
+        new_values = np.interp(
+            spectrum.wavelengths,
+            shifted_wl,
+            spectrum.values,
+            left=0.0,
+            right=0.0,
+        )
+        return Spectrum(
+            wavelengths=spectrum.wavelengths.copy(),
+            values=new_values,
+            unit=spectrum.unit,
+            meta={**spectrum.meta, "translate_delta": delta_nm},
+        )
 
-    # Resample: interpolate original (shifted_wl, values) onto original grid.
-    new_values = np.interp(
-        spectrum.wavelengths,  # target grid (original)
-        shifted_wl,  # source grid (shifted)
-        spectrum.values,  # source values
-        left=0.0,
-        right=0.0,
+    # ---- Zoned shift ----
+    return _translate_spectrum_zoned_impl(
+        spectrum, delta_nm, zone_bounds,
     )
+
+
+# Default zone boundaries (nm):  blue | green | red | tail
+_DEFAULT_ZONE_BOUNDS: tuple[float, float, float, float] = (500.0, 580.0, 780.0, 830.0)
+
+
+def _detect_peak_zone(
+    spectrum: Spectrum,
+    zone_bounds: tuple[float, float, float, float] | None,
+) -> int:
+    """Determine which zone (0=blue, 1=green, 2=red) contains the peak.
+
+    Falls back to the zone with the largest integrated area if the peak
+    sits exactly on a boundary.
+    """
+    bounds = zone_bounds or _DEFAULT_ZONE_BOUNDS
+    wl = spectrum.wavelengths
+    vals = spectrum.values
+    peak_wl = float(wl[int(np.argmax(vals))])
+
+    if peak_wl <= bounds[0]:
+        return 0  # blue
+    if peak_wl <= bounds[1]:
+        return 1  # green
+    return 2  # red
+
+
+def _translate_spectrum_zoned_impl(
+    spectrum: Spectrum,
+    delta_nm: float,
+    zone_bounds: tuple[float, float, float, float] | None,
+) -> Spectrum:
+    """Shift only the peak zone, preserving other zones, with boundary smoothing.
+
+    The algorithm:
+    1. Divide the spectrum into three zones by *zone_bounds*.
+    2. Determine which zone contains the spectral peak.
+    3. Shift only that zone's data by *delta_nm* via interpolation.
+    4. For the shifted zone, fill the gap left behind (near the boundary
+       with the previous zone) by holding the boundary value constant —
+       i.e. the gap region takes the value of the nearest un-shifted
+       boundary point, then a short smoothing window blends the
+       transition.
+    5. Zones that do not contain the peak are kept unchanged.
+    """
+    bounds = zone_bounds or _DEFAULT_ZONE_BOUNDS
+    wl = spectrum.wavelengths.copy()
+    vals = spectrum.values.copy()
+    n = len(wl)
+    dwl = float(wl[1] - wl[0]) if n > 1 else 1.0
+
+    # Zone masks
+    blue_mask = wl <= bounds[0]
+    green_mask = (wl > bounds[0]) & (wl <= bounds[1])
+    red_mask = wl > bounds[1]
+
+    # Also define mask for the shifted zone
+    peak_zone = _detect_peak_zone(spectrum, zone_bounds)
+    if peak_zone == 0:
+        shift_mask = blue_mask
+    elif peak_zone == 1:
+        shift_mask = green_mask
+    else:
+        shift_mask = red_mask
+
+    if not np.any(shift_mask):
+        return Spectrum(
+            wavelengths=wl, values=vals, unit=spectrum.unit,
+            meta={**spectrum.meta, "translate_delta": delta_nm, "zoned": True},
+        )
+
+    # --- Shift the peak zone ---
+    zone_wl = wl[shift_mask]
+    zone_vals = vals[shift_mask]
+    shifted_wl = zone_wl + delta_nm
+
+    # Interpolate shifted zone data back onto the zone's original grid
+    shifted_zone_vals = np.interp(
+        zone_wl, shifted_wl, zone_vals,
+        left=0.0, right=0.0,
+    )
+
+    # --- Handle the gap at the boundary ---
+    # After shifting, a gap appears at the edge of the shifted zone
+    # closest to the previous zone. We fill this gap with the boundary
+    # value from the un-shifted neighbour, then apply smoothing.
+    new_vals = vals.copy()
+    new_vals[shift_mask] = shifted_zone_vals
+
+    # Determine which boundary of the shifted zone has a gap
+    zone_indices = np.where(shift_mask)[0]
+    zone_start = zone_indices[0]
+    zone_end = zone_indices[-1]
+
+    # Smoothing window (in nm) for boundary blending
+    smooth_nm = max(abs(delta_nm) * 2, 10.0)
+    smooth_points = max(int(round(smooth_nm / dwl)), 3)
+
+    if delta_nm > 0:
+        # Red-shift: gap appears at the LEFT (low-wavelength) edge of the zone.
+        # The shifted data starts further right, leaving a gap near zone_start.
+        if zone_start > 0:
+            boundary_val = float(vals[zone_start - 1])  # value from previous zone
+            gap_end = min(zone_start + int(round(abs(delta_nm) / dwl)), zone_end)
+            if gap_end > zone_start:
+                # Fill gap with boundary value
+                new_vals[zone_start:gap_end + 1] = boundary_val
+                # Smooth only within the shifted zone (do not touch the
+                # previous zone's data).
+                smooth_start = zone_start + 1
+                smooth_end = min(gap_end + smooth_points, zone_end)
+                _smooth_segment(new_vals, smooth_start, smooth_end)
+    else:
+        # Blue-shift: gap appears at the RIGHT (high-wavelength) edge.
+        if zone_end < n - 1:
+            boundary_val = float(vals[zone_end + 1])  # value from next zone
+            gap_start = max(zone_end - int(round(abs(delta_nm) / dwl)), zone_start)
+            if zone_end > gap_start:
+                # Fill gap with boundary value
+                new_vals[gap_start:zone_end + 1] = boundary_val
+                # Smooth only within the shifted zone.
+                smooth_start = max(gap_start - smooth_points, zone_start)
+                smooth_end = zone_end - 1
+                _smooth_segment(new_vals, smooth_start, smooth_end)
+
+    # Ensure non-negative
+    new_vals = np.clip(new_vals, 0.0, None)
 
     return Spectrum(
-        wavelengths=spectrum.wavelengths.copy(),
-        values=new_values,
+        wavelengths=wl,
+        values=new_vals,
         unit=spectrum.unit,
-        meta={**spectrum.meta, "translate_delta": delta_nm},
+        meta={
+            **spectrum.meta,
+            "translate_delta": delta_nm,
+            "zoned": True,
+            "peak_zone": peak_zone,
+        },
     )
+
+
+def _smooth_segment(arr: np.ndarray, start: int, end: int) -> None:
+    """Apply a simple moving-average smooth to ``arr[start:end+1]`` in place."""
+    if end - start < 2:
+        return
+    segment = arr[start:end + 1].copy()
+    window = min(5, len(segment))
+    if window < 2:
+        return
+    kernel = np.ones(window) / window
+    smoothed = np.convolve(segment, kernel, mode='same')
+    # Fix edges of 'same' convolution
+    half = window // 2
+    smoothed[:half] = segment[:half]
+    smoothed[-half:] = segment[-half:]
+    arr[start:end + 1] = smoothed
 
 
 def scale_fwhm(
