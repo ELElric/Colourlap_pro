@@ -1036,12 +1036,7 @@ class ColorLabApi:
 
             from colorlab_pro.dto.color import XY
             from colorlab_pro.engines.gamut_calculator import standard_gamuts
-            from colorlab_pro.engines.thickness_optimizer import (
-                _compute_single_candidate,
-                _prepare_grid_inputs,
-            )
-
-            wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
+            from colorlab_pro.engines.thickness_optimizer import grid_search_optimize
 
             if target_xy is not None:
                 target = XY(float(target_xy[0]), float(target_xy[1]))
@@ -1049,43 +1044,28 @@ class ColorLabApi:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
 
-            target_gamut = standard_gamuts(target_standard)
+            def _progress_cb(pct):
+                self._opt_progress = pct
+                self._push_js(
+                    f"window.updateOptProgress && window.updateOptProgress({pct}, 'Running grid search...')"
+                )
 
-            # Grid search
-            steps = 10
-            candidates: list[dict] = []
-            total = steps ** 3
-            count = 0
-            for dr in np.linspace(bounds[0][0], bounds[0][1], steps):
-                for dg in np.linspace(bounds[1][0], bounds[1][1], steps):
-                    for db in np.linspace(bounds[2][0], bounds[2][1], steps):
-                        count += 1
-                        if stop_event.is_set():
-                            self._push_js("window.updateOptProgress && window.updateOptProgress(0, 'Stopped')")
-                            self._push_js(
-                                "window.updateOptResult && window.updateOptResult("
-                                + _json.dumps({"results": [], "best": None, "stopped": True})
-                                + ")"
-                            )
-                            return
-                        # Push progress every 5%
-                        if count % 50 == 0:
-                            pct = int(100 * count / total)
-                            self._opt_progress = pct
-                            self._push_js(
-                                f"window.updateOptProgress && window.updateOptProgress({pct}, 'Running grid search...')"
-                            )
-                        candidates.append(
-                            _compute_single_candidate(
-                                wavelengths, src_vals, alphas,
-                                [dr, dg, db], target, target_gamut, unit,
-                            )
-                        )
+            top = grid_search_optimize(
+                sources, cfs, bounds, target,
+                target_standard=target_standard,
+                steps=10,
+                progress_callback=_progress_cb,
+                cancel_check=lambda: stop_event.is_set(),
+            )
 
-            candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
-            top = candidates[:5]
-            for i, r in enumerate(top):
-                r["rank"] = i + 1
+            if stop_event.is_set():
+                self._push_js("window.updateOptProgress && window.updateOptProgress(0, 'Stopped')")
+                self._push_js(
+                    "window.updateOptResult && window.updateOptResult("
+                    + _json.dumps({"results": [], "best": None, "stopped": True})
+                    + ")"
+                )
+                return
 
             result = {"results": top, "best": top[0] if top else None}
             self._opt_result = result
@@ -1117,7 +1097,29 @@ class ColorLabApi:
         }
 
     def optimizer_sensitivity_analysis(self, payload: dict) -> dict:
-        """Vary one CF thickness at a time and return coverage / white point drift."""
+        """Vary one CF thickness at a time and return coverage / white point drift.
+
+        Runs in a background thread; progress and results are pushed via
+        ``window.updateSensitivityProgress`` / ``window.updateSensitivityResult``.
+        """
+        stop_event = threading.Event()
+        with self._opt_lock:
+            if self._opt_running:
+                return {"error": "Another optimization is running"}
+            self._opt_running = True
+            self._current_stop_event = stop_event
+        self._opt_progress = 0
+
+        thread = threading.Thread(
+            target=self._sensitivity_worker, args=(payload, stop_event), daemon=True
+        )
+        thread.start()
+        return {"started": True}
+
+    def _sensitivity_worker(self, payload: dict, stop_event: threading.Event) -> None:
+        """Background worker for single-channel sensitivity analysis."""
+        import json as _json
+
         try:
             base = payload["base"]
             vary_channel = payload["vary_channel"]
@@ -1141,22 +1143,63 @@ class ColorLabApi:
                 target = XY(wp[0], wp[1])
 
             channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
-            stop_event = threading.Event()
+
+            def _progress_cb(pct):
+                self._opt_progress = pct
+                self._push_js(
+                    f"window.updateSensitivityProgress && window.updateSensitivityProgress({pct})"
+                )
 
             points = sensitivity_analysis(
                 sources, cfs, bounds, base, channel_idx, target,
                 target_standard=target_standard, steps=21,
-                progress_callback=lambda pct: self._push_js(
-                    f"window.updateProgress && window.updateProgress({pct})"
-                ),
+                progress_callback=_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
             )
-            return {"channel": vary_channel, "points": points}
+
+            result = {"channel": vary_channel, "points": points, "stopped": stop_event.is_set()}
+            self._opt_result = result
+            self._opt_progress = 100
+            self._push_js(
+                "window.updateSensitivityResult && window.updateSensitivityResult("
+                + _json.dumps(result) + ")"
+            )
         except Exception as exc:  # noqa: BLE001
-            return _safe_error(exc)
+            err = _safe_error(exc)
+            self._opt_result = err
+            self._push_js(
+                "window.updateSensitivityResult && window.updateSensitivityResult("
+                + _json.dumps(err) + ")"
+            )
+        finally:
+            with self._opt_lock:
+                self._opt_running = False
+                self._current_stop_event = None
 
     def optimizer_sensitivity_all(self, payload: dict) -> dict:
-        """Run sensitivity for all 3 channels: vary each independently."""
+        """Run sensitivity for all 3 channels: vary each independently.
+
+        Runs in a background thread; progress and results are pushed via
+        ``window.updateSensitivityProgress`` / ``window.updateSensitivityAllResult``.
+        """
+        stop_event = threading.Event()
+        with self._opt_lock:
+            if self._opt_running:
+                return {"error": "Another optimization is running"}
+            self._opt_running = True
+            self._current_stop_event = stop_event
+        self._opt_progress = 0
+
+        thread = threading.Thread(
+            target=self._sensitivity_all_worker, args=(payload, stop_event), daemon=True
+        )
+        thread.start()
+        return {"started": True}
+
+    def _sensitivity_all_worker(self, payload: dict, stop_event: threading.Event) -> None:
+        """Background worker for all-channel sensitivity analysis."""
+        import json as _json
+
         try:
             base = payload["base"]
             source_ids = [int(x) for x in payload["source_ids"]]
@@ -1178,19 +1221,37 @@ class ColorLabApi:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
 
-            stop_event = threading.Event()
+            def _progress_cb(pct):
+                self._opt_progress = pct
+                self._push_js(
+                    f"window.updateSensitivityProgress && window.updateSensitivityProgress({pct})"
+                )
 
             results = sensitivity_all_channels(
                 sources, cfs, bounds, base, target,
                 target_standard=target_standard, steps=21,
-                progress_callback=lambda pct: self._push_js(
-                    f"window.updateProgress && window.updateProgress({pct})"
-                ),
+                progress_callback=_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
             )
-            return {"results": results, "base": base}
+
+            result = {"results": results, "base": base, "stopped": stop_event.is_set()}
+            self._opt_result = result
+            self._opt_progress = 100
+            self._push_js(
+                "window.updateSensitivityAllResult && window.updateSensitivityAllResult("
+                + _json.dumps(result) + ")"
+            )
         except Exception as exc:  # noqa: BLE001
-            return _safe_error(exc)
+            err = _safe_error(exc)
+            self._opt_result = err
+            self._push_js(
+                "window.updateSensitivityAllResult && window.updateSensitivityAllResult("
+                + _json.dumps(err) + ")"
+            )
+        finally:
+            with self._opt_lock:
+                self._opt_running = False
+                self._current_stop_event = None
 
     def optimizer_paste_spectrum(self, payload: dict) -> dict:
         """Parse clipboard text and save as a new spectrum (optimizer page version)."""

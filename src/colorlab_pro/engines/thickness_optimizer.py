@@ -353,14 +353,18 @@ def _prepare_grid_inputs(
 ) -> tuple[NDArray[np.float64], list[NDArray[np.float64]], list[NDArray[np.float64]], str]:
     """Resample sources and CFs to a common wavelength grid, convert CF to alpha.
 
+    Uses ``np.intersect1d`` on wavelengths rounded to 1 decimal place to avoid
+    floating-point mismatches (e.g. 450.0 vs 450.0000001).
+
     Returns:
         (wavelengths, source_values_list, alpha_list, unit)
     """
-    wavelengths = sources[0].wavelengths.copy()
+    # Round to 1 decimal place for robust intersection.
+    wavelengths = np.round(sources[0].wavelengths, 1)
     for s in sources[1:]:
-        wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+        wavelengths = np.intersect1d(wavelengths, np.round(s.wavelengths, 1))
     for c in cfs:
-        wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+        wavelengths = np.intersect1d(wavelengths, np.round(c.wavelengths, 1))
     if len(wavelengths) < 3:
         raise ValueError("Insufficient common wavelength points between spectra")
 
@@ -404,13 +408,50 @@ def _compute_single_candidate(
     target_gamut: Any,
     unit: str,
 ) -> dict:
-    """Compute filtered spectra, white xy, delta, coverage, match for one thickness combo."""
+    """Compute filtered spectra, white xy, delta, coverage, match for one thickness combo.
+
+    Returns full-precision floats (not rounded) so callers can sort by exact
+    values.  Frontend code formats display precision via ``toFixed()``.
+
+    If the total filtered intensity is near zero (e.g. all CFs very thick),
+    returns sentinel values (delta_xy=inf, coverage=0, match=0) to prevent
+    NaN propagation through ``spectrum_xy`` and downstream sorting.
+    """
     filtered = []
     for src, alpha, d in zip(src_vals, alphas, thicknesses, strict=True):
         t = np.power(10.0, -alpha * d)
         filtered.append(src * t)
-    white_spec = Spectrum(wavelengths=wavelengths, values=np.sum(np.stack(filtered), axis=0), unit=unit)
+    white_vals = np.sum(np.stack(filtered), axis=0)
+
+    # Guard against zero / near-zero total intensity — spectrum_xy would
+    # produce NaN because XYZ = (0, 0, 0) and normalisation divides by zero.
+    total_intensity = float(np.sum(white_vals))
+    if total_intensity < 1e-12:
+        return {
+            "thickness_r": float(thicknesses[0]),
+            "thickness_g": float(thicknesses[1]),
+            "thickness_b": float(thicknesses[2]),
+            "white_xy": [float("nan"), float("nan")],
+            "delta_xy": float("inf"),
+            "coverage": 0.0,
+            "match": 0.0,
+        }
+
+    white_spec = Spectrum(wavelengths=wavelengths, values=white_vals, unit=unit)
     white_xy = spectrum_xy(white_spec)
+
+    # Guard against NaN from colour-science (can happen for edge-case spectra).
+    if np.isnan(white_xy.x) or np.isnan(white_xy.y):
+        return {
+            "thickness_r": float(thicknesses[0]),
+            "thickness_g": float(thicknesses[1]),
+            "thickness_b": float(thicknesses[2]),
+            "white_xy": [float("nan"), float("nan")],
+            "delta_xy": float("inf"),
+            "coverage": 0.0,
+            "match": 0.0,
+        }
+
     delta = float(np.hypot(white_xy.x - target.x, white_xy.y - target.y))
 
     primaries_xy = [
@@ -423,13 +464,13 @@ def _compute_single_candidate(
     cov = coverage(target_gamut, device)
     m = match(target_gamut, device)
     return {
-        "thickness_r": round(float(thicknesses[0]), 3),
-        "thickness_g": round(float(thicknesses[1]), 3),
-        "thickness_b": round(float(thicknesses[2]), 3),
-        "white_xy": [round(white_xy.x, 4), round(white_xy.y, 4)],
-        "delta_xy": round(delta, 4),
-        "coverage": round(cov, 1),
-        "match": round(m, 1),
+        "thickness_r": float(thicknesses[0]),
+        "thickness_g": float(thicknesses[1]),
+        "thickness_b": float(thicknesses[2]),
+        "white_xy": [float(white_xy.x), float(white_xy.y)],
+        "delta_xy": delta,
+        "coverage": float(cov),
+        "match": float(m),
     }
 
 
@@ -493,6 +534,8 @@ def grid_search_optimize(
                     )
                 )
 
+    # Filter out degenerate candidates (zero-intensity spectra → delta_xy=inf).
+    candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
     candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
     top = candidates[:5]
     for i, r in enumerate(top):
@@ -554,21 +597,39 @@ def sensitivity_analysis(
         for src, alpha, dd in zip(src_vals, alphas, ds, strict=True):
             t = np.power(10.0, -alpha * dd)
             filtered.append(src * t)
+        white_vals = np.sum(np.stack(filtered), axis=0)
+        total_intensity = float(np.sum(white_vals))
+        if total_intensity < 1e-12:
+            points.append({
+                "thickness": float(d),
+                "coverage": 0.0,
+                "white_x": float("nan"),
+                "white_y": float("nan"),
+            })
+            continue
+        white_spec = Spectrum(wavelengths=wavelengths, values=white_vals, unit=unit)
+        white_xy = spectrum_xy(white_spec)
+        if np.isnan(white_xy.x) or np.isnan(white_xy.y):
+            points.append({
+                "thickness": float(d),
+                "coverage": 0.0,
+                "white_x": float("nan"),
+                "white_y": float("nan"),
+            })
+            continue
         primaries_xy = [
             spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
             for v in filtered
         ]
-        white_spec = Spectrum(wavelengths=wavelengths, values=np.sum(np.stack(filtered), axis=0), unit=unit)
-        white_xy = spectrum_xy(white_spec)
         device = build_gamut_from_primaries(
             "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
         )
         cov = coverage(target_gamut, device)
         points.append({
-            "thickness": round(float(d), 3),
-            "coverage": round(float(cov), 1),
-            "white_x": round(float(white_xy.x), 4),
-            "white_y": round(float(white_xy.y), 4),
+            "thickness": float(d),
+            "coverage": float(cov),
+            "white_x": float(white_xy.x),
+            "white_y": float(white_xy.y),
         })
     return points
 
@@ -672,11 +733,11 @@ def select_cf_materials(
 
     # Pre-compute the common wavelength grid from sources and all CF candidates.
     all_cfs = cf_r_list + cf_g_list + cf_b_list
-    wavelengths = sources[0].wavelengths.copy()
+    wavelengths = np.round(sources[0].wavelengths, 1)
     for s in sources[1:]:
-        wavelengths = np.intersect1d(wavelengths, s.wavelengths)
+        wavelengths = np.intersect1d(wavelengths, np.round(s.wavelengths, 1))
     for c in all_cfs:
-        wavelengths = np.intersect1d(wavelengths, c.wavelengths)
+        wavelengths = np.intersect1d(wavelengths, np.round(c.wavelengths, 1))
     if len(wavelengths) < 3:
         raise ValueError("Insufficient common wavelength points between spectra")
 
@@ -730,6 +791,8 @@ def select_cf_materials(
                 result["cf_b_name"] = cf_b.meta.get("name", f"B-{ib}")
                 candidates.append(result)
 
+    # Filter out degenerate candidates (zero-intensity spectra → delta_xy=inf).
+    candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
     candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
     top = candidates[:10]
     for i, r in enumerate(top):
@@ -1057,6 +1120,8 @@ def optimize_emission_spectra(
                             ]
                             candidates.append(result)
 
+    # Filter out degenerate candidates (zero-intensity spectra → delta_xy=inf).
+    candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
     candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
     top = candidates[:10]
     for i, r in enumerate(top):

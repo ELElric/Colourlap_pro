@@ -742,7 +742,16 @@ function startOptimization() {
             logStatus('Invalid thickness range for channel ' + (i + 1) + '. Please enter valid numbers.');
             return;
         }
+        if (data.bounds[i][0] >= data.bounds[i][1]) {
+            logStatus('Invalid thickness range for channel ' + (i + 1) + ': min must be less than max.');
+            return;
+        }
+        if (data.bounds[i][0] < 0) {
+            logStatus('Invalid thickness range for channel ' + (i + 1) + ': thickness cannot be negative.');
+            return;
+        }
     }
+    _activeFilter = 'filter1';
     setLoading(true);
     updateProgress(0, 'Starting grid search...');
     startOptPolling();
@@ -896,32 +905,57 @@ function switchScanTab(tab, el) {
     }
 }
 
+var _pendingSensMetric = null;
+var _pendingSensChannel = null;
+
 function runSensitivity(metric) {
     if (!lastBest) { logStatus('Run optimization first'); return; }
     var data = getInputs();
     data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
     data.vary_channel = document.getElementById('sens-channel').value || 'R';
     data.metric = metric;
+    _pendingSensMetric = metric;
+    _pendingSensChannel = data.vary_channel;
+    _activeFilter = 'sensitivity';
     setLoading(true);
     updateProgress(0, 'Running sensitivity...');
+    startOptPolling();
     callApi('optimizer_sensitivity_analysis', data).then(function(res) {
-        setLoading(false);
-        if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
-        var ch = document.getElementById('sens-channel').value || 'R';
-        sensitivityData[ch] = { whitex: [], whitey: [] };
-        (res.points || []).forEach(function(p) {
-            sensitivityData[ch].whitex.push(p);
-            sensitivityData[ch].whitey.push(p);
-        });
-        var currentTab = getCurrentSensTab();
-        renderSensitivityChart(res.points, currentTab);
-        updateProgress(100, 'Sensitivity complete');
+        if (res && res.error) {
+            stopOptPolling();
+            setLoading(false);
+            logStatus(formatError(res, 'Sensitivity failed'));
+            updateProgress(0);
+        }
+        /* Result delivered via window.updateSensitivityResult callback */
     }).catch(function(err) {
+        stopOptPolling();
         setLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateProgress(0);
     });
 }
+
+window.updateSensitivityProgress = function(percent) {
+    updateProgress(percent, 'Running sensitivity...');
+};
+
+window.updateSensitivityResult = function(result) {
+    stopOptPolling();
+    setLoading(false);
+    if (!result) { logStatus('Sensitivity returned no result'); updateProgress(0); return; }
+    if (result.error) { logStatus(formatError(result, 'Sensitivity failed')); updateProgress(0); return; }
+    if (result.stopped) { logStatus('Sensitivity stopped'); updateProgress(0); return; }
+    var ch = _pendingSensChannel || document.getElementById('sens-channel').value || 'R';
+    sensitivityData[ch] = { whitex: [], whitey: [] };
+    (result.points || []).forEach(function(p) {
+        sensitivityData[ch].whitex.push(p);
+        sensitivityData[ch].whitey.push(p);
+    });
+    var metric = _pendingSensMetric || getCurrentSensTab();
+    renderSensitivityChart(result.points || [], metric);
+    updateProgress(100, 'Sensitivity complete');
+};
 
 function renderSensitivityChart(points, metric) {
     var dom = document.getElementById('sensitivity-chart');
@@ -990,6 +1024,7 @@ function runSensitivityPanel() {
     // Clear all cached data
     allChannelData = null;
     sensitivityData = {};
+    _activeFilter = 'sensitivity';
     setLoading(true);
     updateProgress(0, 'Running sensitivity for all channels...');
     // Switch to coverage tab
@@ -997,22 +1032,37 @@ function runSensitivityPanel() {
     var tabEl = document.querySelector('.chart-tab[onclick*="coverage"]');
     if (tabEl) tabEl.classList.add('active');
     currentTab = 'coverage';
+    startOptPolling();
     callApi('optimizer_sensitivity_all', data).then(function(res) {
-        setLoading(false);
-        if (res.error) { logStatus(formatError(res, 'Sensitivity failed')); updateProgress(0); return; }
-        allChannelData = res;
-        renderAllChannelChart(res);
-        var scanDom = document.getElementById('scan-chart');
-        var sensDom = document.getElementById('sensitivity-chart');
-        if (scanDom) scanDom.style.display = 'none';
-        if (sensDom) sensDom.style.display = 'block';
-        updateProgress(100, 'Sensitivity complete for all channels');
+        if (res && res.error) {
+            stopOptPolling();
+            setLoading(false);
+            logStatus(formatError(res, 'Sensitivity failed'));
+            updateProgress(0);
+        }
+        /* Result delivered via window.updateSensitivityAllResult callback */
     }).catch(function(err) {
+        stopOptPolling();
         setLoading(false);
         logStatus('Error: ' + (err.message || err));
         updateProgress(0);
     });
 }
+
+window.updateSensitivityAllResult = function(result) {
+    stopOptPolling();
+    setLoading(false);
+    if (!result) { logStatus('Sensitivity returned no result'); updateProgress(0); return; }
+    if (result.error) { logStatus(formatError(result, 'Sensitivity failed')); updateProgress(0); return; }
+    if (result.stopped) { logStatus('Sensitivity stopped'); updateProgress(0); return; }
+    allChannelData = result;
+    renderAllChannelChart(result);
+    var scanDom = document.getElementById('scan-chart');
+    var sensDom = document.getElementById('sensitivity-chart');
+    if (scanDom) scanDom.style.display = 'none';
+    if (sensDom) sensDom.style.display = 'block';
+    updateProgress(100, 'Sensitivity complete for all channels');
+};
 
 function pasteSpectrumToSelect(btn) {
     var text = prompt('Paste wavelength/value pairs (nm a.u.) for a new spectrum:');
@@ -1178,6 +1228,7 @@ function startMaterialSelection() {
     };
     setMatLoading(true);
     updateMatProgress(0, 'Starting material selection...');
+    _activeFilter = 'filter2';
     startOptPolling();
     callApi('optimizer_select_cf_materials', payload).then(function(res) {
         if (res && res.error) {
@@ -1414,6 +1465,7 @@ function startEmissionOptimization() {
     };
     setEmLoading(true);
     updateEmProgress(0, 'Starting emission optimization...');
+    _activeFilter = 'filter3';
     startOptPolling();
     callApi('optimizer_optimize_emission', payload).then(function(res) {
         if (res && res.error) {
@@ -1521,6 +1573,7 @@ refreshData = function() {
 /* ===== Polling fallback for progress (in case evaluate_js fails) ===== */
 var _optPollTimer = null;
 var _optPollActive = false;
+var _activeFilter = null;  /* 'filter1' | 'filter2' | 'filter3' | 'sensitivity' */
 
 function startOptPolling() {
     if (_optPollTimer) clearInterval(_optPollTimer);
@@ -1530,22 +1583,50 @@ function startOptPolling() {
         callApi('optimizer_get_progress').then(function(data) {
             if (!data || data.error) return;
             if (data.running && data.progress > 0) {
-                updateProgress(data.progress);
-                updateMatProgress(data.progress);
-                updateEmProgress(data.progress);
+                /* Only update the active filter's progress bar */
+                if (_activeFilter === 'filter2') {
+                    updateMatProgress(data.progress);
+                } else if (_activeFilter === 'filter3') {
+                    updateEmProgress(data.progress);
+                } else {
+                    updateProgress(data.progress);
+                }
             }
             if (!data.running && data.result) {
                 _optPollActive = false;
                 clearInterval(_optPollTimer);
                 _optPollTimer = null;
                 var result = data.result;
-                if (result.results || result.error) {
+                if (result.results || result.error || result.points) {
+                    /* Reset all loading states */
                     setLoading(false);
                     setMatLoading(false);
                     setEmLoading(false);
                     if (result.error) {
-                        logStatus(formatError(result, 'Optimization failed'));
-                    } else {
+                        logStatus(formatError(result, 'Operation failed'));
+                    } else if (_activeFilter === 'filter2' && result.results) {
+                        renderMaterialResults(result.results || []);
+                        var best = (result.results || [])[0];
+                        updateMatProgress(100, 'Best coverage: ' + (best ? Number(best.coverage).toFixed(2) : '-') + '%');
+                        logStatus('Material selection complete');
+                    } else if (_activeFilter === 'filter3' && result.results) {
+                        renderEmissionResults(result.results || []);
+                        var emBest = (result.results || [])[0];
+                        updateEmProgress(100, 'Best coverage: ' + (emBest ? Number(emBest.coverage).toFixed(2) : '-') + '%');
+                        logStatus('Emission optimization complete');
+                    } else if (result.points) {
+                        /* Sensitivity single-channel result */
+                        var ch = _pendingSensChannel || 'R';
+                        sensitivityData[ch] = { whitex: [], whitey: [] };
+                        (result.points || []).forEach(function(p) {
+                            sensitivityData[ch].whitex.push(p);
+                            sensitivityData[ch].whitey.push(p);
+                        });
+                        renderSensitivityChart(result.points || [], _pendingSensMetric || getCurrentSensTab());
+                        updateProgress(100, 'Sensitivity complete');
+                        logStatus('Sensitivity complete');
+                    } else if (result.results) {
+                        /* Default: Filter 1 */
                         renderResults(result.results || [], result.best);
                         updateProgress(100, 'Best coverage: ' + (result.best ? Number(result.best.coverage).toFixed(2) : '-') + '%');
                         logStatus('Optimization complete');
