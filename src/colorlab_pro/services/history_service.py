@@ -17,6 +17,24 @@ from colorlab_pro.dto.history import (
 from colorlab_pro.repositories import history_repository
 
 
+# Known fields for snapshot DTOs. Used when deserialising stored JSON back
+# into dataclasses so that unknown/legacy keys are ignored rather than
+# raising a TypeError (which previously caused silent data loss).
+_CHANNEL_SNAPSHOT_FIELDS: tuple[str, ...] = (
+    "name", "spectrum_id", "spectrum_name",
+    "xy_x", "xy_y", "uv_u", "uv_v",
+    "peak_wavelength", "fwhm", "dominant_wavelength", "purity",
+    "cf_name", "cf_thickness_um",
+)
+_GAMUT_SNAPSHOT_FIELDS: tuple[str, ...] = (
+    "standard_name",
+    "coverage_1931", "coverage_1976",
+    "match_1931", "match_1976",
+    "coverage_1931_unit", "coverage_1976_unit",
+    "match_1931_unit", "match_1976_unit",
+)
+
+
 class HistoryService:
     """Service for managing calculation history."""
 
@@ -127,11 +145,19 @@ class HistoryService:
     @staticmethod
     def _record_to_snapshot(record) -> HistorySnapshot:
         """Convert a DB History record to a HistorySnapshot DTO."""
+
+        def _pick_known(data: dict, known: tuple[str, ...]) -> dict:
+            """Return a dict containing only the keys in *known* that are
+            present in *data*, ignoring any unknown keys so that schema
+            evolution does not break deserialisation."""
+            return {k: data[k] for k in known if k in data}
+
         channels = ()
         if record.channels_json:
             try:
                 channels = tuple(
-                    ChannelSnapshot(**ch) for ch in json.loads(record.channels_json)
+                    ChannelSnapshot(**_pick_known(ch, _CHANNEL_SNAPSHOT_FIELDS))
+                    for ch in json.loads(record.channels_json)
                 )
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -140,7 +166,8 @@ class HistoryService:
         if record.gamut_results_json:
             try:
                 gamut_results = tuple(
-                    GamutSnapshot(**g) for g in json.loads(record.gamut_results_json)
+                    GamutSnapshot(**_pick_known(g, _GAMUT_SNAPSHOT_FIELDS))
+                    for g in json.loads(record.gamut_results_json)
                 )
             except (json.JSONDecodeError, TypeError):
                 pass

@@ -735,6 +735,16 @@ window.addEventListener('message', function(e) {
         }
     }
 });
+
+/* Resize the spectrum chart when the viewport changes (debounced 150ms so
+   rapid resize drags don't thrash the chart). */
+var _spectrumResizeTimer = null;
+window.addEventListener('resize', function() {
+    if (_spectrumResizeTimer) clearTimeout(_spectrumResizeTimer);
+    _spectrumResizeTimer = setTimeout(function() {
+        if (spectrumChart && !spectrumChart.isDisposed()) spectrumChart.resize();
+    }, 150);
+});
 </script>
 </body>
 </html>

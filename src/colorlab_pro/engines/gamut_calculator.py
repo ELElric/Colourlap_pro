@@ -198,6 +198,9 @@ def coverage_1976(target: Gamut, device: Gamut) -> float:
     """Compute coverage in CIE 1976 u'v' space: device area / target area * 100%."""
     target_poly = _gamut_to_uv_polygon(target)
     device_poly = _gamut_to_uv_polygon(device)
+    if not target_poly.is_valid:
+        # Invalid target polygon (e.g. NaN u'v' chromaticity) → undefined coverage.
+        raise ValueError("Target gamut is not a valid polygon in u'v' space")
     target_area = target_poly.area
     if target_area == 0:
         raise ValueError("Target gamut has zero area in u'v' space")
@@ -212,6 +215,9 @@ def match_1976(target: Gamut, device: Gamut) -> float:
     """Compute match in CIE 1976 u'v' space: intersection area / target area * 100%."""
     target_poly = _gamut_to_uv_polygon(target)
     device_poly = _gamut_to_uv_polygon(device)
+    if not target_poly.is_valid:
+        # Invalid target polygon (e.g. NaN u'v' chromaticity) → undefined match.
+        raise ValueError("Target gamut is not a valid polygon in u'v' space")
     target_area = target_poly.area
     if target_area == 0:
         raise ValueError("Target gamut has zero area in u'v' space")

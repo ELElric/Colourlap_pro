@@ -118,6 +118,15 @@ def xyz(
     Returns:
         XYZ dataclass with X, Y, Z floats.
     """
+    # Validate input: single-point spectra cannot be integrated, and
+    # NaN/Inf values are sanitized (treated as zero signal) so they do
+    # not propagate into the tristimulus integral.
+    if spectrum.values.size < 2:
+        raise ValueError(
+            "Spectrum must contain at least 2 samples to compute XYZ "
+            f"(got {spectrum.values.size})."
+        )
+    values = np.nan_to_num(spectrum.values, nan=0.0, posinf=0.0, neginf=0.0)
     # Fast path: standard grid + E illuminant (most common case).
     # For equal-energy (E) illuminant the spectral weight is constant at
     # all wavelengths and cancels out in the k-normalisation, so we can
@@ -127,9 +136,9 @@ def xyz(
             _CMF_MATRIX[observer] = _build_cmf_matrix(observer)
         _, xb, yb, zb = _CMF_MATRIX[observer]
         delta = 1.0
-        X_raw = float(np.sum(spectrum.values * xb) * delta)
-        Y_raw = float(np.sum(spectrum.values * yb) * delta)
-        Z_raw = float(np.sum(spectrum.values * zb) * delta)
+        X_raw = float(np.sum(values * xb) * delta)
+        Y_raw = float(np.sum(values * yb) * delta)
+        Z_raw = float(np.sum(values * zb) * delta)
         Y_ill = float(np.sum(yb) * delta)
         if Y_ill <= 0:
             return XYZ(X=0.0, Y=0.0, Z=0.0)
@@ -139,7 +148,7 @@ def xyz(
     # Fallback: use colour-science for non-standard grids or non-E illuminants.
     import colour
 
-    sd = _to_spectral_distribution(spectrum)
+    sd = colour.SpectralDistribution(values, spectrum.wavelengths)
     cmf = _get_cmf(observer)
     illuminant_sd = _get_illuminant_sd(illuminant)
     xyz_arr = colour.sd_to_XYZ(sd, cmf, illuminant=illuminant_sd)

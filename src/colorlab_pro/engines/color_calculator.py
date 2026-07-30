@@ -25,12 +25,15 @@ def _to_common_grid(
 ) -> tuple[np.ndarray, list[np.ndarray]]:
     """Interpolate all spectra onto the first spectrum's wavelength grid.
 
+    Uses a single linear interpolation (``np.interp``) directly onto the
+    reference grid. The previous two-step approach (cubic resample to a
+    1 nm grid followed by a linear resample) introduced cubic-spline
+    ringing artefacts; a single linear interpolation avoids them.
+
     Returns:
         (wavelengths, list_of_values) where each values array has the
         same shape as the first spectrum's values.
     """
-    from colorlab_pro.engines.spectrum_normalizer import interpolate
-
     if not spectra:
         raise ValueError("spectra list must not be empty")
     ref_wl = spectra[0].wavelengths
@@ -39,10 +42,8 @@ def _to_common_grid(
         if s.wavelengths.shape == ref_wl.shape and np.allclose(s.wavelengths, ref_wl):
             aligned.append(s.values.copy())
         else:
-            interp = interpolate(s, method="cubic")
-            # interpolate() produces a grid starting at s.wavelengths[0]
-            # with step 1 nm. We then resample to ref_wl.
-            new_v = np.interp(ref_wl, interp.wavelengths, interp.values)
+            # Single-step linear interpolation onto the reference grid.
+            new_v = np.interp(ref_wl, s.wavelengths, s.values)
             aligned.append(new_v)
     return ref_wl, aligned
 
@@ -148,6 +149,8 @@ def mix_xyz(
         weights = [1.0] * n
     if len(weights) != n:
         raise ValueError(f"weights length ({len(weights)}) must match spectra length ({n})")
+    if any(w < 0 for w in weights):
+        raise ValueError("weights must be non-negative")
 
     total = np.zeros(3, dtype=np.float64)
     total_w = 0.0

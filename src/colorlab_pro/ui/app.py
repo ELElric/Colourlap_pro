@@ -182,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Create API and pywebview window -------------------------------
     api = ColorLabApi(main_ctrl)
+    # Ensure background optimization threads are stopped before the
+    # database engine is disposed during shutdown.
+    main_ctrl.register_shutdown_callback(api.optimizer_stop_and_wait)
     url = f"http://127.0.0.1:{port}/index.html"
 
     # Apply saved window geometry

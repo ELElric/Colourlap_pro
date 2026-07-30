@@ -43,6 +43,23 @@ def mixing_weights(
     design_matrix = np.zeros((3, len(primaries)), dtype=np.float64)
     for i, s in enumerate(primaries):
         c = xyz(s)
+        # Guard against NaN/Inf in primary spectra propagating into the
+        # design matrix — nnls cannot recover from non-finite entries and
+        # would silently produce NaN weights.
+        if not np.all(np.isfinite([c.X, c.Y, c.Z])):
+            raise ValueError(
+                f"Primary {i} produced non-finite XYZ "
+                f"({c.X}, {c.Y}, {c.Z}); cannot solve mixing weights with "
+                "NaN/Inf inputs"
+            )
+        # Also reject all-zero primaries (e.g. from NaN-cleaned spectra or
+        # genuinely zero spectra) — they contribute nothing and indicate
+        # corrupt input data that would distort the optimisation.
+        if c.X == 0.0 and c.Y == 0.0 and c.Z == 0.0:
+            raise ValueError(
+                f"Primary {i} produced all-zero XYZ; spectrum may be empty "
+                "or contain only NaN/Inf values"
+            )
         design_matrix[:, i] = [c.X, c.Y, c.Z]
 
     # Target XYZ with Y = 1.0 via colour-science

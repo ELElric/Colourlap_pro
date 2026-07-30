@@ -5,6 +5,7 @@ Mediates between the Spectrum page UI and SpectrumService.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -241,12 +242,23 @@ class SpectrumController(QObject):
         try:
             from colorlab_pro.database.models import Spectrum as SpectrumORM
 
+            # Validate and sanitise the new name.
+            if not isinstance(new_name, str):
+                self.error_occurred.emit("Failed to rename spectrum: name must be a string")
+                return False
+            cleaned = new_name.strip()
+            if not cleaned:
+                self.error_occurred.emit("Failed to rename spectrum: name must not be empty")
+                return False
+            if len(cleaned) > 255:
+                cleaned = cleaned[:255]
+
             with self._main.session_factory() as session:
                 orm = session.get(SpectrumORM, spectrum_id)
                 if orm is None:
                     self.error_occurred.emit(f"Spectrum {spectrum_id} not found.")
                     return False
-                orm.name = new_name
+                orm.name = cleaned
                 session.commit()
         except Exception as exc:  # noqa: BLE001
             self.error_occurred.emit(f"Failed to rename spectrum: {exc}")
@@ -550,6 +562,16 @@ class SpectrumController(QObject):
             import json
 
             from colorlab_pro.database.models import Spectrum as SpectrumORM
+
+            # Validate thickness when provided.
+            if thickness is not None:
+                thickness = float(thickness)
+                if math.isnan(thickness) or math.isinf(thickness):
+                    self.error_occurred.emit("Failed to update thickness: value must be finite")
+                    return False
+                if thickness < 0:
+                    self.error_occurred.emit("Failed to update thickness: value must be non-negative")
+                    return False
 
             with self._main.session_factory() as session:
                 orm = session.get(SpectrumORM, spectrum_id)

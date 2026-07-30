@@ -14,6 +14,11 @@ import numpy as np
 from colorlab_pro.dto.spectrum import Spectrum
 
 
+# Maximum accepted CSV file size (100 MB). Guards against accidentally
+# loading pathologically large files that would exhaust memory.
+MAX_CSV_SIZE = 100 * 1024 * 1024
+
+
 def _detect_channel_from_name(name: str) -> str | None:
     """Auto-detect channel (R/G/B/RCF/GCF/BCF/W) from column name.
 
@@ -72,6 +77,14 @@ def import_csv(
     if not path.exists():
         raise FileNotFoundError(f"CSV file not found: {path}")
 
+    # Guard against excessively large files.
+    file_size = path.stat().st_size
+    if file_size > MAX_CSV_SIZE:
+        raise ValueError(
+            f"CSV file is {file_size / 1024 / 1024:.1f} MB, exceeding the "
+            f"{MAX_CSV_SIZE / 1024 / 1024:.0f} MB limit"
+        )
+
     # Try to read with headers first
     headers: list[str] = []
     data_array: np.ndarray | None = None
@@ -114,6 +127,19 @@ def import_csv(
 
     if data_array is None or data_array.ndim != 2 or data_array.shape[1] < 2:
         raise ValueError("File must contain at least two numeric columns.")
+
+    # Validate rows: wavelengths must be finite and non-negative, and every
+    # value column must be finite. Drop invalid rows instead of propagating
+    # NaN/Inf or negative wavelengths into downstream calculations.
+    wavelengths = data_array[:, 0]
+    wl_valid = np.isfinite(wavelengths) & (wavelengths >= 0)
+    val_valid = np.all(np.isfinite(data_array[:, 1:]), axis=1)
+    row_mask = wl_valid & val_valid
+    if not np.all(row_mask):
+        data_array = data_array[row_mask]
+    if data_array.shape[0] == 0:
+        raise ValueError("No valid data rows after filtering NaN/Inf/negative wavelengths.")
+    wavelengths = data_array[:, 0]
 
     # Parse headers if present
     if has_header:

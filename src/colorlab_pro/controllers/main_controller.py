@@ -6,6 +6,8 @@ and coordinates page switching between workspace controllers.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -44,6 +46,10 @@ class MainController(QObject):
 
         # Sub-controllers (registered later)
         self._page_controllers: dict[int, QObject] = {}
+
+        # Cleanup callbacks invoked during shutdown (e.g. stop background
+        # optimization threads before disposing the database engine).
+        self._shutdown_callbacks: list[Callable[[], None]] = []
 
         # Runtime state
         self._current_project_id: int | None = None
@@ -136,8 +142,26 @@ class MainController(QObject):
             shutil.copy2(str(bundled_db), str(target_db))
             logger.info("Seeded database from {}.", bundled_db)
 
+    def register_shutdown_callback(self, callback: Callable[[], None]) -> None:
+        """Register a callback to be invoked during shutdown.
+
+        Used by components that own background threads (e.g. the API layer
+        running optimization workers) so they can be stopped cleanly before
+        the database engine is disposed.
+        """
+        self._shutdown_callbacks.append(callback)
+
     def shutdown(self) -> None:
         """Dispose of the database engine."""
+        # Stop any registered background workers first so they do not
+        # touch the database engine after it has been disposed.
+        for callback in self._shutdown_callbacks:
+            try:
+                callback()
+            except Exception:  # noqa: BLE001
+                pass
+        self._shutdown_callbacks.clear()
+
         if self._engine is not None:
             self._engine.dispose()
             self._engine = None
@@ -192,14 +216,30 @@ class MainController(QObject):
         return {}
 
     def _save_settings(self, data: dict) -> None:
-        """Persist settings to JSON file."""
+        """Persist settings to JSON file using an atomic write."""
         try:
             import json
 
             self._SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            self._SETTINGS_FILE.write_text(
-                json.dumps(data, indent=2), encoding="utf-8"
+            payload = json.dumps(data, indent=2)
+            # Write to a temporary file in the same directory, then atomically
+            # rename it over the target to avoid torn writes on crash/exit.
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(self._SETTINGS_FILE.parent),
+                prefix=".settings_",
+                suffix=".tmp",
             )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(payload)
+                os.replace(tmp_path, str(self._SETTINGS_FILE))
+            except Exception:  # noqa: BLE001
+                # Clean up the temp file if rename failed.
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except Exception:  # noqa: BLE001
             pass
 

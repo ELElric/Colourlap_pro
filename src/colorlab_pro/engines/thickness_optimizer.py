@@ -167,11 +167,18 @@ def optimize_thickness(
         target_xy: Desired chromaticity.
         source_spectrum: Source spectrum before the color filter stack.
         absorbers: List of absorption coefficient spectra alpha(lambda).
+            NOTE: these must be absorption coefficients, *not* CF transmittance.
+            ``grid_search_optimize`` consumes transmittance and converts it
+            internally via ``_transmittance_to_alpha``; this legacy stacked-
+            filter model consumes alpha directly. Use ``_transmittance_to_alpha``
+            to convert measured CF transmittance to alpha.
         bounds_um: (min, max) thickness in micrometers. Default (0.1, 10.0).
 
     Returns:
         OptimizationResult with thicknesses, achieved xy, delta_xy, etc.
     """
+    # API note: ``absorbers`` are absorption coefficient alpha(lambda) arrays,
+    # not CF transmittance (cf. grid_search_optimize which expects transmittance).
     if len(absorbers) < 2:
         raise ValueError("Need at least two absorber channels")
 
@@ -298,8 +305,13 @@ def optimize_thickness_display(
     Args:
         target_xy: Desired white-point chromaticity.
         source_spectra: List of primary source spectra [R, G, B].
-        absorbers: List of absorption coefficient spectra [RCF, GCF, BCF],
-            one per source channel.
+        absorbers: List of absorption coefficient spectra alpha(lambda)
+            [RCF, GCF, BCF], one per source channel. NOTE: these must be
+            absorption coefficients, *not* CF transmittance.
+            ``grid_search_optimize`` consumes transmittance and converts it
+            internally via ``_transmittance_to_alpha``; this display model
+            consumes alpha directly. Use ``_transmittance_to_alpha`` to
+            convert measured CF transmittance to alpha.
         bounds_um: Optional list of (min, max) bounds per channel. If None,
             ``CF_THICKNESS_BOUNDS_UM`` is used for all channels.
         cancel_callback: Optional callable invoked after each optimizer
@@ -315,6 +327,8 @@ def optimize_thickness_display(
             than two channels are provided.
         OptimizationCancelledError: If ``cancel_callback`` raises this exception.
     """
+    # API note: ``absorbers`` are absorption coefficient alpha(lambda) arrays,
+    # not CF transmittance (cf. grid_search_optimize which expects transmittance).
     if len(source_spectra) != len(absorbers):
         raise ValueError(
             f"Number of sources ({len(source_spectra)}) must match number of "
@@ -563,6 +577,12 @@ def grid_search_optimize(
         raise ValueError(f"Expected 3 CF spectra, got {len(cfs)}")
     if len(bounds) != 3:
         raise ValueError(f"Expected 3 bounds, got {len(bounds)}")
+    for i, (lo, hi) in enumerate(bounds):
+        if lo < 0 or hi < 0:
+            raise ValueError(
+                f"Thickness bounds must be non-negative; channel {i} "
+                f"got (lo={lo}, hi={hi})"
+            )
     if not isinstance(steps, int) or steps < 2:
         raise ValueError(f"steps must be an integer >= 2, got {steps}")
     if steps > 50:
@@ -636,6 +656,10 @@ def sensitivity_analysis(
         raise ValueError(f"vary_channel must be 0, 1, or 2, got {vary_channel}")
     if len(bounds) != 3:
         raise ValueError(f"Expected 3 bounds, got {len(bounds)}")
+    if len(base_thicknesses) != 3:
+        raise ValueError(
+            f"Expected 3 base_thicknesses, got {len(base_thicknesses)}"
+        )
     wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
     lo, hi = bounds[vary_channel]

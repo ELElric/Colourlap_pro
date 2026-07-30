@@ -153,6 +153,24 @@ def align_to_standard_range(
     Returns:
         New Spectrum aligned to [start, end].
     """
+    # Empty spectrum: avoid IndexError when accessing wavelengths[0/-1].
+    # Return a fill_value-filled standard grid with an undefined original
+    # range of (NaN, NaN) so callers can detect the degenerate input.
+    if spectrum.wavelengths.size == 0:
+        step = 1.0
+        new_wl = np.arange(start, end + step / 2.0, step, dtype=np.float64)
+        new_values = np.full_like(new_wl, fill_value)
+        return Spectrum(
+            wavelengths=new_wl,
+            values=np.asarray(new_values, dtype=np.float64),
+            unit=spectrum.unit,
+            meta={
+                **spectrum.meta,
+                "aligned_range": (float(start), float(end)),
+                "original_range": (float("nan"), float("nan")),
+            },
+        )
+
     # Preserve original step if the input grid is regular; otherwise use 1 nm.
     if spectrum.wavelengths.size >= 2:
         steps = np.diff(spectrum.wavelengths)
@@ -252,21 +270,55 @@ def _find_peak(wavelengths: NDArray[np.float64], values: NDArray[np.float64]) ->
 
 
 def _fwhm(wavelengths: NDArray[np.float64], values: NDArray[np.float64]) -> float:
-    """Compute the full width at half maximum in nm."""
+    """Compute the full width at half maximum in nm.
+
+    Uses linear interpolation between sample points to locate the
+    half-maximum crossing points, matching ``measure_fwhm`` so the two
+    helpers agree on sub-sample precision (the previous implementation
+    rounded to the nearest sample and systematically over-estimated the
+    width relative to ``measure_fwhm``).
+    """
+    if values.size < 2:
+        return float("nan")
     peak_v = float(np.max(values))
     if peak_v <= 0:
         return float("nan")
     half = peak_v / 2.0
     peak_idx = int(np.argmax(values))
-    # walk left
-    left = peak_idx
-    while left > 0 and values[left] > half:
-        left -= 1
-    # walk right
-    right = peak_idx
-    while right < values.size - 1 and values[right] > half:
-        right += 1
-    return float(wavelengths[right] - wavelengths[left])
+
+    # Search left of peak for the half-max crossing via linear interpolation.
+    left_wl: float | None = None
+    for i in range(peak_idx, 0, -1):
+        if values[i] >= half and values[i - 1] < half:
+            denom = values[i] - values[i - 1]
+            if abs(denom) < 1e-15:
+                left_wl = float(wavelengths[i])
+            else:
+                frac = (half - values[i - 1]) / denom
+                left_wl = float(
+                    wavelengths[i - 1] + frac * (wavelengths[i] - wavelengths[i - 1])
+                )
+            break
+
+    # Search right of peak for the half-max crossing via linear interpolation.
+    right_wl: float | None = None
+    for i in range(peak_idx, len(values) - 1):
+        if values[i] >= half and values[i + 1] < half:
+            denom = values[i + 1] - values[i]
+            if abs(denom) < 1e-15:
+                right_wl = float(wavelengths[i])
+            else:
+                frac = (half - values[i]) / denom
+                right_wl = float(
+                    wavelengths[i] + frac * (wavelengths[i + 1] - wavelengths[i])
+                )
+            break
+
+    if left_wl is None or right_wl is None:
+        # Peak at the edge or half-max never crossed → FWHM undefined.
+        return float("nan")
+
+    return float(right_wl - left_wl)
 
 
 def _band_max(

@@ -5,6 +5,7 @@ Mediates between the Optimize page and OptimizationService.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -151,6 +152,19 @@ class OptimizationController(QObject):
             ThicknessResult or None on error.
         """
         try:
+            # Validate thickness bounds.
+            try:
+                lo, hi = float(bounds_um[0]), float(bounds_um[1])
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError("bounds_um must be a (min, max) pair") from exc
+            if math.isnan(lo) or math.isinf(lo) or math.isnan(hi) or math.isinf(hi):
+                raise ValueError("bounds_um values must be finite numbers")
+            if lo < 0 or hi < 0:
+                raise ValueError("bounds_um values must be non-negative")
+            if lo >= hi:
+                raise ValueError("bounds_um min must be less than max")
+            bounds_um = (lo, hi)
+
             opt: OptimizationResult = self._service().optimize_thickness(
                 target_xy, source_spectrum, absorbers, bounds_um=bounds_um
             )

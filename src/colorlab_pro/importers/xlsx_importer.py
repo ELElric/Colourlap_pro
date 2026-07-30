@@ -7,11 +7,17 @@ Supports two formats:
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
 
 from colorlab_pro.dto.spectrum import Spectrum
+
+
+# Maximum accepted XLSX file size (50 MB). XLSX files are ZIP archives that
+# can expand significantly when decompressed, so a tighter limit than CSV.
+MAX_XLSX_SIZE = 50 * 1024 * 1024
 
 
 def _detect_channel_from_name(name: str) -> str | None:
@@ -98,6 +104,14 @@ def import_xlsx(
     """
     if not path.exists():
         raise FileNotFoundError(f"XLSX file not found: {path}")
+
+    # Guard against excessively large files.
+    file_size = path.stat().st_size
+    if file_size > MAX_XLSX_SIZE:
+        raise ValueError(
+            f"XLSX file is {file_size / 1024 / 1024:.1f} MB, exceeding the "
+            f"{MAX_XLSX_SIZE / 1024 / 1024:.0f} MB limit"
+        )
 
     from openpyxl import load_workbook
 
@@ -251,11 +265,15 @@ def import_xlsx(
                 val_idx = wl_col + col_idx + 1
                 if val_idx < len(row):
                     val = row[val_idx]
-                    values.append(float(val) if val is not None else 0.0)
+                    fv = float(val) if val is not None else 0.0
                 else:
-                    values.append(0.0)
+                    fv = 0.0
             except (ValueError, TypeError):
-                values.append(0.0)
+                fv = 0.0
+            # Guard against NaN/Inf leaking into spectrum values.
+            if math.isnan(fv) or math.isinf(fv):
+                fv = 0.0
+            values.append(fv)
 
         name = headers[col_idx] if col_idx < len(headers) else f"Spectrum_{col_idx + 1}"
 

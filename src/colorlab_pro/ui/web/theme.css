@@ -212,6 +212,12 @@ body {
 .btn-danger.active { opacity: 1; cursor: pointer; }
 .btn-danger.active:hover { background: #c03030; }
 .btn-icon { padding: 6px 8px; }
+/* Keyboard focus indicator: only shown for keyboard navigation (focus-visible),
+   so mouse clicks don't leave a persistent outline. Improves accessibility. */
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 
 /* ===== Checkbox / Radio ===== */
 input[type="checkbox"] { accent-color: var(--accent); }
@@ -544,3 +550,15 @@ select {
   height: 100%; width: 0%; border-radius: var(--radius-sm); transition: width 0.3s;
 }
 .progress-summary { color: #66bb6a; font-size: var(--font-md); margin-top: 8px; }
+
+/* ===== Responsive: collapse multi-column grids to a single column on narrow screens ===== */
+@media (max-width: 768px) {
+  .main-grid,
+  .input-grid,
+  .cie-grid,
+  .results-area,
+  .chart-row,
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}

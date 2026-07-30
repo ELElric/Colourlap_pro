@@ -149,6 +149,12 @@ function waitForApi(callback, maxWait) {
 
 <script>
 var refData = null;
+/* Cached chart instances: re-used across re-renders (e.g. theme changes) so we
+   call setOption instead of echarts.init every time, avoiding leaked instances
+   and accumulating resize listeners. */
+var _cmfChart = null;
+var _cieChart = null;
+var _refResizeBound = false;
 
 var ILLUMINANT_DESCRIPTIONS = {
     'A':   'Tungsten / Incandescent',
@@ -179,6 +185,10 @@ var GAMUT_COLORS = {
 };
 
 function fmt(v) { return v !== null && v !== undefined ? v.toFixed(4) : '—'; }
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 function renderGamutTable(gamuts) {
     var tbody = document.getElementById('gamut-tbody');
@@ -229,7 +239,9 @@ function getCssVar(name) {
 }
 
 function renderCMFChart(cmf) {
-    var chart = echarts.init(document.getElementById('cmf-chart'));
+    var dom = document.getElementById('cmf-chart');
+    if (!_cmfChart || _cmfChart.isDisposed()) { _cmfChart = echarts.init(dom); }
+    var chart = _cmfChart;
     var wl = cmf.map(function(r) { return r[0]; });
     var xBar = cmf.map(function(r) { return r[1]; });
     var yBar = cmf.map(function(r) { return r[2]; });
@@ -251,12 +263,14 @@ function renderCMFChart(cmf) {
             { name: 'y\u0304(λ)', type: 'line', data: yBar, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#44dd44' }, areaStyle: { color: 'rgba(68,221,68,0.08)' } },
             { name: 'z\u0304(λ)', type: 'line', data: zBar, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#4488ff' }, areaStyle: { color: 'rgba(68,136,255,0.08)' } }
         ]
-    });
-    window.addEventListener('resize', function() { chart.resize(); });
+    }, true);
+    _bindRefResize();
 }
 
 function renderCIEDiagram(gamuts, illuminants) {
-    var chart = echarts.init(document.getElementById('cie-diagram'));
+    var dom = document.getElementById('cie-diagram');
+    if (!_cieChart || _cieChart.isDisposed()) { _cieChart = echarts.init(dom); }
+    var chart = _cieChart;
     var textColor = getCssVar('--text-muted');
     var axisColor = getCssVar('--echarts-axis');
 
@@ -329,8 +343,19 @@ function renderCIEDiagram(gamuts, illuminants) {
         xAxis: { type: 'value', name: 'x', nameTextStyle: { color: textColor }, min: 0, max: 0.8, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: '#333' } }, axisLabel: { color: textColor, fontSize: 10 } },
         yAxis: { type: 'value', name: 'y', nameTextStyle: { color: textColor }, min: 0, max: 0.9, axisLine: { lineStyle: { color: axisColor } }, splitLine: { lineStyle: { color: '#333' } }, axisLabel: { color: textColor, fontSize: 10 } },
         series: series
+    }, true);
+    _bindRefResize();
+}
+
+/* Register a single window resize listener that resizes both cached charts.
+   Guarded by _refResizeBound so repeated render calls don't pile up listeners. */
+function _bindRefResize() {
+    if (_refResizeBound) return;
+    _refResizeBound = true;
+    window.addEventListener('resize', function() {
+        if (_cmfChart && !_cmfChart.isDisposed()) _cmfChart.resize();
+        if (_cieChart && !_cieChart.isDisposed()) _cieChart.resize();
     });
-    window.addEventListener('resize', function() { chart.resize(); });
 }
 
 function renderAll(data) {
@@ -347,12 +372,12 @@ waitForApi(function() {
     }
     callApi('reference_get_data').then(function(data) {
         if (data && data.error) {
-            document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">Error: ' + data.error + '</div>';
+            document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">Error: ' + escapeHtml(data.error) + '</div>';
             return;
         }
         renderAll(data);
     }).catch(function(err) {
-        document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">Failed to load: ' + err.message + '</div>';
+        document.querySelector('.ref-container').innerHTML = '<div class="ref-loading">Failed to load: ' + escapeHtml(err.message) + '</div>';
     });
 });
 

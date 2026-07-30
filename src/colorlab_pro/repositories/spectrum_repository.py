@@ -21,6 +21,12 @@ from colorlab_pro.engines.spectrum_analyzer import (
 )
 
 
+# Maximum number of data points allowed when persisting a spectrum. This
+# guards against accidental ingestion of excessively large datasets that
+# would bloat the database and slow down list/compare queries.
+MAX_SPECTRUM_POINTS = 100_000
+
+
 def _meta_from_dto(spectrum: Spectrum) -> str | None:
     """Serialize DTO metadata to JSON if non-empty, otherwise None."""
     if spectrum.meta:
@@ -34,7 +40,12 @@ def _dto_from_orm(orm: SpectrumORM) -> Spectrum:
     values = np.array([p.value for p in orm.points], dtype=np.float64)
     meta: dict[str, object] = {}
     if orm.meta_json:
-        meta = json.loads(orm.meta_json)
+        try:
+            meta = json.loads(orm.meta_json)
+        except (json.JSONDecodeError, TypeError):
+            # Corrupt or invalid meta_json — start with an empty dict rather
+            # than propagate the error and lose access to the spectrum data.
+            meta = {}
     # Surface category in meta for downstream consumers
     if orm.category and "category" not in meta:
         meta["category"] = orm.category
@@ -107,6 +118,12 @@ def save(
     """
     wavelengths = np.asarray(spectrum.wavelengths, dtype=np.float64)
     values = np.asarray(spectrum.values, dtype=np.float64)
+
+    if wavelengths.size > MAX_SPECTRUM_POINTS:
+        raise ValueError(
+            f"Spectrum has {wavelengths.size} points, exceeding the limit of "
+            f"{MAX_SPECTRUM_POINTS}"
+        )
 
     if wavelengths.size == 0:
         wavelength_min = wavelength_max = wavelength_step = None

@@ -790,6 +790,8 @@ window.updateOptProgress = function(percent, message) {
 };
 
 window.updateOptResult = function(result) {
+    if (_resultHandled) return;  /* already rendered via polling, ignore duplicate push */
+    _resultHandled = true;
     stopOptPolling();
     setLoading(false);
     if (!result) { logStatus('Optimization returned no result'); updateProgress(0); return; }
@@ -967,6 +969,8 @@ window.updateSensitivityProgress = function(percent) {
 };
 
 window.updateSensitivityResult = function(result) {
+    if (_resultHandled) return;  /* already rendered via polling, ignore duplicate push */
+    _resultHandled = true;
     stopOptPolling();
     setLoading(false);
     if (!result) { logStatus('Sensitivity returned no result'); updateProgress(0); return; }
@@ -1147,6 +1151,8 @@ function runSensitivityPanel() {
 }
 
 window.updateSensitivityAllResult = function(result) {
+    if (_resultHandled) return;  /* already rendered via polling, ignore duplicate push */
+    _resultHandled = true;
     stopOptPolling();
     setLoading(false);
     if (!result) { logStatus('Sensitivity returned no result'); updateProgress(0); return; }
@@ -1353,6 +1359,8 @@ window.updateCFMaterialsProgress = function(percent, message) {
 };
 
 window.updateCFMaterialsResult = function(result) {
+    if (_resultHandled) return;  /* already rendered via polling, ignore duplicate push */
+    _resultHandled = true;
     stopOptPolling();
     setMatLoading(false);
     if (!result) { logStatus('Material selection returned no result'); updateMatProgress(0); return; }
@@ -1591,6 +1599,8 @@ window.updateEmissionProgress = function(percent, message) {
 };
 
 window.updateEmissionResult = function(result) {
+    if (_resultHandled) return;  /* already rendered via polling, ignore duplicate push */
+    _resultHandled = true;
     stopOptPolling();
     setEmLoading(false);
     if (!result) { logStatus('Emission optimization returned no result'); updateEmProgress(0); return; }
@@ -1676,10 +1686,15 @@ refreshData = function() {
 var _optPollTimer = null;
 var _optPollActive = false;
 var _activeFilter = null;  /* 'filter1' | 'filter2' | 'filter3' | 'sensitivity' */
+/* Guard against duplicate result rendering: the same result can be delivered
+   by BOTH the evaluate_js push callback and the polling fallback. Whichever
+   fires first sets this flag so the other is discarded (prevents flicker). */
+var _resultHandled = false;
 
 function startOptPolling() {
     if (_optPollTimer) clearInterval(_optPollTimer);
     _optPollActive = true;
+    _resultHandled = false;  /* new operation started: allow next result to render */
     _optPollTimer = setInterval(function() {
         if (!_optPollActive) return;
         callApi('optimizer_get_progress').then(function(data) {
@@ -1695,6 +1710,8 @@ function startOptPolling() {
                 }
             }
             if (!data.running && data.result) {
+                if (_resultHandled) return;  /* already rendered via push callback */
+                _resultHandled = true;
                 _optPollActive = false;
                 clearInterval(_optPollTimer);
                 _optPollTimer = null;
@@ -1759,7 +1776,19 @@ function stopOptPolling() {
 <script>
 // Initial data load
 setLoading(true);
-waitForApi(function() { refreshData(); });
+waitForApi(function() {
+    refreshData();
+    /* Resume polling if an optimization task is still running in the backend
+       (e.g. the user switched pages mid-run and came back). This restores the
+       progress bar and final result once the task completes. */
+    callApi('optimizer_get_progress').then(function(data) {
+        if (data && data.running) {
+            _activeFilter = _activeFilter || 'filter1';
+            startOptPolling();
+            logStatus('Resuming running optimization...');
+        }
+    }).catch(function() {});
+});
 
 /* Listen for theme changes from parent */
 window.addEventListener('message', function(e) {
@@ -1770,6 +1799,24 @@ window.addEventListener('message', function(e) {
             document.body.classList.remove('theme-light');
         }
     }
+});
+
+/* Unified chart resize handling with 150ms debounce. Keeps every chart
+   (scan / sensitivity / material / emission / mini emission charts) in sync
+   with the viewport size so they never render at a stale geometry. */
+var _chartResizeTimer = null;
+window.addEventListener('resize', function() {
+    if (_chartResizeTimer) clearTimeout(_chartResizeTimer);
+    _chartResizeTimer = setTimeout(function() {
+        if (scanChart) scanChart.resize();
+        if (sensitivityChart) sensitivityChart.resize();
+        if (matChart) matChart.resize();
+        if (emChart) emChart.resize();
+        Object.keys(miniCharts).forEach(function(id) {
+            var c = miniCharts[id];
+            if (c) c.resize();
+        });
+    }, 150);
 });
 </script>
 

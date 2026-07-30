@@ -148,6 +148,19 @@ def translate_spectrum(
     Returns:
         New Spectrum with shifted values on the original wavelength grid.
     """
+    # Clean NaN/Inf to prevent silent propagation through interpolation;
+    # scale_fwhm already cleans its own inputs.
+    if np.any(~np.isfinite(spectrum.values)):
+        spectrum = Spectrum(
+            wavelengths=spectrum.wavelengths.copy(),
+            values=np.nan_to_num(
+                np.asarray(spectrum.values, dtype=np.float64),
+                nan=0.0, posinf=0.0, neginf=0.0,
+            ),
+            unit=spectrum.unit,
+            meta=spectrum.meta,
+        )
+
     if abs(delta_nm) < 1e-6:
         return Spectrum(
             wavelengths=spectrum.wavelengths.copy(),
@@ -216,10 +229,10 @@ def _translate_spectrum_zoned_impl(
     2. Determine which zone contains the spectral peak.
     3. Shift only that zone's data by *delta_nm* via interpolation.
     4. For the shifted zone, fill the gap left behind (near the boundary
-       with the previous zone) by holding the boundary value constant —
-       i.e. the gap region takes the value of the nearest un-shifted
-       boundary point, then a short smoothing window blends the
-       transition.
+       with the previous zone) with zero — the signal has moved away from
+       this region, so zero is physically correct and avoids the
+       artificial plateau produced by holding the boundary value — then
+       a short smoothing window blends the transition.
     5. Zones that do not contain the peak are kept unchanged.
     """
     bounds = zone_bounds or _DEFAULT_ZONE_BOUNDS
@@ -279,11 +292,12 @@ def _translate_spectrum_zoned_impl(
         # Red-shift: gap appears at the LEFT (low-wavelength) edge of the zone.
         # The shifted data starts further right, leaving a gap near zone_start.
         if zone_start > 0:
-            boundary_val = float(vals[zone_start - 1])  # value from previous zone
             gap_end = min(zone_start + int(round(abs(delta_nm) / dwl)), zone_end)
             if gap_end > zone_start:
-                # Fill gap with boundary value
-                new_vals[zone_start:gap_end + 1] = boundary_val
+                # Fill gap with zero: the signal has moved away from this
+                # region, so holding the previous boundary value would create
+                # an artificial plateau. Zero is physically correct here.
+                new_vals[zone_start:gap_end + 1] = 0.0
                 # Smooth only within the shifted zone (do not touch the
                 # previous zone's data).
                 smooth_start = zone_start + 1
@@ -292,11 +306,12 @@ def _translate_spectrum_zoned_impl(
     else:
         # Blue-shift: gap appears at the RIGHT (high-wavelength) edge.
         if zone_end < n - 1:
-            boundary_val = float(vals[zone_end + 1])  # value from next zone
             gap_start = max(zone_end - int(round(abs(delta_nm) / dwl)), zone_start)
             if zone_end > gap_start:
-                # Fill gap with boundary value
-                new_vals[gap_start:zone_end + 1] = boundary_val
+                # Fill gap with zero: the signal has moved away from this
+                # region, so holding the next boundary value would create
+                # an artificial plateau. Zero is physically correct here.
+                new_vals[gap_start:zone_end + 1] = 0.0
                 # Smooth only within the shifted zone.
                 smooth_start = max(gap_start - smooth_points, zone_start)
                 smooth_end = zone_end - 1

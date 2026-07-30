@@ -37,6 +37,12 @@ from colorlab_pro.ui.utils.clipboard_parser import parse_spectrum_from_text
 from colorlab_pro.utils.validation import validate_ratio, validate_spectrum_id, validate_xy
 
 
+# Maximum accepted size (in characters) for clipboard-pasted spectrum text.
+_MAX_PASTE_SIZE = 1_000_000
+# Maximum accepted number of data points parsed from pasted text.
+_MAX_PASTE_POINTS = 100_000
+
+
 # ================================================================== #
 # Helpers
 # ================================================================== #
@@ -141,6 +147,8 @@ def _validate_optimizer_payload(payload: dict, *, require_cf: bool = True) -> di
     validated_bounds: list[tuple[float, float]] = []
     for idx, pair in enumerate(bounds):
         lo, hi = float(pair[0]), float(pair[1])
+        if math.isnan(lo) or math.isinf(lo) or math.isnan(hi) or math.isinf(hi):
+            raise ValueError(f"bounds[{idx}] must be finite numbers")
         if lo < 0 or hi < 0:
             raise ValueError(f"bounds[{idx}] thickness values must be non-negative")
         if lo >= hi:
@@ -520,7 +528,11 @@ class ColorLabApi:
         try:
             text = payload.get("text", "")
             name = payload.get("name", "Pasted Spectrum")
+            if len(text) > _MAX_PASTE_SIZE:
+                return {"error": f"Pasted text exceeds {_MAX_PASTE_SIZE} characters"}
             spectrum = parse_spectrum_from_text(text)
+            if len(spectrum.wavelengths) > _MAX_PASTE_POINTS:
+                return {"error": f"Pasted spectrum exceeds {_MAX_PASTE_POINTS} points"}
             if spectrum.meta is None:
                 spectrum.meta = {}
             spectrum.meta["name"] = name
@@ -682,6 +694,10 @@ class ColorLabApi:
                 float(payload.get("thickness_g", 0)),
                 float(payload.get("thickness_b", 0)),
             ]
+            if any(math.isnan(t) or math.isinf(t) for t in thicknesses):
+                return _safe_error(ValueError("thicknesses must be finite numbers"))
+            if any(t < 0 for t in thicknesses):
+                return _safe_error(ValueError("thicknesses must be non-negative"))
 
             if mode == "whitecf":
                 white_id = payload.get("white_id", "")
@@ -913,7 +929,11 @@ class ColorLabApi:
         try:
             text = payload.get("text", "")
             name = payload.get("name", "Pasted Spectrum")
+            if len(text) > _MAX_PASTE_SIZE:
+                return {"error": f"Pasted text exceeds {_MAX_PASTE_SIZE} characters"}
             spectrum = parse_spectrum_from_text(text)
+            if len(spectrum.wavelengths) > _MAX_PASTE_POINTS:
+                return {"error": f"Pasted spectrum exceeds {_MAX_PASTE_POINTS} points"}
             if spectrum.meta is None:
                 spectrum.meta = {}
             spectrum.meta["name"] = name
@@ -1115,6 +1135,20 @@ class ColorLabApi:
             if self._current_stop_event:
                 self._current_stop_event.set()
 
+    def optimizer_stop_and_wait(self, timeout: float = 5.0) -> None:
+        """Request cancellation and wait for the running worker to finish.
+
+        Used during application shutdown so background optimization threads
+        do not touch the database engine after it has been disposed.
+        """
+        self.optimizer_stop()
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            with self._opt_lock:
+                if not self._opt_running:
+                    return
+            time.sleep(0.05)
+
     def optimizer_optimize(self, payload: dict) -> dict:
         """Start a grid-search thickness optimization in a background thread.
 
@@ -1162,7 +1196,8 @@ class ColorLabApi:
                 target = XY(wp[0], wp[1])
 
             def _progress_cb(pct):
-                self._opt_progress = pct
+                with self._opt_lock:
+                    self._opt_progress = pct
                 self._push_js(
                     f"window.updateOptProgress && window.updateOptProgress({pct}, 'Running grid search...')"
                 )
@@ -1269,7 +1304,8 @@ class ColorLabApi:
             channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
 
             def _progress_cb(pct):
-                self._opt_progress = pct
+                with self._opt_lock:
+                    self._opt_progress = pct
                 self._push_js(
                     f"window.updateSensitivityProgress && window.updateSensitivityProgress({pct})"
                 )
@@ -1349,7 +1385,8 @@ class ColorLabApi:
                 target = XY(wp[0], wp[1])
 
             def _progress_cb(pct):
-                self._opt_progress = pct
+                with self._opt_lock:
+                    self._opt_progress = pct
                 self._push_js(
                     f"window.updateSensitivityProgress && window.updateSensitivityProgress({pct})"
                 )
@@ -1385,7 +1422,11 @@ class ColorLabApi:
         try:
             text = payload.get("text", "")
             name = payload.get("name", "Pasted Spectrum")
+            if len(text) > _MAX_PASTE_SIZE:
+                return {"error": f"Pasted text exceeds {_MAX_PASTE_SIZE} characters"}
             spectrum = parse_spectrum_from_text(text)
+            if len(spectrum.wavelengths) > _MAX_PASTE_POINTS:
+                return {"error": f"Pasted spectrum exceeds {_MAX_PASTE_POINTS} points"}
             if spectrum.meta is None:
                 spectrum.meta = {}
             spectrum.meta["name"] = name
@@ -1446,6 +1487,8 @@ class ColorLabApi:
             if len(thicknesses) != 3:
                 raise ValueError("thicknesses must contain exactly 3 values")
             thicknesses = [float(x) for x in thicknesses]
+            if any(math.isnan(t) or math.isinf(t) for t in thicknesses):
+                raise ValueError("thicknesses must be finite numbers")
             if any(t < 0 for t in thicknesses):
                 raise ValueError("thicknesses must be non-negative")
 
@@ -1475,7 +1518,8 @@ class ColorLabApi:
                 target = XY(wp[0], wp[1])
 
             def _cf_progress_cb(pct):
-                self._opt_progress = pct
+                with self._opt_lock:
+                    self._opt_progress = pct
                 self._push_js(
                     f"window.updateCFMaterialsProgress && window.updateCFMaterialsProgress({pct})"
                 )
@@ -1555,6 +1599,8 @@ class ColorLabApi:
             if len(thicknesses) != 3:
                 raise ValueError("thicknesses must contain exactly 3 values")
             thicknesses = [float(x) for x in thicknesses]
+            if any(math.isnan(t) or math.isinf(t) for t in thicknesses):
+                raise ValueError("thicknesses must be finite numbers")
             if any(t < 0 for t in thicknesses):
                 raise ValueError("thicknesses must be non-negative")
             peak_ranges = payload.get("peak_ranges")
@@ -1562,6 +1608,8 @@ class ColorLabApi:
             is_qd = payload.get("is_qd")
             blue_cutoff = float(payload.get("blue_cutoff", 500.0))
             steps = int(payload.get("steps", 5))
+            if not (1 <= steps <= 50):
+                raise ValueError("steps must be between 1 and 50")
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
@@ -1583,7 +1631,8 @@ class ColorLabApi:
                 fwhm_ranges = [tuple(r) for r in fwhm_ranges]
 
             def _em_progress_cb(pct):
-                self._opt_progress = pct
+                with self._opt_lock:
+                    self._opt_progress = pct
                 self._push_js(
                     f"window.updateEmissionProgress && window.updateEmissionProgress({pct})"
                 )
@@ -1658,6 +1707,18 @@ class ColorLabApi:
             is_qd = bool(payload.get("is_qd", False))
             blue_cutoff = float(payload.get("blue_cutoff", 500.0))
 
+            # Validate finiteness and reasonable ranges for adjustment factors.
+            if math.isnan(peak_delta) or math.isinf(peak_delta):
+                return {"error": "peak_delta must be a finite number"}
+            if abs(peak_delta) > 200.0:
+                return {"error": "peak_delta must be within [-200, 200] nm"}
+            if math.isnan(fwhm_factor) or math.isinf(fwhm_factor):
+                return {"error": "fwhm_factor must be a finite number"}
+            if not (0.1 <= fwhm_factor <= 10.0):
+                return {"error": "fwhm_factor must be within [0.1, 10.0]"}
+            if math.isnan(blue_cutoff) or math.isinf(blue_cutoff):
+                return {"error": "blue_cutoff must be a finite number"}
+
             spec = self._spectrum_ctrl.get_spectrum(sid)
             if spec is None:
                 return {"error": "Spectrum not found"}
@@ -1683,6 +1744,14 @@ class ColorLabApi:
                         return {"error": "New B-LED spectrum not found"}
                     new_b_led_peak_delta = float(payload.get("new_b_led_peak_delta", 0.0))
                     new_b_led_fwhm_factor = float(payload.get("new_b_led_fwhm_factor", 1.0))
+                    if math.isnan(new_b_led_peak_delta) or math.isinf(new_b_led_peak_delta):
+                        return {"error": "new_b_led_peak_delta must be a finite number"}
+                    if abs(new_b_led_peak_delta) > 200.0:
+                        return {"error": "new_b_led_peak_delta must be within [-200, 200] nm"}
+                    if math.isnan(new_b_led_fwhm_factor) or math.isinf(new_b_led_fwhm_factor):
+                        return {"error": "new_b_led_fwhm_factor must be a finite number"}
+                    if not (0.1 <= new_b_led_fwhm_factor <= 10.0):
+                        return {"error": "new_b_led_fwhm_factor must be within [0.1, 10.0]"}
                     adj_b_led = new_b_led
                     if abs(new_b_led_peak_delta) > 1e-6:
                         adj_b_led = translate_spectrum(adj_b_led, new_b_led_peak_delta)
@@ -1741,6 +1810,12 @@ class ColorLabApi:
             gamut_results = tuple(
                 GamutSnapshot(**g) for g in payload.get("gamut_results", [])
             )
+            # Validate project_id: must be a positive integer or None.
+            project_id = payload.get("project_id")
+            if project_id is not None:
+                project_id = int(project_id)
+                if project_id <= 0:
+                    raise ValueError("project_id must be a positive integer or None")
             snapshot = HistorySnapshot(
                 name=payload.get("name", ""),
                 mode=payload.get("mode", ""),
@@ -1752,7 +1827,7 @@ class ColorLabApi:
                 achieved_xy_y=payload.get("achieved_xy_y"),
                 optimized_thickness_json=payload.get("optimized_thickness_json"),
                 delta_xy=payload.get("delta_xy"),
-                project_id=payload.get("project_id"),
+                project_id=project_id,
                 meta=payload.get("meta", {}),
             )
             record_id = self._history_service.save_snapshot(snapshot)

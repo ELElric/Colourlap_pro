@@ -291,6 +291,9 @@ var lastPrimaries = null;
 var lastWhiteXY = null;
 var lastResults = [];
 var currentSpectra = [];
+// Race-condition guard: increments on each calculateGamut() call so stale
+// async responses can be detected and discarded.
+var activeCalcId = 0;
 
 function logStatus(msg) {
     var el = document.getElementById('status-left');
@@ -458,6 +461,9 @@ function calculateGamut() {
     }
     setLoading(true);
     logStatus('Calculating...');
+    // Increment guard so any in-flight older response is discarded.
+    activeCalcId++;
+    var myCalcId = activeCalcId;
     var payload = {
         mode: mode,
         red_id: document.getElementById('red-select').value,
@@ -472,6 +478,7 @@ function calculateGamut() {
         thickness_b: parseFloat(document.getElementById('thickness-bcf').value) || 0,
     };
     callApi('gamut_calculate', payload).then(function(data) {
+        if (activeCalcId !== myCalcId) return;  // stale callback, ignore
         setLoading(false);
         if (data.error) {
             logStatus('Error: ' + data.error);
@@ -502,6 +509,7 @@ function calculateGamut() {
         }
         logStatus('Calculation complete');
     }).catch(function(err) {
+        if (activeCalcId !== myCalcId) return;  // stale callback, ignore
         setLoading(false);
         logStatus('Error: ' + (err.message || err));
     });

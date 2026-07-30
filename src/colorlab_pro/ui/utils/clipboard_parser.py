@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from colorlab_pro.dto.spectrum import Spectrum
+
+
+# Maximum accepted size (in characters) of pasted clipboard text.
+MAX_TEXT_SIZE = 1_000_000
+# Maximum accepted number of parsed data points.
+MAX_PARSE_POINTS = 100_000
 
 
 def parse_spectrum_from_text(text: str) -> Spectrum:
@@ -21,6 +29,11 @@ def parse_spectrum_from_text(text: str) -> Spectrum:
     Raises:
         ValueError: If the text cannot be parsed into a valid spectrum.
     """
+    if len(text) > MAX_TEXT_SIZE:
+        raise ValueError(
+            f"Clipboard text exceeds {MAX_TEXT_SIZE} characters"
+        )
+
     lines = text.strip().splitlines()
     if not lines:
         raise ValueError("Empty clipboard data")
@@ -36,6 +49,9 @@ def parse_spectrum_from_text(text: str) -> Spectrum:
         line = line.strip()
         if not line:
             continue
+        # Stop once we have collected enough points to avoid runaway parsing.
+        if len(wavelengths) >= MAX_PARSE_POINTS:
+            break
         # Try tab, then comma, then space
         for sep in ("\t", ",", " "):
             parts = line.split(sep)
@@ -49,6 +65,9 @@ def parse_spectrum_from_text(text: str) -> Spectrum:
             wl = float(parts[0].strip())
             val = float(parts[1].strip())
         except ValueError:
+            continue
+        # Skip rows with non-finite (NaN/Inf) values.
+        if math.isnan(wl) or math.isinf(wl) or math.isnan(val) or math.isinf(val):
             continue
         wavelengths.append(wl)
         values.append(val)
