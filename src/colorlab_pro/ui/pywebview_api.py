@@ -166,7 +166,10 @@ def _validate_optimizer_payload(payload: dict, *, require_cf: bool = True) -> di
         target = None
 
     # sort_by — optional optimization ranking strategy.
-    sort_by = payload.get("sort_by", "balanced")
+    # Default is "match" (actual overlap with target gamut) when a gamut
+    # standard is targeted; "delta_xy" when a white point / coordinate
+    # is targeted.  The frontend derives this from the target selection.
+    sort_by = payload.get("sort_by", "match")
     valid_sort = {"balanced", "coverage", "match", "delta_xy"}
     if sort_by not in valid_sort:
         raise ValueError(f"sort_by must be one of {valid_sort}, got {sort_by!r}")

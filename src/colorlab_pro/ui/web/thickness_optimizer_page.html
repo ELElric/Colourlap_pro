@@ -251,13 +251,12 @@ function waitForApi(callback, maxWait) {
       <span class="coord-label">y:</span>
       <input type="text" class="coord-field" id="coord-y" value="0.3290">
     </div>
-    <div class="sort-section">
-      <span class="target-label" title="Select how results are ranked">Sort by:</span>
-      <select class="target-select" id="sortBySelect" title="Balanced: maximize coverage with acceptable white point&#10;Coverage: pure gamut area ratio&#10;Match: actual overlap with target&#10;White point: prioritize white-point accuracy">
-        <option value="balanced" selected>Balanced (Coverage + White Point)</option>
-        <option value="coverage">Max Coverage (Gamut Area)</option>
-        <option value="match">Max Match (Target Overlap)</option>
-        <option value="delta_xy">White Point Accuracy</option>
+    <div class="sort-section" id="metricSection">
+      <span class="target-label" title="Match: how much of the target gamut your device actually covers&#10;Coverage: ratio of device gamut area to target area (can exceed 100%)&#10;Balanced: maximize match while keeping white point close to target">Metric:</span>
+      <select class="target-select" id="metricSelect" title="Match: actual overlap with target gamut&#10;Coverage: device area / target area ratio&#10;Balanced: maximize match with acceptable white point">
+        <option value="match" selected>Match (实际覆盖度)</option>
+        <option value="coverage">Coverage (面积比)</option>
+        <option value="balanced">Balanced (覆盖+白点)</option>
       </select>
     </div>
   </div>
@@ -781,7 +780,13 @@ function toggleCoord() {
     var sel = document.getElementById('targetSelect');
     var coord = document.getElementById('coordInput');
     if (!coord) return;
-    coord.classList.toggle('visible', sel.value === 'coord' || sel.value === 'white');
+    var isPointTarget = sel.value === 'coord' || sel.value === 'white';
+    coord.classList.toggle('visible', isPointTarget);
+    /* Hide metric selector when targeting a white point or coordinate —
+       in that mode, delta_xy (white-point accuracy) is the only sensible
+       sorting strategy.  Show it only for gamut-standard targets. */
+    var metricSection = document.getElementById('metricSection');
+    if (metricSection) metricSection.style.display = isPointTarget ? 'none' : 'flex';
 }
 
 function getInputs() {
@@ -805,12 +810,20 @@ function getInputs() {
         [parseFloat(rangeFields[2].value), parseFloat(rangeFields[3].value)],
         [parseFloat(rangeFields[4].value), parseFloat(rangeFields[5].value)],
     ];
-    return { target_standard: target_standard, target_xy: target_xy, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds, sort_by: getSortBy() };
+    return { target_standard: target_standard, target_xy: target_xy, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds, sort_by: getSortBy(target_standard, target_xy) };
 }
 
-function getSortBy() {
-    var sel = document.getElementById('sortBySelect');
-    return sel ? sel.value : 'balanced';
+/* Derive sort_by from the target selection + metric dropdown:
+   - Gamut standard target (BT2020/DCI-P3): use the selected metric
+     (match / coverage / balanced) from the #metricSelect dropdown.
+   - White point or coordinate target: always use delta_xy (white-point
+     accuracy), since matching the point is the explicit goal. */
+function getSortBy(target_standard, target_xy) {
+    if (target_xy !== null) {
+        return 'delta_xy';
+    }
+    var sel = document.getElementById('metricSelect');
+    return sel ? sel.value : 'match';
 }
 
 function setLoading(loading) {
@@ -1872,6 +1885,7 @@ function stopOptPolling() {
 <script>
 // Initial data load
 setLoading(true);
+toggleCoord();  /* Set initial visibility of metric section */
 waitForApi(function() {
     refreshData();
     /* Resume polling if an optimization task is still running in the backend

@@ -547,7 +547,7 @@ def grid_search_optimize(
     target_standard: str = "BT2020",
     steps: int = 10,
     *,
-    sort_by: str = "balanced",
+    sort_by: str = "match",
     delta_threshold: float = 0.02,
     progress_callback: Callable[[int], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
