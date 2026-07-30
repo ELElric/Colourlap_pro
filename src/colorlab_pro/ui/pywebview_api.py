@@ -254,24 +254,36 @@ class ColorLabApi:
     # --- Password protection --- #
 
     def verify_password(self, password: str) -> dict:
-        """Verify the application password.
+        """Verify the application password using bcrypt (with SHA-256 fallback).
 
         Returns {ok: bool, first_run: bool}.
         On first run (no password set), any non-empty password becomes the new password.
+        New passwords are hashed with bcrypt; existing SHA-256 hashes remain
+        verifiable for backward compatibility.
         """
         stored = self._settings.get("password_hash")
         if not stored:
             # First run — accept and store the password
             if password and len(password) >= 4:
-                import hashlib
+                import bcrypt
 
-                self._settings["password_hash"] = hashlib.sha256(
-                    password.encode()
-                ).hexdigest()
+                hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12))
+                self._settings["password_hash"] = hashed.decode("utf-8")
                 self._save_settings()
                 return {"ok": True, "first_run": True}
             return {"ok": False, "first_run": True, "error": "Password too short (min 4 chars)"}
 
+        # Backward compatibility: detect legacy SHA-256 (64 hex chars) vs bcrypt ($2b$...).
+        if isinstance(stored, str) and stored.startswith("$2"):
+            import bcrypt
+
+            try:
+                ok = bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
+            except ValueError:
+                ok = False
+            return {"ok": ok, "first_run": False}
+
+        # Legacy SHA-256 fallback
         import hashlib
 
         entered = hashlib.sha256(password.encode()).hexdigest()

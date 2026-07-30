@@ -297,9 +297,9 @@ function renderSpectraTable(spectra) {
         var chClass = s.channel === 'R' ? 'channel-r' : (s.channel === 'G' ? 'channel-g' : (s.channel === 'B' ? 'channel-b' : 'channel-w'));
         html += '<tr class="' + (isSelected ? 'selected' : '') + '" data-id="' + s.id + '" onclick="toggleRowSelection(' + s.id + ')">' +
             '<td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ' + (isSelected ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleRowSelection(' + s.id + ');"></td>' +
-            '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditCell(this,' + s.id + ',\'name\',\'' + escapeHtml(s.name).replace(/'/g,"\\'") + '\')"><span class="row-name">' + escapeHtml(s.name) + '</span></td>' +
-            '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditSelect(this,' + s.id + ',\'category\',\'' + escapeHtml(s.category || '') + '\',\'LED|CF|QD|W\')"><span class="row-badge ' + catClass + '">' + escapeHtml(s.category || '-') + '</span></td>' +
-            '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditSelect(this,' + s.id + ',\'channel\',\'' + escapeHtml(s.channel || '') + '\',\'R|G|B|W\')"><span class="channel-tag ' + chClass + '">' + escapeHtml(s.channel || '-') + '</span></td>' +
+            '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditCell(this,' + s.id + ',\'name\',\'' + escapeHtml(escapeJs(s.name)) + '\')"><span class="row-name">' + escapeHtml(s.name) + '</span></td>' +
+            '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditSelect(this,' + s.id + ',\'category\',\'' + escapeHtml(escapeJs(s.category || '')) + '\',\'LED|CF|QD|W\')"><span class="row-badge ' + catClass + '">' + escapeHtml(s.category || '-') + '</span></td>' +
+            '<td class="editable" onclick="event.stopPropagation()" ondblclick="startEditSelect(this,' + s.id + ',\'channel\',\'' + escapeHtml(escapeJs(s.channel || '')) + '\',\'R|G|B|W\')"><span class="channel-tag ' + chClass + '">' + escapeHtml(s.channel || '-') + '</span></td>' +
             '<td class="row-value">' + (s.peak_nm != null ? Math.round(s.peak_nm) : '-') + '</td>' +
             '<td class="row-value">' + (s.fwhm_nm != null ? Math.round(s.fwhm_nm) : '-') + '</td>' +
             '<td class="editable row-value" onclick="event.stopPropagation()" ondblclick="startEditCell(this,' + s.id + ',\'thickness_um\',\'' + (s.thickness_um != null ? s.thickness_um : '') + '\')">' + (s.thickness_um != null ? Number(s.thickness_um).toFixed(1) : '-') + '</td>' +
@@ -313,6 +313,19 @@ function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, function(m) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
     });
+}
+
+function escapeJs(unsafe) {
+    if (unsafe === undefined || unsafe === null) return '';
+    return String(unsafe)
+        .replace(/[\\]/g, '\\\\')
+        .replace(/[']/g, "\\'")
+        .replace(/["]/g, '\\"')
+        .replace(/[\b]/g, '\\b')
+        .replace(/[\f]/g, '\\f')
+        .replace(/[\n]/g, '\\n')
+        .replace(/[\r]/g, '\\r')
+        .replace(/[\t]/g, '\\t');
 }
 
 /* Inline editing */

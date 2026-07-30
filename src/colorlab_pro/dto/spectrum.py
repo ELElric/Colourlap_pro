@@ -31,6 +31,9 @@ class Spectrum:
             raise ValueError("wavelengths and values must have the same shape")
         if self.wavelengths.ndim != 1:
             raise ValueError("wavelengths must be 1D")
-        # Deep-copy meta to prevent external mutation from breaking immutability.
-        # Use object.__setattr__ because the dataclass is frozen.
+        # Deep-copy numpy arrays and meta to prevent external mutation from
+        # breaking immutability.  Use object.__setattr__ because the dataclass
+        # is frozen.
+        object.__setattr__(self, "wavelengths", self.wavelengths.copy())
+        object.__setattr__(self, "values", self.values.copy())
         object.__setattr__(self, "meta", copy.deepcopy(self.meta))

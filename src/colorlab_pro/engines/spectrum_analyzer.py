@@ -43,9 +43,17 @@ def _get_illuminant_sd(name: str = "D65") -> Any:
     import colour
 
     if name not in _illuminant_sd_cache:
-        if name not in colour.SDS_ILLUMINANTS:
+        if name == "E":
+            # Equal-energy (E) illuminant: uniform 1.0 across 380-780 nm.
+            # colour-science does not include "E" in SDS_ILLUMINANTS, so we
+            # construct it manually to avoid ValueError on fallback paths.
+            _illuminant_sd_cache[name] = colour.SpectralDistribution(
+                dict(zip(_STD_WL, np.ones_like(_STD_WL, dtype=np.float64)))
+            )
+        elif name in colour.SDS_ILLUMINANTS:
+            _illuminant_sd_cache[name] = colour.SDS_ILLUMINANTS[name]
+        else:
             raise ValueError(f"Unsupported illuminant: {name!r}")
-        _illuminant_sd_cache[name] = colour.SDS_ILLUMINANTS[name]
     return _illuminant_sd_cache[name]
 
 

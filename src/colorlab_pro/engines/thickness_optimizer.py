@@ -458,6 +458,21 @@ def _compute_single_candidate(
         spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
         for v in filtered
     ]
+
+    # Guard against NaN in any primary channel (e.g. one CF is so thick that
+    # the filtered spectrum is effectively zero).  Build a valid gamut only
+    # when all three primaries have finite xy.
+    if any(np.isnan(p.x) or np.isnan(p.y) for p in primaries_xy):
+        return {
+            "thickness_r": float(thicknesses[0]),
+            "thickness_g": float(thicknesses[1]),
+            "thickness_b": float(thicknesses[2]),
+            "white_xy": [float(white_xy.x), float(white_xy.y)],
+            "delta_xy": delta,
+            "coverage": 0.0,
+            "match": 0.0,
+        }
+
     device = build_gamut_from_primaries(
         "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
     )

@@ -207,8 +207,6 @@ def delta_uv(
     """
     import colour
 
-    from colorlab_pro.engines.spectrum_analyzer import cct_mccamy
-
     c = xy(spectrum, observer=observer, illuminant=illuminant)
 
     # Convert xy to CIE 1960 UCS (u, v) for Planckian locus comparison.
@@ -216,23 +214,18 @@ def delta_uv(
     u = float(uv[0])
     v = float(uv[1])
 
-    cct = cct_mccamy(spectrum, observer=observer, illuminant=illuminant)
-
-    # Compute Duv using Ohno 2013 via colour-science.
-    # uv_to_CCT_Ohno2013 returns (CCT, Duv) from (u, v) in 1960 UCS.
+    # Compute both CCT and Duv using Ohno 2013 to guarantee a self-consistent
+    # (CCT, Duv) pair from the same algorithm.  The previous implementation
+    # mixed McCamy CCT with Ohno Duv, which can produce inconsistent results.
     try:
-        uv = np.array([u, v])
-        _, duv = colour.temperature.uv_to_CCT_Ohno2013(uv)
-        duv = float(duv)
+        uv_arr = np.array([u, v])
+        cct_ohno, duv_ohno = colour.temperature.uv_to_CCT_Ohno2013(uv_arr)
+        cct = float(cct_ohno)
+        duv = float(duv_ohno)
     except Exception:  # noqa: BLE001
-        # Fallback: if Ohno 2013 fails (e.g. too far from locus),
-        # approximate Duv as distance to D65 in 1960 UCS.
-        ref_denom = -2.0 * 0.3127 + 12.0 * 0.3290 + 3.0
-        ref_u = 4.0 * 0.3127 / ref_denom
-        ref_v = 6.0 * 0.3290 / ref_denom
-        duv_vec = np.array([u - ref_u, v - ref_v], dtype=np.float64)
-        mag = float(np.linalg.norm(duv_vec))
-        duv = mag if v > ref_v else -mag
+        # Too far from Planckian locus — return NaN to signal unavailability.
+        cct = float("nan")
+        duv = float("nan")
 
     return cct, duv
 
