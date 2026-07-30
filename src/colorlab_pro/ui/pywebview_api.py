@@ -68,6 +68,91 @@ def _safe_error(exc: Exception) -> dict[str, Any]:
     return {"error": str(exc), "trace": traceback.format_exc()}
 
 
+def _sanitize_for_json(obj: Any) -> Any:
+    """Recursively replace NaN/Inf floats with None for JSON compliance.
+
+    Python's ``json.dumps`` emits non-standard ``NaN`` / ``Infinity`` tokens
+    by default, which strict JSON parsers (and ``JSON.parse`` in some
+    browsers) reject.  This function walks the structure and replaces
+    any non-finite float with ``None`` (→ ``null`` in JSON).
+    """
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
+
+
+def _validate_optimizer_payload(payload: dict, *, require_cf: bool = True) -> dict:
+    """Validate common optimizer payload fields and return normalised values.
+
+    Args:
+        payload: Raw payload from the frontend.
+        require_cf: If True, ``cf_ids`` is required (Filter 1/3).
+
+    Returns:
+        Dict with validated: source_ids, cf_ids (or None), bounds,
+        target_standard, target (XY).
+
+    Raises:
+        ValueError: On any invalid or missing field.
+    """
+    # source_ids — must be a list of 3 positive integers.
+    source_ids = payload.get("source_ids")
+    if not source_ids or len(source_ids) != 3:
+        raise ValueError("source_ids must contain exactly 3 spectrum IDs")
+    source_ids = [int(x) for x in source_ids]
+    for sid in source_ids:
+        if sid <= 0:
+            raise ValueError(f"source_ids must be positive integers, got {sid}")
+
+    # cf_ids — optional depending on filter type.
+    cf_ids = None
+    if require_cf:
+        cf_ids = payload.get("cf_ids")
+        if not cf_ids or len(cf_ids) != 3:
+            raise ValueError("cf_ids must contain exactly 3 spectrum IDs")
+        cf_ids = [int(x) for x in cf_ids]
+        for cid in cf_ids:
+            if cid <= 0:
+                raise ValueError(f"cf_ids must be positive integers, got {cid}")
+
+    # bounds — must be 3 [min, max] pairs with min < max, non-negative.
+    bounds = payload.get("bounds")
+    if not bounds or len(bounds) != 3:
+        raise ValueError("bounds must contain exactly 3 [min, max] pairs")
+    validated_bounds: list[tuple[float, float]] = []
+    for idx, pair in enumerate(bounds):
+        lo, hi = float(pair[0]), float(pair[1])
+        if lo < 0 or hi < 0:
+            raise ValueError(f"bounds[{idx}] thickness values must be non-negative")
+        if lo >= hi:
+            raise ValueError(f"bounds[{idx}] min must be less than max")
+        validated_bounds.append((lo, hi))
+
+    target_standard = payload.get("target_standard", "BT2020")
+    target_xy = payload.get("target_xy")
+    if target_xy is not None:
+        tx, ty = float(target_xy[0]), float(target_xy[1])
+        if not (0.0 <= tx <= 1.0 and 0.0 <= ty <= 1.0 and tx + ty <= 1.0):
+            raise ValueError(f"target_xy ({tx}, {ty}) is outside valid CIE triangle")
+        target = (tx, ty)
+    else:
+        target = None
+
+    return {
+        "source_ids": source_ids,
+        "cf_ids": cf_ids,
+        "bounds": validated_bounds,
+        "target_standard": target_standard,
+        "target_xy": target,
+    }
+
+
 def _tk_file_dialog_open(
     title: str = "Open",
     filetypes: list[tuple[str, str]] | None = None,
@@ -1037,11 +1122,11 @@ class ColorLabApi:
         import json as _json
 
         try:
-            source_ids = [int(x) for x in payload["source_ids"]]
-            cf_ids = [int(x) for x in payload["cf_ids"]]
-            bounds = payload["bounds"]
-            target_standard = payload.get("target_standard", "BT2020")
-            target_xy = payload.get("target_xy")
+            v = _validate_optimizer_payload(payload)
+            source_ids = v["source_ids"]
+            cf_ids = v["cf_ids"]
+            bounds = v["bounds"]
+            target_standard = v["target_standard"]
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
@@ -1050,8 +1135,8 @@ class ColorLabApi:
             from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import grid_search_optimize
 
-            if target_xy is not None:
-                target = XY(float(target_xy[0]), float(target_xy[1]))
+            if v["target_xy"] is not None:
+                target = XY(v["target_xy"][0], v["target_xy"][1])
             else:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
@@ -1087,13 +1172,13 @@ class ColorLabApi:
                 f"window.updateOptProgress && window.updateOptProgress(100, 'Best coverage: {best_cov:.1f}%')"
             )
             self._push_js(
-                "window.updateOptResult && window.updateOptResult(" + _json.dumps(result) + ")"
+                "window.updateOptResult && window.updateOptResult(" + _json.dumps(_sanitize_for_json(result)) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
             self._opt_result = err
             self._push_js(
-                "window.updateOptResult && window.updateOptResult(" + _json.dumps(err) + ")"
+                "window.updateOptResult && window.updateOptResult(" + _json.dumps(_sanitize_for_json(err)) + ")"
             )
         finally:
             with self._opt_lock:
@@ -1102,10 +1187,14 @@ class ColorLabApi:
 
     def optimizer_get_progress(self) -> dict:
         """Return current optimization progress (fallback polling)."""
+        with self._opt_lock:
+            running = self._opt_running
+            progress = self._opt_progress
+            result = self._opt_result
         return {
-            "running": self._opt_running,
-            "progress": self._opt_progress,
-            "result": self._opt_result,
+            "running": running,
+            "progress": progress,
+            "result": _sanitize_for_json(result) if result else None,
         }
 
     def optimizer_sensitivity_analysis(self, payload: dict) -> dict:
@@ -1133,13 +1222,16 @@ class ColorLabApi:
         import json as _json
 
         try:
-            base = payload["base"]
-            vary_channel = payload["vary_channel"]
-            source_ids = [int(x) for x in payload["source_ids"]]
-            cf_ids = [int(x) for x in payload["cf_ids"]]
-            bounds = payload["bounds"]
-            target_standard = payload.get("target_standard", "BT2020")
-            target_xy = payload.get("target_xy")
+            v = _validate_optimizer_payload(payload)
+            source_ids = v["source_ids"]
+            cf_ids = v["cf_ids"]
+            bounds = v["bounds"]
+            target_standard = v["target_standard"]
+            base = payload.get("base", [0.0, 0.0, 0.0])
+            if len(base) != 3:
+                raise ValueError("base must contain exactly 3 thickness values")
+            base = [float(x) for x in base]
+            vary_channel = payload.get("vary_channel", "R")
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
@@ -1148,8 +1240,8 @@ class ColorLabApi:
             from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import sensitivity_analysis
 
-            if target_xy is not None:
-                target = XY(float(target_xy[0]), float(target_xy[1]))
+            if v["target_xy"] is not None:
+                target = XY(v["target_xy"][0], v["target_xy"][1])
             else:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
@@ -1174,14 +1266,14 @@ class ColorLabApi:
             self._opt_progress = 100
             self._push_js(
                 "window.updateSensitivityResult && window.updateSensitivityResult("
-                + _json.dumps(result) + ")"
+                + _json.dumps(_sanitize_for_json(result)) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
             self._opt_result = err
             self._push_js(
                 "window.updateSensitivityResult && window.updateSensitivityResult("
-                + _json.dumps(err) + ")"
+                + _json.dumps(_sanitize_for_json(err)) + ")"
             )
         finally:
             with self._opt_lock:
@@ -1213,12 +1305,15 @@ class ColorLabApi:
         import json as _json
 
         try:
-            base = payload["base"]
-            source_ids = [int(x) for x in payload["source_ids"]]
-            cf_ids = [int(x) for x in payload["cf_ids"]]
-            bounds = payload["bounds"]
-            target_standard = payload.get("target_standard", "BT2020")
-            target_xy = payload.get("target_xy")
+            v = _validate_optimizer_payload(payload)
+            source_ids = v["source_ids"]
+            cf_ids = v["cf_ids"]
+            bounds = v["bounds"]
+            target_standard = v["target_standard"]
+            base = payload.get("base", [0.0, 0.0, 0.0])
+            if len(base) != 3:
+                raise ValueError("base must contain exactly 3 thickness values")
+            base = [float(x) for x in base]
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
@@ -1227,8 +1322,8 @@ class ColorLabApi:
             from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import sensitivity_all_channels
 
-            if target_xy is not None:
-                target = XY(float(target_xy[0]), float(target_xy[1]))
+            if v["target_xy"] is not None:
+                target = XY(v["target_xy"][0], v["target_xy"][1])
             else:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
@@ -1251,14 +1346,14 @@ class ColorLabApi:
             self._opt_progress = 100
             self._push_js(
                 "window.updateSensitivityAllResult && window.updateSensitivityAllResult("
-                + _json.dumps(result) + ")"
+                + _json.dumps(_sanitize_for_json(result)) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
             self._opt_result = err
             self._push_js(
                 "window.updateSensitivityAllResult && window.updateSensitivityAllResult("
-                + _json.dumps(err) + ")"
+                + _json.dumps(_sanitize_for_json(err)) + ")"
             )
         finally:
             with self._opt_lock:
@@ -1317,9 +1412,23 @@ class ColorLabApi:
         import json as _json
 
         try:
-            source_ids = [int(x) for x in payload["source_ids"]]
-            cf_id_library = payload["cf_library"]
-            thicknesses = payload["thicknesses"]
+            # Validate source_ids (cf_library replaces cf_ids/bounds here).
+            source_ids = payload.get("source_ids")
+            if not source_ids or len(source_ids) != 3:
+                raise ValueError("source_ids must contain exactly 3 spectrum IDs")
+            source_ids = [int(x) for x in source_ids]
+
+            cf_id_library = payload.get("cf_library")
+            if not cf_id_library or not all(k in cf_id_library for k in ("R", "G", "B")):
+                raise ValueError("cf_library must contain 'R', 'G', 'B' keys")
+
+            thicknesses = payload.get("thicknesses", [0.0, 0.0, 0.0])
+            if len(thicknesses) != 3:
+                raise ValueError("thicknesses must contain exactly 3 values")
+            thicknesses = [float(x) for x in thicknesses]
+            if any(t < 0 for t in thicknesses):
+                raise ValueError("thicknesses must be non-negative")
+
             target_standard = payload.get("target_standard", "BT2020")
             target_xy = payload.get("target_xy")
 
@@ -1337,7 +1446,10 @@ class ColorLabApi:
             from colorlab_pro.engines.thickness_optimizer import select_cf_materials
 
             if target_xy is not None:
-                target = XY(float(target_xy[0]), float(target_xy[1]))
+                tx, ty = float(target_xy[0]), float(target_xy[1])
+                if not (0.0 <= tx <= 1.0 and 0.0 <= ty <= 1.0 and tx + ty <= 1.0):
+                    raise ValueError(f"target_xy ({tx}, {ty}) is outside valid CIE triangle")
+                target = XY(tx, ty)
             else:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
@@ -1360,14 +1472,14 @@ class ColorLabApi:
             self._opt_progress = 100
             self._push_js(
                 "window.updateCFMaterialsResult && window.updateCFMaterialsResult("
-                + _json.dumps(result) + ")"
+                + _json.dumps(_sanitize_for_json(result)) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
             self._opt_result = err
             self._push_js(
                 "window.updateCFMaterialsResult && window.updateCFMaterialsResult("
-                + _json.dumps(err) + ")"
+                + _json.dumps(_sanitize_for_json(err)) + ")"
             )
         finally:
             with self._opt_lock:
@@ -1415,16 +1527,21 @@ class ColorLabApi:
         import json as _json
 
         try:
-            source_ids = [int(x) for x in payload["source_ids"]]
-            cf_ids = [int(x) for x in payload["cf_ids"]]
-            thicknesses = payload["thicknesses"]
-            target_standard = payload.get("target_standard", "BT2020")
-            target_xy = payload.get("target_xy")
+            v = _validate_optimizer_payload(payload)
+            source_ids = v["source_ids"]
+            cf_ids = v["cf_ids"]
+            target_standard = v["target_standard"]
+            thicknesses = payload.get("thicknesses", [0.0, 0.0, 0.0])
+            if len(thicknesses) != 3:
+                raise ValueError("thicknesses must contain exactly 3 values")
+            thicknesses = [float(x) for x in thicknesses]
+            if any(t < 0 for t in thicknesses):
+                raise ValueError("thicknesses must be non-negative")
             peak_ranges = payload.get("peak_ranges")
             fwhm_ranges = payload.get("fwhm_ranges")
             is_qd = payload.get("is_qd")
-            blue_cutoff = payload.get("blue_cutoff", 500.0)
-            steps = payload.get("steps", 5)
+            blue_cutoff = float(payload.get("blue_cutoff", 500.0))
+            steps = int(payload.get("steps", 5))
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
@@ -1433,8 +1550,8 @@ class ColorLabApi:
             from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import optimize_emission_spectra
 
-            if target_xy is not None:
-                target = XY(float(target_xy[0]), float(target_xy[1]))
+            if v["target_xy"] is not None:
+                target = XY(v["target_xy"][0], v["target_xy"][1])
             else:
                 wp = standard_gamuts(target_standard).white
                 target = XY(wp[0], wp[1])
@@ -1468,14 +1585,14 @@ class ColorLabApi:
             self._opt_progress = 100
             self._push_js(
                 "window.updateEmissionResult && window.updateEmissionResult("
-                + _json.dumps(result) + ")"
+                + _json.dumps(_sanitize_for_json(result)) + ")"
             )
         except Exception as exc:  # noqa: BLE001
             err = _safe_error(exc)
             self._opt_result = err
             self._push_js(
                 "window.updateEmissionResult && window.updateEmissionResult("
-                + _json.dumps(err) + ")"
+                + _json.dumps(_sanitize_for_json(err)) + ")"
             )
         finally:
             with self._opt_lock:

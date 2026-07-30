@@ -77,6 +77,39 @@ def _single_channel_transmission(
     return np.power(10.0, -alpha * thickness)
 
 
+def _transmittance_to_alpha(
+    t: NDArray[np.float64],
+    meta: dict | None = None,
+) -> NDArray[np.float64]:
+    """Convert CF transmittance to absorption coefficient alpha.
+
+    Handles both 0-1 and 0-100 (percentage) scales.  The scale is
+    detected via an explicit ``transmittance_unit`` meta key, or by
+    heuristic (any value > 1.5 → percentage).
+
+    Args:
+        t: Transmittance values (0-1 or 0-100 scale).
+        meta: Optional spectrum metadata for format hints.
+
+    Returns:
+        Absorption coefficient alpha = -log10(T) where T is clipped to [1e-6, 1].
+    """
+    t = np.asarray(t, dtype=float)
+    is_percent = False
+    if meta and meta.get("transmittance_unit", "").lower() in ("percent", "%", "0-100"):
+        is_percent = True
+    if not is_percent and np.max(t) > 1.5:
+        is_percent = True
+    if not is_percent and np.min(t) > 0:
+        ratio = np.max(t) / np.min(t)
+        if ratio > 100 and np.max(t) > 0.15:
+            is_percent = True
+    if is_percent:
+        t = t / 100.0
+    t = np.clip(t, 1e-6, 1.0)
+    return -np.log10(t)
+
+
 def _align_alpha(
     wavelengths: NDArray[np.float64],
     absorber: Spectrum,
@@ -374,27 +407,6 @@ def _prepare_grid_inputs(
     src_vals = [_resample(s) for s in sources]
     cf_vals = [_resample(c) for c in cfs]
 
-    def _transmittance_to_alpha(t: NDArray[np.float64], meta: dict | None = None) -> NDArray[np.float64]:
-        t = np.asarray(t, dtype=float)
-        # Check meta for explicit format hint first.
-        is_percent = False
-        if meta and meta.get("transmittance_unit", "").lower() in ("percent", "%", "0-100"):
-            is_percent = True
-        # Heuristic: if any value > 1.5, assume percentage (0-100 scale).
-        if not is_percent and np.max(t) > 1.5:
-            is_percent = True
-        # If max <= 1.5 but min is very small (e.g. < 0.015), and values
-        # span a wide range, they might still be percentages of very
-        # absorbing filters. Check if the ratio max/min > 100 as a hint.
-        if not is_percent and np.min(t) > 0:
-            ratio = np.max(t) / np.min(t)
-            if ratio > 100 and np.max(t) > 0.15:
-                is_percent = True
-        if is_percent:
-            t = t / 100.0
-        t = np.clip(t, 1e-6, 1.0)
-        return -np.log10(t)
-
     alphas = [_transmittance_to_alpha(v, c.meta) for v, c in zip(cf_vals, cfs, strict=True)]
     return wavelengths, src_vals, alphas, sources[0].unit
 
@@ -527,6 +539,10 @@ def grid_search_optimize(
         raise ValueError(f"Expected 3 CF spectra, got {len(cfs)}")
     if len(bounds) != 3:
         raise ValueError(f"Expected 3 bounds, got {len(bounds)}")
+    if not isinstance(steps, int) or steps < 2:
+        raise ValueError(f"steps must be an integer >= 2, got {steps}")
+    if steps > 50:
+        raise ValueError(f"steps must be <= 50 to prevent excessive computation (steps^3={steps**3}), got {steps}")
     target_gamut = standard_gamuts(target_standard)
     wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
@@ -636,6 +652,18 @@ def sensitivity_analysis(
             spectrum_xy(Spectrum(wavelengths=wavelengths, values=v, unit=unit))
             for v in filtered
         ]
+        # Guard against NaN in any primary channel (consistent with
+        # _compute_single_candidate).  When one CF is so thick that the
+        # filtered spectrum is effectively zero, spectrum_xy returns NaN,
+        # which would crash build_gamut_from_primaries.
+        if any(np.isnan(p.x) or np.isnan(p.y) for p in primaries_xy):
+            points.append({
+                "thickness": float(d),
+                "coverage": 0.0,
+                "white_x": float(white_xy.x),
+                "white_y": float(white_xy.y),
+            })
+            continue
         device = build_gamut_from_primaries(
             "Device", primaries_xy[0], primaries_xy[1], primaries_xy[2], white_xy,
         )
@@ -766,22 +794,6 @@ def select_cf_materials(
 
     src_vals = [_resample(s) for s in sources]
     unit = sources[0].unit
-
-    def _transmittance_to_alpha(t: NDArray[np.float64], meta: dict | None = None) -> NDArray[np.float64]:
-        t = np.asarray(t, dtype=float)
-        is_percent = False
-        if meta and meta.get("transmittance_unit", "").lower() in ("percent", "%", "0-100"):
-            is_percent = True
-        if not is_percent and np.max(t) > 1.5:
-            is_percent = True
-        if not is_percent and np.min(t) > 0:
-            ratio = np.max(t) / np.min(t)
-            if ratio > 100 and np.max(t) > 0.15:
-                is_percent = True
-        if is_percent:
-            t = t / 100.0
-        t = np.clip(t, 1e-6, 1.0)
-        return -np.log10(t)
 
     # Pre-compute alpha for all CF candidates (avoid redundant _prepare_grid_inputs calls).
     alpha_r_list = [_transmittance_to_alpha(_resample(c), c.meta) for c in cf_r_list]
@@ -973,6 +985,10 @@ def optimize_emission_spectra(
         raise ValueError(f"Expected 3 fwhm_ranges, got {len(fwhm_ranges)}")
     if len(is_qd) != 3:
         raise ValueError(f"Expected 3 is_qd flags, got {len(is_qd)}")
+    if not isinstance(steps, int) or steps < 2:
+        raise ValueError(f"steps must be an integer >= 2, got {steps}")
+    if steps > 10:
+        raise ValueError(f"steps must be <= 10 to prevent excessive computation (steps^6={steps**6}), got {steps}")
 
     # Pre-compute CF alpha coefficients on common wavelength grid.
     wavelengths, _, alphas, unit = _prepare_grid_inputs(sources, cfs)
