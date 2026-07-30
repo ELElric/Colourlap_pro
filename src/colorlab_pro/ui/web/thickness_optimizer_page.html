@@ -202,7 +202,7 @@ function waitForApi(callback, maxWait) {
             <span class="range-label">Min:</span>
             <input type="text" class="range-field" value="0.00">
             <span class="range-label">Max:</span>
-            <input type="text" class="range-field" value="5.00">
+            <input type="text" class="range-field" value="3.00">
           </div>
         </td>
       </tr>
@@ -227,7 +227,7 @@ function waitForApi(callback, maxWait) {
             <span class="range-label">Min:</span>
             <input type="text" class="range-field" value="0.00">
             <span class="range-label">Max:</span>
-            <input type="text" class="range-field" value="5.00">
+            <input type="text" class="range-field" value="3.00">
           </div>
         </td>
       </tr>
@@ -252,7 +252,7 @@ function waitForApi(callback, maxWait) {
             <span class="range-label">Min:</span>
             <input type="text" class="range-field" value="0.00">
             <span class="range-label">Max:</span>
-            <input type="text" class="range-field" value="5.00">
+            <input type="text" class="range-field" value="3.00">
           </div>
         </td>
       </tr>
@@ -1001,36 +1001,47 @@ function renderAllChannelChart(data) {
     if (!sensitivityChart) sensitivityChart = echarts.init(dom, 'dark');
     var chColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff' };
     var chLabels = { 'R': 'RCF', 'G': 'GCF', 'B': 'BCF' };
-    var base = data.base || [];
+    var base = data.base || [0, 0, 0];
     var series = [];
     ['R', 'G', 'B'].forEach(function(ch) {
         var points = (data.results || {})[ch] || [];
         var lineData = points.map(function(p) { return [p.thickness, p.coverage]; });
         var bv = (base[{R:0,G:1,B:2}[ch]] || 0).toFixed(2);
-        /* Find the point closest to base thickness for markPoint */
-        var bestPoint = null;
-        var minDist = Infinity;
-        points.forEach(function(p) {
-            var dist = Math.abs(p.thickness - (base[{R:0,G:1,B:2}[ch]] || 0));
-            if (dist < minDist) { minDist = dist; bestPoint = p; }
-        });
         series.push({
-            name: chLabels[ch] + ' (fixed at ' + bv + 'μm)',
+            name: chLabels[ch] + ' scan (others at ' + bv + 'μm)',
             type: 'line', smooth: true, showSymbol: false,
             data: lineData,
             lineStyle: { width: 2, color: chColors[ch] },
-            itemStyle: { color: chColors[ch] },
-            markPoint: bestPoint ? {
-                data: [{ coord: [bestPoint.thickness, bestPoint.coverage], value: bv + 'μm' }],
-                symbol: 'circle', symbolSize: 12,
-                itemStyle: { color: chColors[ch], borderColor: '#fff', borderWidth: 2 },
-                label: { show: true, formatter: '{c}', position: 'top', color: chColors[ch], fontSize: 10 }
-            } : undefined
+            itemStyle: { color: chColors[ch] }
         });
     });
+    /* If we have optimization results, mark the best thickness on each curve */
+    if (lastBest) {
+        var bestThicknesses = { 'R': lastBest.thickness_r, 'G': lastBest.thickness_g, 'B': lastBest.thickness_b };
+        series.forEach(function(s, i) {
+            var ch = ['R', 'G', 'B'][i];
+            var bt = bestThicknesses[ch];
+            var points = (data.results || {})[ch] || [];
+            /* Find closest point to best thickness */
+            var closest = null;
+            var minDist = Infinity;
+            points.forEach(function(p) {
+                var dist = Math.abs(p.thickness - bt);
+                if (dist < minDist) { minDist = dist; closest = p; }
+            });
+            if (closest) {
+                s.markPoint = {
+                    data: [{ coord: [closest.thickness, closest.coverage], value: 'Optimal\n' + bt.toFixed(2) + 'μm' }],
+                    symbol: 'pin', symbolSize: 40,
+                    itemStyle: { color: chColors[ch], borderColor: '#fff', borderWidth: 2 },
+                    label: { show: true, formatter: '{c}', color: '#fff', fontSize: 9 }
+                };
+            }
+        });
+    }
     var option = {
         backgroundColor: 'transparent',
-        title: { text: 'Coverage vs Thickness (others fixed at optimum)', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        title: { text: 'Coverage vs Thickness (others fixed at 0μm)', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
         grid: { top: 40, right: 20, bottom: 60, left: 55 },
         tooltip: { trigger: 'axis', formatter: function(params) {
             var s = '<b>' + params[0].axisValue.toFixed(2) + ' μm</b><br/>';
@@ -1043,7 +1054,7 @@ function renderAllChannelChart(data) {
                     if (Math.abs(pt.thickness - p.value[0]) < 0.01) matchPt = pt;
                 });
                 s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(2) + '%';
-                if (matchPt && matchPt.white_x !== undefined) {
+                if (matchPt && matchPt.white_x !== undefined && !isNaN(matchPt.white_x)) {
                     s += ' (W: ' + Number(matchPt.white_x).toFixed(3) + ', ' + Number(matchPt.white_y).toFixed(3) + ')';
                 }
                 s += '<br/>';
@@ -1060,9 +1071,10 @@ function renderAllChannelChart(data) {
 }
 
 function autoRunSensitivity() {
-    if (!lastBest) return;
+    if (!lastResults || !lastResults.length) return;
     var data = getInputs();
-    data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
+    /* Scan curves: vary one channel at a time, others fixed at 0um */
+    data.base = [0, 0, 0];
     allChannelData = null;
     sensitivityData = {};
     _activeFilter = 'sensitivity';
