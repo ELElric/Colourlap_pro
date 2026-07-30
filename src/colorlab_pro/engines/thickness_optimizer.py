@@ -547,6 +547,8 @@ def grid_search_optimize(
     target_standard: str = "BT2020",
     steps: int = 10,
     *,
+    sort_by: str = "balanced",
+    delta_threshold: float = 0.02,
     progress_callback: Callable[[int], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
 ) -> list[dict]:
@@ -554,8 +556,19 @@ def grid_search_optimize(
 
     Samples each channel at ``steps`` points within the given bounds,
     computes the device gamut and white point for each combination,
-    and returns results ranked by delta-xy (ascending) then coverage
-    (descending).
+    and returns results ranked according to ``sort_by``.
+
+    Sorting modes (first-principles analysis):
+    - ``"balanced"`` (default): Maximize coverage among candidates whose
+      delta_xy ≤ ``delta_threshold``.  This ensures the white point is
+      reasonably close to target while prioritising gamut size.
+    - ``"coverage"``: Sort purely by coverage (descending), then delta_xy
+      (ascending).  Use when gamut size is the only priority.
+    - ``"match"``: Sort by match (actual intersection with target gamut,
+      descending), then delta_xy.  Use when overlap with target matters
+      more than absolute gamut size.
+    - ``"delta_xy"``: Legacy mode — sort by delta_xy (ascending), then
+      coverage (descending).  Prioritises white-point accuracy.
 
     Args:
         sources: Primary source spectra [R, G, B].
@@ -564,11 +577,13 @@ def grid_search_optimize(
         target_xy: Target white-point chromaticity.
         target_standard: Gamut standard name for coverage/match (default "BT2020").
         steps: Grid resolution per channel (default 10 → 1000 combos).
+        sort_by: Sorting strategy (see above).
+        delta_threshold: Max acceptable delta_xy for ``"balanced"`` mode.
         progress_callback: Invoked with 0-100 percent during search.
         cancel_check: If returns True, search is aborted early.
 
     Returns:
-        List of result dicts, sorted by (delta_xy, -coverage), limited to top 5.
+        List of result dicts, sorted per ``sort_by``, limited to top 5.
         Each dict has keys: thickness_r/g/b, white_xy, delta_xy, coverage, match, rank.
     """
     if len(sources) != 3:
@@ -611,7 +626,34 @@ def grid_search_optimize(
 
     # Filter out degenerate candidates (zero-intensity spectra → delta_xy=inf).
     candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
-    candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+
+    # Sort according to the selected strategy.
+    valid_modes = {"balanced", "coverage", "match", "delta_xy"}
+    if sort_by not in valid_modes:
+        raise ValueError(
+            f"sort_by must be one of {valid_modes}, got {sort_by!r}"
+        )
+
+    if sort_by == "delta_xy":
+        # Legacy: white-point accuracy first.
+        candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+    elif sort_by == "coverage":
+        # Pure gamut size priority.
+        candidates.sort(key=lambda x: (-x["coverage"], x["delta_xy"]))
+    elif sort_by == "match":
+        # Actual overlap with target gamut.
+        candidates.sort(key=lambda x: (-x["match"], x["delta_xy"]))
+    else:
+        # Balanced: maximize coverage among candidates with acceptable delta_xy.
+        # Candidates within threshold are sorted by coverage (desc);
+        # candidates outside threshold are sorted by delta_xy (asc) and
+        # placed after the within-threshold group.
+        within = [c for c in candidates if c["delta_xy"] <= delta_threshold]
+        outside = [c for c in candidates if c["delta_xy"] > delta_threshold]
+        within.sort(key=lambda x: (-x["coverage"], x["delta_xy"]))
+        outside.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+        candidates = within + outside
+
     top = candidates[:5]
     for i, r in enumerate(top):
         r["rank"] = i + 1

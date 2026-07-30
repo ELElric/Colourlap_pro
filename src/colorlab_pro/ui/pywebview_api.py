@@ -165,12 +165,19 @@ def _validate_optimizer_payload(payload: dict, *, require_cf: bool = True) -> di
     else:
         target = None
 
+    # sort_by — optional optimization ranking strategy.
+    sort_by = payload.get("sort_by", "balanced")
+    valid_sort = {"balanced", "coverage", "match", "delta_xy"}
+    if sort_by not in valid_sort:
+        raise ValueError(f"sort_by must be one of {valid_sort}, got {sort_by!r}")
+
     return {
         "source_ids": source_ids,
         "cf_ids": cf_ids,
         "bounds": validated_bounds,
         "target_standard": target_standard,
         "target_xy": target,
+        "sort_by": sort_by,
     }
 
 
@@ -1244,6 +1251,7 @@ class ColorLabApi:
                 sources, cfs, bounds, target,
                 target_standard=target_standard,
                 steps=10,
+                sort_by=v["sort_by"],
                 progress_callback=_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
             )

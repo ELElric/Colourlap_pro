@@ -17,6 +17,7 @@
   .coord-input { display: none; align-items: center; gap: var(--gap-sm); margin-left: 16px; }
   .coord-input.visible { display: flex; }
   .coord-label { color: var(--text-muted); font-size: var(--font-sm); }
+  .sort-section { display: flex; align-items: center; gap: var(--gap-sm); margin-left: auto; }
 
   /* Spectrum & Thickness Input — page-specific table styles */
   .input-section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: var(--gap-md); }
@@ -249,6 +250,15 @@ function waitForApi(callback, maxWait) {
       <input type="text" class="coord-field" id="coord-x" value="0.3127">
       <span class="coord-label">y:</span>
       <input type="text" class="coord-field" id="coord-y" value="0.3290">
+    </div>
+    <div class="sort-section">
+      <span class="target-label" title="Select how results are ranked">Sort by:</span>
+      <select class="target-select" id="sortBySelect" title="Balanced: maximize coverage with acceptable white point&#10;Coverage: pure gamut area ratio&#10;Match: actual overlap with target&#10;White point: prioritize white-point accuracy">
+        <option value="balanced" selected>Balanced (Coverage + White Point)</option>
+        <option value="coverage">Max Coverage (Gamut Area)</option>
+        <option value="match">Max Match (Target Overlap)</option>
+        <option value="delta_xy">White Point Accuracy</option>
+      </select>
     </div>
   </div>
 </div>
@@ -795,7 +805,12 @@ function getInputs() {
         [parseFloat(rangeFields[2].value), parseFloat(rangeFields[3].value)],
         [parseFloat(rangeFields[4].value), parseFloat(rangeFields[5].value)],
     ];
-    return { target_standard: target_standard, target_xy: target_xy, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds };
+    return { target_standard: target_standard, target_xy: target_xy, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds, sort_by: getSortBy() };
+}
+
+function getSortBy() {
+    var sel = document.getElementById('sortBySelect');
+    return sel ? sel.value : 'balanced';
 }
 
 function setLoading(loading) {
