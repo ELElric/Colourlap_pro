@@ -313,7 +313,7 @@ function waitForApi(callback, maxWait) {
     </div>
     <div id="scan-chart" style="width:100%;height:340px;"></div>
     <div id="sensitivity-chart" style="width:100%;height:340px;"></div>
-    <div id="sensitivity-placeholder" class="chart-placeholder" style="display:none;">Run Sensitivity to see coverage trends for all channels</div>
+    <div id="sensitivity-placeholder" class="chart-placeholder" style="display:none;">Run optimization to generate scan curves</div>
   </div>
 </div>
 
@@ -787,7 +787,11 @@ window.updateOptResult = function(result) {
     if (result.stopped) { logStatus('Optimization stopped'); updateProgress(0); return; }
     renderResults(result.results, result.best);
     updateProgress(100, 'Best coverage: ' + (result.best ? Number(result.best.coverage).toFixed(2) : '-') + '%');
-    logStatus('Optimization complete');
+    logStatus('Optimization complete, generating scan curves...');
+    /* Auto-run sensitivity analysis to generate scan curves */
+    if (result.best) {
+        setTimeout(function() { autoRunSensitivity(); }, 500);
+    }
 };
 
 function stopOptimization() {
@@ -826,7 +830,18 @@ function renderResults(results, best) {
         var sumEl = document.getElementById('progress-summary');
         if (sumEl) sumEl.textContent = 'Best result: R=' + Number(best.thickness_r).toFixed(1) + ' G=' + Number(best.thickness_g).toFixed(1) + ' B=' + Number(best.thickness_b).toFixed(1);
     }
-    renderScanCharts(lastResults, lastBest);
+    /* Clear old chart and show placeholder; auto-sensitivity will generate curves */
+    allChannelData = null;
+    if (scanChart) scanChart.clear();
+    var scanDom = document.getElementById('scan-chart');
+    var sensDom = document.getElementById('sensitivity-chart');
+    var placeholder = document.getElementById('sensitivity-placeholder');
+    if (scanDom) scanDom.style.display = 'none';
+    if (sensDom) sensDom.style.display = 'none';
+    if (placeholder) {
+        placeholder.style.display = 'flex';
+        placeholder.textContent = 'Generating scan curves...';
+    }
 }
 
 function renderScanCharts(results, best) {
@@ -985,36 +1000,93 @@ function renderAllChannelChart(data) {
     if (!dom) return;
     if (!sensitivityChart) sensitivityChart = echarts.init(dom, 'dark');
     var chColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff' };
+    var chLabels = { 'R': 'RCF', 'G': 'GCF', 'B': 'BCF' };
     var base = data.base || [];
     var series = [];
     ['R', 'G', 'B'].forEach(function(ch) {
         var points = (data.results || {})[ch] || [];
         var lineData = points.map(function(p) { return [p.thickness, p.coverage]; });
-        var bv = (base[{R:0,G:1,B:2}[ch]] || 0).toFixed(1);
+        var bv = (base[{R:0,G:1,B:2}[ch]] || 0).toFixed(2);
+        /* Find the point closest to base thickness for markPoint */
+        var bestPoint = null;
+        var minDist = Infinity;
+        points.forEach(function(p) {
+            var dist = Math.abs(p.thickness - (base[{R:0,G:1,B:2}[ch]] || 0));
+            if (dist < minDist) { minDist = dist; bestPoint = p; }
+        });
         series.push({
-            name: ch + 'CF (' + bv + 'μm)',
+            name: chLabels[ch] + ' (fixed at ' + bv + 'μm)',
             type: 'line', smooth: true, showSymbol: false,
             data: lineData,
             lineStyle: { width: 2, color: chColors[ch] },
-            itemStyle: { color: chColors[ch] }
+            itemStyle: { color: chColors[ch] },
+            markPoint: bestPoint ? {
+                data: [{ coord: [bestPoint.thickness, bestPoint.coverage], value: bv + 'μm' }],
+                symbol: 'circle', symbolSize: 12,
+                itemStyle: { color: chColors[ch], borderColor: '#fff', borderWidth: 2 },
+                label: { show: true, formatter: '{c}', position: 'top', color: chColors[ch], fontSize: 10 }
+            } : undefined
         });
     });
     var option = {
         backgroundColor: 'transparent',
-        title: { text: 'Coverage vs Thickness', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
-        grid: { top: 40, right: 20, bottom: 50, left: 55 },
+        title: { text: 'Coverage vs Thickness (others fixed at optimum)', left: 'center', top: 5, textStyle: { color: '#ccc', fontSize: 13 } },
+        grid: { top: 40, right: 20, bottom: 60, left: 55 },
         tooltip: { trigger: 'axis', formatter: function(params) {
-            var s = '<b>' + params[0].axisValue.toFixed(1) + ' μm</b><br/>';
-            params.forEach(function(p) { s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(1) + '%<br/>'; });
+            var s = '<b>' + params[0].axisValue.toFixed(2) + ' μm</b><br/>';
+            params.forEach(function(p) {
+                var chKey = p.seriesName.charAt(0);
+                var points = (data.results || {})[chKey] || [];
+                /* Find matching point for white xy */
+                var matchPt = null;
+                points.forEach(function(pt) {
+                    if (Math.abs(pt.thickness - p.value[0]) < 0.01) matchPt = pt;
+                });
+                s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(2) + '%';
+                if (matchPt && matchPt.white_x !== undefined) {
+                    s += ' (W: ' + Number(matchPt.white_x).toFixed(3) + ', ' + Number(matchPt.white_y).toFixed(3) + ')';
+                }
+                s += '<br/>';
+            });
             return s;
         }},
         legend: { data: series.map(function(s){return s.name;}), textStyle: { color: '#ccc', fontSize: 11 }, bottom: 5, itemWidth: 20, itemHeight: 10 },
         xAxis: { type: 'value', name: 'Thickness (μm)', nameLocation: 'middle', nameGap: 28, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
-        yAxis: { type: 'value', name: 'Coverage (%)', nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } } },
+        yAxis: { type: 'value', name: 'Coverage (%)', nameLocation: 'middle', nameGap: 35, nameTextStyle: { color: '#aaa' }, axisLine: { lineStyle: { color: '#555' } }, splitLine: { lineStyle: { color: '#333' } }, scale: true },
         series: series
     };
     sensitivityChart.setOption(option, true);
     setTimeout(function() { sensitivityChart.resize(); }, 50);
+}
+
+function autoRunSensitivity() {
+    if (!lastBest) return;
+    var data = getInputs();
+    data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
+    allChannelData = null;
+    sensitivityData = {};
+    _activeFilter = 'sensitivity';
+    updateProgress(0, 'Generating scan curves...');
+    // Switch to coverage tab to show curves
+    document.querySelectorAll('.chart-tab').forEach(function(t) { t.classList.remove('active'); });
+    var tabEl = document.querySelector('.chart-tab[onclick*="coverage"]');
+    if (tabEl) tabEl.classList.add('active');
+    currentTab = 'coverage';
+    startOptPolling();
+    callApi('optimizer_sensitivity_all', data).then(function(res) {
+        if (res && res.error) {
+            stopOptPolling();
+            logStatus(formatError(res, 'Scan curve generation failed'));
+            updateProgress(0);
+            /* Fall back to scatter chart */
+            renderScanCharts(lastResults, lastBest);
+        }
+    }).catch(function(err) {
+        stopOptPolling();
+        logStatus('Error: ' + (err.message || err));
+        updateProgress(0);
+        renderScanCharts(lastResults, lastBest);
+    });
 }
 
 function runSensitivityPanel() {
@@ -1061,7 +1133,8 @@ window.updateSensitivityAllResult = function(result) {
     var sensDom = document.getElementById('sensitivity-chart');
     if (scanDom) scanDom.style.display = 'none';
     if (sensDom) sensDom.style.display = 'block';
-    updateProgress(100, 'Sensitivity complete for all channels');
+    updateProgress(100, 'Scan curves generated');
+    logStatus('Scan curves ready');
 };
 
 function pasteSpectrumToSelect(btn) {
