@@ -712,7 +712,7 @@ class ColorLabApi:
                 try:
                     import colour
                     return round(float(colour.temperature.xy_to_CCT([x, y], method="Hernandez 1999")), 0)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     return None
 
             primaries = []
@@ -753,7 +753,7 @@ class ColorLabApi:
                         fwhm_nm = round(float(right_wl - left_wl), 1)
                     else:
                         fwhm_nm = None
-                except Exception:
+                except Exception:  # noqa: BLE001
                     peak_nm, fwhm_nm = None, None
                 try:
                     import colour
@@ -772,9 +772,9 @@ class ColorLabApi:
                             (float(xy_wl[0]) - xy_n[0]) ** 2 + (float(xy_wl[1]) - xy_n[1]) ** 2
                         )
                         purity = (dist_cw / dist_lw * 100) if dist_lw > 0.001 else None
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         purity = None
-                except Exception:
+                except Exception:  # noqa: BLE001
                     dominant_nm, purity = None, None
                 primaries.append(
                     {
@@ -823,7 +823,7 @@ class ColorLabApi:
             try:
                 wx = float(device.white[0])
                 wy = float(device.white[1])
-            except Exception:
+            except Exception:  # noqa: BLE001
                 wx, wy = 0.0, 0.0
 
             return {"primaries": primaries, "results": results, "white_xy": [round(wx, 4), round(wy, 4)]}

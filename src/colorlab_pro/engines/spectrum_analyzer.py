@@ -248,7 +248,9 @@ def _dominant_wavelength_core(
         if ep < 1e-6:
             return None, None
         return dw, ep
-    except Exception:
+    except Exception:  # noqa: BLE001
+        # colour-science can raise for degenerate chromaticities (e.g. points
+        # exactly on the white point or outside the spectrum locus).
         return None, None
 
 

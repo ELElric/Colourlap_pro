@@ -9,6 +9,8 @@ Provides color gamut analysis (D-016: all in CIE 1931 xy space):
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from shapely.geometry import Point, Polygon
 
@@ -31,15 +33,25 @@ def _xy_to_tuple(xy: XY) -> tuple[float, float]:
 
 
 def xy_to_uv(x: float, y: float) -> tuple[float, float]:
-    """Convert CIE 1931 xy chromaticity to CIE 1976 u'v' via colour-science."""
+    """Convert CIE 1931 xy chromaticity to CIE 1976 u'v' via colour-science.
+
+    Returns (NaN, NaN) for degenerate inputs (e.g. x=y=0) that would cause
+    division-by-zero in the colour-science conversion, so callers can detect
+    invalid results rather than silently receiving (0, 0).
+    """
     import colour
     import numpy as np
 
-    denom = -2.0 * x + 12.0 * y + 3.0
-    if denom == 0:
-        return 0.0, 0.0
-    uv = colour.xy_to_Luv_uv(np.array([x, y]))
-    return float(uv[0]), float(uv[1])
+    try:
+        uv = colour.xy_to_Luv_uv(np.array([x, y]))
+        result = float(uv[0]), float(uv[1])
+        if math.isnan(result[0]) or math.isnan(result[1]):
+            return float("nan"), float("nan")
+        return result
+    except Exception:  # noqa: BLE001
+        # colour-science raises ZeroDivisionError or similar for degenerate
+        # chromaticities (e.g. x=y=0 where the normalisation denominator is 0).
+        return float("nan"), float("nan")
 
 
 def build_gamut_from_primaries(
@@ -114,6 +126,9 @@ def coverage(target: Gamut, device: Gamut) -> float:
     if target_area == 0:
         raise ValueError("Target gamut has zero area")
     device_area = device_poly.area
+    if not device_poly.is_valid:
+        # Degenerate device polygon (e.g. collinear primaries) → 0 coverage.
+        return 0.0
     return float(device_area / target_area * 100.0)
 
 
@@ -135,6 +150,9 @@ def match(target: Gamut, device: Gamut) -> float:
     target_area = target_poly.area
     if target_area == 0:
         raise ValueError("Target gamut has zero area")
+    if not device_poly.is_valid:
+        # Degenerate device polygon → 0 match.
+        return 0.0
     intersect_area = target_poly.intersection(device_poly).area
     return float(min(100.0, intersect_area / target_area * 100.0))
 
@@ -183,6 +201,9 @@ def coverage_1976(target: Gamut, device: Gamut) -> float:
     target_area = target_poly.area
     if target_area == 0:
         raise ValueError("Target gamut has zero area in u'v' space")
+    if not device_poly.is_valid:
+        # Degenerate device polygon (e.g. NaN from invalid chromaticity) → 0 coverage.
+        return 0.0
     device_area = device_poly.area
     return float(device_area / target_area * 100.0)
 
@@ -194,5 +215,8 @@ def match_1976(target: Gamut, device: Gamut) -> float:
     target_area = target_poly.area
     if target_area == 0:
         raise ValueError("Target gamut has zero area in u'v' space")
+    if not device_poly.is_valid:
+        # Degenerate device polygon → 0 match.
+        return 0.0
     intersect_area = target_poly.intersection(device_poly).area
     return float(min(100.0, intersect_area / target_area * 100.0))
