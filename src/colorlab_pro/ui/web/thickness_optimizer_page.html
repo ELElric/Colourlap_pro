@@ -118,6 +118,15 @@ function callApi(method) {
     return Promise.resolve(fn.apply(api, args));
 }
 
+/* Escape HTML special characters to prevent XSS when inserting user-provided
+   strings (e.g. spectrum names) into innerHTML. */
+function escapeHtml(s) {
+    if (s === undefined || s === null) return '';
+    return String(s).replace(/[&<>"']/g, function(m) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+}
+
 function waitForApi(callback, maxWait) {
     maxWait = maxWait || 30000;
     var start = Date.now();
@@ -1256,7 +1265,7 @@ function populateMaterialCandidates(spectra) {
         });
         var html = '';
         filtered.forEach(function(s) {
-            html += '<label><input type="checkbox" value="' + s.id + '">' + s.name + '</label>';
+            html += '<label><input type="checkbox" value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</label>';
         });
         if (!html) html = '<label style="color:var(--text-faint);border:none;">No CF materials available</label>';
         container.innerHTML = html;
@@ -1371,9 +1380,9 @@ function renderMaterialResults(results) {
         var bestClass = idx === 0 ? 'result-best' : '';
         html += '<tr class="' + bestClass + '">' +
             '<td class="result-rank">' + r.rank + '</td>' +
-            '<td class="result-value">' + (r.cf_r_name || '-') + '</td>' +
-            '<td class="result-value">' + (r.cf_g_name || '-') + '</td>' +
-            '<td class="result-value">' + (r.cf_b_name || '-') + '</td>' +
+            '<td class="result-value">' + escapeHtml(r.cf_r_name || '-') + '</td>' +
+            '<td class="result-value">' + escapeHtml(r.cf_g_name || '-') + '</td>' +
+            '<td class="result-value">' + escapeHtml(r.cf_b_name || '-') + '</td>' +
             '<td class="result-value ' + (r.coverage >= 90 ? 'result-cov-high' : 'result-cov-medium') + '">' + Number(r.coverage).toFixed(2) + '%</td>' +
             '<td class="result-value">' + Number(r.match).toFixed(2) + '%</td>' +
             '<td class="result-value">' + (r.delta_xy !== undefined ? Number(r.delta_xy).toFixed(5) : '-') + '</td>' +

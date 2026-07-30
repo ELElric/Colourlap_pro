@@ -477,10 +477,31 @@ function startRename(event, id, cell) {
   var record = currentRecords.find(function(r) { return r.id === id; });
   if (!record) return;
   var oldName = record.name;
-  cell.innerHTML = '<input class="rename-input" type="text" value="' + escapeHtml(oldName) + '">'
-    + '<button class="btn btn-primary" style="margin-left:4px;padding:2px 8px;font-size:11px;" onclick="event.stopPropagation(); confirmRename(' + id + ', this.parentElement, \'' + escapeJs(oldName) + '\')">OK</button>'
-    + '<button class="btn btn-secondary" style="margin-left:2px;padding:2px 8px;font-size:11px;" onclick="event.stopPropagation(); cancelRename(this.parentElement, \'' + escapeJs(oldName) + '\')">Cancel</button>';
-  var input = cell.querySelector('input');
+  /* Build rename UI with DOM methods (no innerHTML) to prevent XSS. */
+  cell.textContent = '';
+  var input = document.createElement('input');
+  input.className = 'rename-input';
+  input.type = 'text';
+  input.value = oldName;
+  var okBtn = document.createElement('button');
+  okBtn.className = 'btn btn-primary';
+  okBtn.style.cssText = 'margin-left:4px;padding:2px 8px;font-size:11px;';
+  okBtn.textContent = 'OK';
+  okBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    confirmRename(id, cell, oldName);
+  });
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-secondary';
+  cancelBtn.style.cssText = 'margin-left:2px;padding:2px 8px;font-size:11px;';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    cancelRename(cell, oldName);
+  });
+  cell.appendChild(input);
+  cell.appendChild(okBtn);
+  cell.appendChild(cancelBtn);
   input.focus();
   input.select();
   input.onkeydown = function(e) {

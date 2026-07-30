@@ -339,15 +339,13 @@ def scale_fwhm(
     spectrum: Spectrum,
     factor: float,
 ) -> Spectrum:
-    """Scale the FWHM of a spectrum by a power transformation.
+    """Scale the FWHM of a spectrum by resampling around the peak.
 
-    For a Gaussian peak, raising normalised values (peak = 1) to power
-    *p* changes the FWHM by a factor of 1/√p.  To achieve a target FWHM
-    scaling factor *f* (f > 1 → wider, f < 1 → narrower), we use
-    *p* = 1/f².
-
-    The spectrum is normalised to peak = 1 before the power operation,
-    then scaled back to the original peak value.
+    This method works for arbitrary line shapes (Gaussian, Lorentzian,
+    asymmetric peaks) by stretching the wavelength axis around the peak
+    and resampling onto the original grid.  This is more robust than the
+    previous power-transformation approach, which was only exact for
+    Gaussian peaks and produced >100% FWHM errors for Lorentzian lines.
 
     Args:
         spectrum: Input spectrum.
@@ -370,7 +368,12 @@ def scale_fwhm(
             meta={**spectrum.meta, "fwhm_factor": 1.0},
         )
 
-    peak_val = float(np.max(spectrum.values))
+    vals = np.asarray(spectrum.values, dtype=np.float64)
+    # Clean NaN/Inf to prevent silent propagation.
+    if np.any(~np.isfinite(vals)):
+        vals = np.nan_to_num(vals, nan=0.0, posinf=0.0, neginf=0.0)
+
+    peak_val = float(np.max(vals))
     if peak_val <= 0:
         return Spectrum(
             wavelengths=spectrum.wavelengths.copy(),
@@ -379,17 +382,22 @@ def scale_fwhm(
             meta={**spectrum.meta, "fwhm_factor": factor},
         )
 
-    # Normalise to [0, 1], apply power, scale back.
-    norm_vals = spectrum.values / peak_val
-    p = 1.0 / (factor ** 2)
-    scaled_vals = np.power(np.clip(norm_vals, 0.0, 1.0), p)
-    new_values = scaled_vals * peak_val
+    peak_idx = int(np.argmax(vals))
+    peak_wl = float(spectrum.wavelengths[peak_idx])
+
+    # Stretch the wavelength axis around the peak by *factor*, then
+    # resample back onto the original grid.  This preserves the peak
+    # position and amplitude while scaling the width of any feature.
+    scaled_wl = peak_wl + (spectrum.wavelengths - peak_wl) * factor
+    new_values = np.interp(
+        spectrum.wavelengths, scaled_wl, vals, left=0.0, right=0.0,
+    )
 
     return Spectrum(
         wavelengths=spectrum.wavelengths.copy(),
         values=new_values,
         unit=spectrum.unit,
-        meta={**spectrum.meta, "fwhm_factor": factor, "power_exponent": p},
+        meta={**spectrum.meta, "fwhm_factor": factor},
     )
 
 

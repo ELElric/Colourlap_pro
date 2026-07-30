@@ -254,15 +254,33 @@ def delta_e(
 
     xyz_a = xyz(spectrum_a, observer=observer, illuminant=illuminant)
     xyz_b = xyz(spectrum_b, observer=observer, illuminant=illuminant)
-    ref_xy = (
-        colour.CCS_ILLUMINANTS[observer][illuminant]
-        if observer in colour.CCS_ILLUMINANTS
-        else colour.CCS_ILLUMINANTS["CIE 1931 2 Degree Standard Observer"][illuminant]
-    )
+
+    # Guard against zero/NaN spectra — return 0 delta_E for identical degenerate inputs.
+    total_a = xyz_a.X + xyz_a.Y + xyz_a.Z
+    total_b = xyz_b.X + xyz_b.Y + xyz_b.Z
+    if total_a <= 0 and total_b <= 0:
+        return 0.0
+    if total_a <= 0 or total_b <= 0:
+        return 100.0  # One spectrum is zero, the other is not → maximum difference.
+
+    try:
+        ref_xy = (
+            colour.CCS_ILLUMINANTS[observer][illuminant]
+            if observer in colour.CCS_ILLUMINANTS
+            else colour.CCS_ILLUMINANTS["CIE 1931 2 Degree Standard Observer"][illuminant]
+        )
+    except (KeyError, TypeError):
+        raise ValueError(f"Unknown illuminant: {illuminant!r}")
+
+    # xyz() returns XYZ in 0-100 scale (Y=100 for the reference illuminant).
+    # colour.XYZ_to_Lab with default 'reference' domain_range_scale expects 0-1
+    # scale (Y=1 for white).  Divide by 100 to normalise.
     lab_a = colour.XYZ_to_Lab(
-        np.array([xyz_a.X, xyz_a.Y, xyz_a.Z], dtype=np.float64), illuminant=ref_xy
+        np.array([xyz_a.X, xyz_a.Y, xyz_a.Z], dtype=np.float64) / 100.0,
+        illuminant=ref_xy,
     )
     lab_b = colour.XYZ_to_Lab(
-        np.array([xyz_b.X, xyz_b.Y, xyz_b.Z], dtype=np.float64), illuminant=ref_xy
+        np.array([xyz_b.X, xyz_b.Y, xyz_b.Z], dtype=np.float64) / 100.0,
+        illuminant=ref_xy,
     )
     return float(colour.delta_E(lab_a, lab_b, method=method))

@@ -80,8 +80,13 @@ def _single_channel_transmission(
 def _transmittance_to_alpha(
     t: NDArray[np.float64],
     meta: dict | None = None,
+    reference_thickness_um: float = 1.0,
 ) -> NDArray[np.float64]:
     """Convert CF transmittance to absorption coefficient alpha.
+
+    Uses Lambert-Beer law: T = 10^(-alpha * d), so
+    alpha = -log10(T_ref) / d_ref where T_ref is the measured transmittance
+    at reference thickness d_ref.
 
     Handles both 0-1 and 0-100 (percentage) scales.  The scale is
     detected via an explicit ``transmittance_unit`` meta key, or by
@@ -89,25 +94,44 @@ def _transmittance_to_alpha(
 
     Args:
         t: Transmittance values (0-1 or 0-100 scale).
-        meta: Optional spectrum metadata for format hints.
+        meta: Optional spectrum metadata for format hints and reference thickness.
+            If ``reference_thickness_um`` key is present in meta, it overrides
+            the ``reference_thickness_um`` parameter.
+        reference_thickness_um: Thickness (in μm) at which *t* was measured.
+            Defaults to 1.0 μm (i.e. alpha = -log10(T)).
 
     Returns:
-        Absorption coefficient alpha = -log10(T) where T is clipped to [1e-6, 1].
+        Absorption coefficient alpha = -log10(T) / d_ref where T is clipped
+        to [1e-6, 1].
+
+    Raises:
+        ValueError: If reference_thickness_um <= 0.
     """
+    # Allow meta to override the reference thickness parameter.
+    if meta and "reference_thickness_um" in meta:
+        d_ref = float(meta["reference_thickness_um"])
+    else:
+        d_ref = float(reference_thickness_um)
+    if d_ref <= 0:
+        raise ValueError(f"reference_thickness_um must be positive, got {d_ref}")
+
     t = np.asarray(t, dtype=float)
+    # Clean NaN/Inf to prevent silent propagation.
+    if np.any(~np.isfinite(t)):
+        t = np.nan_to_num(t, nan=0.0, posinf=0.0, neginf=0.0)
+
     is_percent = False
     if meta and meta.get("transmittance_unit", "").lower() in ("percent", "%", "0-100"):
         is_percent = True
+    # Only use the simple > 1.5 heuristic; the previous ratio-based heuristic
+    # (max/min > 100 && max > 0.15) incorrectly classified high-contrast 0-1
+    # spectra as percentage-scale.
     if not is_percent and np.max(t) > 1.5:
         is_percent = True
-    if not is_percent and np.min(t) > 0:
-        ratio = np.max(t) / np.min(t)
-        if ratio > 100 and np.max(t) > 0.15:
-            is_percent = True
     if is_percent:
         t = t / 100.0
     t = np.clip(t, 1e-6, 1.0)
-    return -np.log10(t)
+    return -np.log10(t) / d_ref
 
 
 def _align_alpha(

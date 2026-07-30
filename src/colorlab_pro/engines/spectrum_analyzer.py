@@ -162,12 +162,13 @@ def xy(
     Returns:
         XY dataclass.
     """
-    import colour
-
     c = xyz(spectrum, observer=observer, illuminant=illuminant)
-    xyz_arr = np.array([c.X, c.Y, c.Z], dtype=np.float64)
-    xy_arr = colour.XYZ_to_xy(xyz_arr)
-    return XY(x=float(xy_arr[0]), y=float(xy_arr[1]))
+    total = c.X + c.Y + c.Z
+    if total <= 0 or not all(np.isfinite([c.X, c.Y, c.Z])):
+        # Zero or NaN spectrum → return NaN chromaticity so downstream code
+        # can detect invalid results rather than silently using (0, 0).
+        return XY(x=float("nan"), y=float("nan"))
+    return XY(x=float(c.X / total), y=float(c.Y / total))
 
 
 def uprime_vprime(

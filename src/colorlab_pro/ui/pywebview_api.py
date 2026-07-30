@@ -64,8 +64,21 @@ def _sample_points(spectrum, step: int = 5) -> list[list[float]]:
 
 
 def _safe_error(exc: Exception) -> dict[str, Any]:
-    """Return a standardized error dict."""
-    return {"error": str(exc), "trace": traceback.format_exc()}
+    """Return a standardized error dict without leaking internal details.
+
+    The full traceback is logged server-side; only a sanitised error
+    message is returned to the frontend to avoid exposing file paths,
+    database schema, or other sensitive information.
+    """
+    import logging
+
+    _logger = logging.getLogger(__name__)
+    _logger.error("API error: %s", exc, exc_info=True)
+    # For expected validation errors, include the message; for unexpected
+    # exceptions, return a generic message to avoid information leakage.
+    if isinstance(exc, (ValueError, KeyError, TypeError, FileNotFoundError)):
+        return {"error": str(exc)}
+    return {"error": "An unexpected error occurred"}
 
 
 def _sanitize_for_json(obj: Any) -> Any:
@@ -311,9 +324,16 @@ class ColorLabApi:
 
     def set_theme(self, theme: str) -> dict:
         """Persist and broadcast theme change."""
+        # Whitelist theme values to prevent JavaScript injection.
+        if theme not in ("dark", "light"):
+            return {"error": "Invalid theme"}
         self._settings["theme"] = theme
         self._save_settings()
-        self._push_js(f"window.applyTheme && window.applyTheme('{theme}')")
+        # Use json.dumps for safe string embedding in JavaScript.
+        import json as _json
+
+        safe_theme = _json.dumps(theme)
+        self._push_js(f"window.applyTheme && window.applyTheme({safe_theme})")
         return {"theme": theme}
 
     # --- Window state --- #

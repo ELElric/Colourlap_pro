@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, overload
 
 
@@ -54,6 +55,8 @@ def validate_ratio(value: Any, name: str = "ratio") -> float:
         ratio = float(value)
     except Exception as exc:  # noqa: BLE001
         raise ValueError(f"{name} must be a number") from exc
+    if math.isnan(ratio) or math.isinf(ratio):
+        raise ValueError(f"{name} must be a finite number")
     if ratio < 0.0:
         raise ValueError(f"{name} must be non-negative")
     return ratio
@@ -80,6 +83,8 @@ def validate_thickness_range(bounds: Any, name: str = "bounds") -> list[list[flo
             lo, hi = float(pair[0]), float(pair[1])
         except Exception as exc:  # noqa: BLE001
             raise ValueError(f"{name}[{idx}] must be a [min, max] number pair") from exc
+        if math.isnan(lo) or math.isinf(lo) or math.isnan(hi) or math.isinf(hi):
+            raise ValueError(f"{name}[{idx}] must be finite numbers")
         if lo < 0 or hi < 0:
             raise ValueError(f"{name}[{idx}] thickness values must be non-negative")
         if lo >= hi:
