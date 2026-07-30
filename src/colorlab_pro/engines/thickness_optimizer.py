@@ -543,12 +543,11 @@ def grid_search_optimize(
     sources: list[Spectrum],
     cfs: list[Spectrum],
     bounds: list[tuple[float, float]],
-    target_xy: XY,
+    target_xy: XY | None = None,
     target_standard: str = "BT2020",
     steps: int = 10,
     *,
     sort_by: str = "match",
-    delta_threshold: float = 0.02,
     progress_callback: Callable[[int], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
 ) -> list[dict]:
@@ -558,27 +557,28 @@ def grid_search_optimize(
     computes the device gamut and white point for each combination,
     and returns results ranked according to ``sort_by``.
 
-    Sorting modes (first-principles analysis):
-    - ``"balanced"`` (default): Maximize coverage among candidates whose
-      delta_xy ≤ ``delta_threshold``.  This ensures the white point is
-      reasonably close to target while prioritising gamut size.
-    - ``"coverage"``: Sort purely by coverage (descending), then delta_xy
-      (ascending).  Use when gamut size is the only priority.
-    - ``"match"``: Sort by match (actual intersection with target gamut,
-      descending), then delta_xy.  Use when overlap with target matters
-      more than absolute gamut size.
-    - ``"delta_xy"``: Legacy mode — sort by delta_xy (ascending), then
-      coverage (descending).  Prioritises white-point accuracy.
+    Sorting modes:
+    - ``"match"`` (default): Sort by match (actual intersection with
+      target gamut, descending), then delta_xy as tie-breaker.  Use
+      when overlap with target matters more than absolute gamut size.
+    - ``"coverage"``: Sort purely by coverage (descending), then
+      delta_xy (ascending).  Use when gamut size is the only priority.
+
+    Note: ``delta_xy`` (white-point drift) is computed and included in
+    results for reference, but is **not** used as a primary sort key.
+    The actual white point depends on driving conditions (pixel aperture,
+    LED voltage) which are unknown at the CF thickness optimisation stage.
 
     Args:
         sources: Primary source spectra [R, G, B].
         cfs: Color filter (absorber) spectra [RCF, GCF, BCF].
         bounds: Per-channel (min, max) thickness bounds in μm.
-        target_xy: Target white-point chromaticity.
+        target_xy: Optional reference white-point chromaticity for
+            delta_xy computation.  Defaults to the standard gamut's
+            white point.
         target_standard: Gamut standard name for coverage/match (default "BT2020").
         steps: Grid resolution per channel (default 10 → 1000 combos).
-        sort_by: Sorting strategy (see above).
-        delta_threshold: Max acceptable delta_xy for ``"balanced"`` mode.
+        sort_by: Sorting strategy — ``"match"`` or ``"coverage"``.
         progress_callback: Invoked with 0-100 percent during search.
         cancel_check: If returns True, search is aborted early.
 
@@ -603,6 +603,9 @@ def grid_search_optimize(
     if steps > 50:
         raise ValueError(f"steps must be <= 50 to prevent excessive computation (steps^3={steps**3}), got {steps}")
     target_gamut = standard_gamuts(target_standard)
+    if target_xy is None:
+        wp = target_gamut.white
+        target_xy = XY(wp[0], wp[1])
     wavelengths, src_vals, alphas, unit = _prepare_grid_inputs(sources, cfs)
 
     total = steps ** 3
@@ -628,31 +631,18 @@ def grid_search_optimize(
     candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
 
     # Sort according to the selected strategy.
-    valid_modes = {"balanced", "coverage", "match", "delta_xy"}
+    valid_modes = {"coverage", "match"}
     if sort_by not in valid_modes:
         raise ValueError(
             f"sort_by must be one of {valid_modes}, got {sort_by!r}"
         )
 
-    if sort_by == "delta_xy":
-        # Legacy: white-point accuracy first.
-        candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
-    elif sort_by == "coverage":
+    if sort_by == "coverage":
         # Pure gamut size priority.
         candidates.sort(key=lambda x: (-x["coverage"], x["delta_xy"]))
-    elif sort_by == "match":
+    else:  # sort_by == "match"
         # Actual overlap with target gamut.
         candidates.sort(key=lambda x: (-x["match"], x["delta_xy"]))
-    else:
-        # Balanced: maximize coverage among candidates with acceptable delta_xy.
-        # Candidates within threshold are sorted by coverage (desc);
-        # candidates outside threshold are sorted by delta_xy (asc) and
-        # placed after the within-threshold group.
-        within = [c for c in candidates if c["delta_xy"] <= delta_threshold]
-        outside = [c for c in candidates if c["delta_xy"] > delta_threshold]
-        within.sort(key=lambda x: (-x["coverage"], x["delta_xy"]))
-        outside.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
-        candidates = within + outside
 
     top = candidates[:5]
     for i, r in enumerate(top):
@@ -666,7 +656,7 @@ def sensitivity_analysis(
     bounds: list[tuple[float, float]],
     base_thicknesses: list[float],
     vary_channel: int,
-    target_xy: XY,
+    target_xy: XY | None = None,
     target_standard: str = "BT2020",
     steps: int = 21,
     *,
@@ -684,7 +674,7 @@ def sensitivity_analysis(
         bounds: Per-channel (min, max) thickness bounds.
         base_thicknesses: Best thicknesses [R, G, B] to fix the other channels.
         vary_channel: Index of the channel to vary (0=R, 1=G, 2=B).
-        target_xy: Target white point.
+        target_xy: Unused — kept for API compatibility.
         target_standard: Gamut standard for coverage.
         steps: Number of sample points along the thickness range.
         progress_callback: Invoked with 0-100 percent.
@@ -772,7 +762,7 @@ def sensitivity_all_channels(
     cfs: list[Spectrum],
     bounds: list[tuple[float, float]],
     base_thicknesses: list[float],
-    target_xy: XY,
+    target_xy: XY | None = None,
     target_standard: str = "BT2020",
     steps: int = 21,
     *,
@@ -786,7 +776,7 @@ def sensitivity_all_channels(
         cfs: Color filter spectra [RCF, GCF, BCF].
         bounds: Per-channel (min, max) thickness bounds.
         base_thicknesses: Best thicknesses [R, G, B] to fix the other channels.
-        target_xy: Target white-point chromaticity.
+        target_xy: Unused — kept for API compatibility.
         target_standard: Gamut standard for coverage.
         steps: Number of sample points along the thickness range.
         progress_callback: Invoked with 0-100 percent.
@@ -827,7 +817,7 @@ def select_cf_materials(
     sources: list[Spectrum],
     cf_library: dict[str, list[Spectrum]],
     thicknesses: list[float],
-    target_xy: XY,
+    target_xy: XY | None = None,
     target_standard: str = "BT2020",
     *,
     progress_callback: Callable[[int], None] | None = None,
@@ -837,8 +827,7 @@ def select_cf_materials(
 
     Given fixed emission spectra and CF thicknesses, this function
     enumerates all combinations of R/G/B CF materials from the provided
-    library and ranks them by delta-xy (ascending) then coverage
-    (descending).
+    library and ranks them by match (descending) then delta_xy (ascending).
 
     Args:
         sources: Primary source spectra [R, G, B] (fixed).
@@ -846,17 +835,22 @@ def select_cf_materials(
             CF spectra.  Keys must include "R", "G", "B".  Each value is
             a list of Spectrum objects (transmittance or absorption).
         thicknesses: Fixed CF thicknesses [R, G, B] in μm.
-        target_xy: Target white-point chromaticity.
+        target_xy: Optional reference white-point chromaticity for
+            delta_xy computation.  Defaults to the standard gamut's
+            white point.
         target_standard: Gamut standard name for coverage/match.
         progress_callback: Invoked with 0-100 percent.
         cancel_check: If returns True, aborts early.
 
     Returns:
-        List of result dicts sorted by (delta_xy, -coverage), top 10.
+        List of result dicts sorted by (-match, delta_xy), top 10.
         Each dict has keys: cf_r_name, cf_g_name, cf_b_name,
         white_xy, delta_xy, coverage, match, rank.
     """
     target_gamut = standard_gamuts(target_standard)
+    if target_xy is None:
+        wp = target_gamut.white
+        target_xy = XY(wp[0], wp[1])
 
     cf_r_list = cf_library.get("R", [])
     cf_g_list = cf_library.get("G", [])
@@ -915,7 +909,7 @@ def select_cf_materials(
 
     # Filter out degenerate candidates (zero-intensity spectra → delta_xy=inf).
     candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
-    candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+    candidates.sort(key=lambda x: (-x["match"], x["delta_xy"]))
     top = candidates[:10]
     for i, r in enumerate(top):
         r["rank"] = i + 1
@@ -1003,7 +997,7 @@ def optimize_emission_spectra(
     sources: list[Spectrum],
     cfs: list[Spectrum],
     thicknesses: list[float],
-    target_xy: XY,
+    target_xy: XY | None = None,
     target_standard: str = "BT2020",
     peak_ranges: list[tuple[float, float]] | None = None,
     fwhm_ranges: list[tuple[float, float]] | None = None,
@@ -1035,7 +1029,9 @@ def optimize_emission_spectra(
         sources: Original primary source spectra [R, G, B].
         cfs: Color filter spectra [RCF, GCF, BCF].
         thicknesses: Fixed CF thicknesses [R, G, B] in μm.
-        target_xy: Target white-point chromaticity.
+        target_xy: Optional reference white-point chromaticity for
+            delta_xy computation.  Defaults to the standard gamut's
+            white point.
         target_standard: Gamut standard name.
         peak_ranges: Per-channel (min_delta, max_delta) for peak shift
             in nm.  Default: [(-10, 10), (-10, 10), (-10, 10)].
@@ -1049,11 +1045,14 @@ def optimize_emission_spectra(
         cancel_check: If returns True, aborts early.
 
     Returns:
-        List of result dicts sorted by (delta_xy, -coverage), top 10.
+        List of result dicts sorted by (-match, delta_xy), top 10.
         Each dict has keys: peak_deltas, fwhm_factors, white_xy,
         delta_xy, coverage, match, rank.
     """
     target_gamut = standard_gamuts(target_standard)
+    if target_xy is None:
+        wp = target_gamut.white
+        target_xy = XY(wp[0], wp[1])
 
     if peak_ranges is None:
         peak_ranges = [(-10.0, 10.0)] * 3
@@ -1248,7 +1247,7 @@ def optimize_emission_spectra(
 
     # Filter out degenerate candidates (zero-intensity spectra → delta_xy=inf).
     candidates = [c for c in candidates if c["delta_xy"] != float("inf")]
-    candidates.sort(key=lambda x: (x["delta_xy"], -x["coverage"]))
+    candidates.sort(key=lambda x: (-x["match"], x["delta_xy"]))
     top = candidates[:10]
     for i, r in enumerate(top):
         r["rank"] = i + 1

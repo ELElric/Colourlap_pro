@@ -238,27 +238,21 @@ function waitForApi(callback, maxWait) {
 <div class="target-section">
   <div class="target-row">
     <span class="target-label">Target:</span>
-    <select class="target-select" id="targetSelect" onchange="toggleCoord()">
-      <option value="bt2020">Max BT2020 Coverage</option>
+    <select class="target-select" id="targetSelect">
+      <option value="bt2020" selected>Max BT2020 Coverage</option>
       <option value="dci-p3">Max DCI-P3 Coverage</option>
-      <option value="white">Target White Point</option>
-      <option value="coord">Target Coordinate</option>
+      <option value="srgb">Max sRGB Coverage</option>
+      <option value="ntsc">Max NTSC Coverage</option>
+      <option value="adobe-rgb">Max Adobe RGB Coverage</option>
     </select>
-    <span class="target-hint">Find optimal RCF/GCF/BCF thicknesses for maximum gamut coverage</span>
-    <div class="coord-input" id="coordInput">
-      <span class="coord-label">x:</span>
-      <input type="text" class="coord-field" id="coord-x" value="0.3127">
-      <span class="coord-label">y:</span>
-      <input type="text" class="coord-field" id="coord-y" value="0.3290">
-    </div>
     <div class="sort-section" id="metricSection">
-      <span class="target-label" title="Match: how much of the target gamut your device actually covers&#10;Coverage: ratio of device gamut area to target area (can exceed 100%)&#10;Balanced: maximize match while keeping white point close to target">Metric:</span>
-      <select class="target-select" id="metricSelect" title="Match: actual overlap with target gamut&#10;Coverage: device area / target area ratio&#10;Balanced: maximize match with acceptable white point">
+      <span class="target-label" title="Match: how much of the target gamut your device actually covers (intersection / target area)&#10;Coverage: ratio of device gamut area to target area (can exceed 100%)">Metric:</span>
+      <select class="target-select" id="metricSelect" title="Match: actual overlap with target gamut&#10;Coverage: device area / target area ratio">
         <option value="match" selected>Match (实际覆盖度)</option>
         <option value="coverage">Coverage (面积比)</option>
-        <option value="balanced">Balanced (覆盖+白点)</option>
       </select>
     </div>
+    <span class="target-hint">Optimize CF thickness for maximum gamut. White point depends on driving conditions (aperture, LED voltage) — see White Point Calculator.</span>
   </div>
 </div>
 
@@ -776,32 +770,11 @@ function populateSelectors(spectra, defaults) {
     });
 }
 
-function toggleCoord() {
-    var sel = document.getElementById('targetSelect');
-    var coord = document.getElementById('coordInput');
-    if (!coord) return;
-    var isPointTarget = sel.value === 'coord' || sel.value === 'white';
-    coord.classList.toggle('visible', isPointTarget);
-    /* Hide metric selector when targeting a white point or coordinate —
-       in that mode, delta_xy (white-point accuracy) is the only sensible
-       sorting strategy.  Show it only for gamut-standard targets. */
-    var metricSection = document.getElementById('metricSection');
-    if (metricSection) metricSection.style.display = isPointTarget ? 'none' : 'flex';
-}
-
 function getInputs() {
     var targetSelect = document.getElementById('targetSelect');
     var target_standard = targetSelect.value;
-    var target_xy = null;
-    if (target_standard === 'coord' || target_standard === 'white') {
-        var x = parseFloat(document.getElementById('coord-x').value);
-        var y = parseFloat(document.getElementById('coord-y').value);
-        if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
-        target_standard = 'BT2020';  // Default gamut standard for white-point target mode
-    } else {
-        var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
-        target_standard = nameMap[target_standard] || 'sRGB';
-    }
+    var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
+    target_standard = nameMap[target_standard] || 'sRGB';
     var source_ids = ['source-r', 'source-g', 'source-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
     var cf_ids = ['cf-r', 'cf-g', 'cf-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
     var rangeFields = document.querySelectorAll('#filter1-content .input-table tbody tr .range-field');
@@ -810,18 +783,14 @@ function getInputs() {
         [parseFloat(rangeFields[2].value), parseFloat(rangeFields[3].value)],
         [parseFloat(rangeFields[4].value), parseFloat(rangeFields[5].value)],
     ];
-    return { target_standard: target_standard, target_xy: target_xy, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds, sort_by: getSortBy(target_standard, target_xy) };
+    return { target_standard: target_standard, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds, sort_by: getSortBy() };
 }
 
-/* Derive sort_by from the target selection + metric dropdown:
-   - Gamut standard target (BT2020/DCI-P3): use the selected metric
-     (match / coverage / balanced) from the #metricSelect dropdown.
-   - White point or coordinate target: always use delta_xy (white-point
-     accuracy), since matching the point is the explicit goal. */
-function getSortBy(target_standard, target_xy) {
-    if (target_xy !== null) {
-        return 'delta_xy';
-    }
+/* Sort strategy is driven purely by the Metric dropdown.
+   White point is NOT used for sorting — it depends on driving conditions
+   (pixel aperture, LED voltage) which are unknown at this stage.
+   The white_xy column in results is shown for reference only. */
+function getSortBy() {
     var sel = document.getElementById('metricSelect');
     return sel ? sel.value : 'match';
 }
@@ -1423,19 +1392,10 @@ function startMaterialSelection() {
     if (thickness_r < 0 || thickness_g < 0 || thickness_b < 0) { logStatus('Thickness cannot be negative'); return; }
     var targetSelect = document.getElementById('targetSelect');
     var target_standard = targetSelect.value;
-    var target_xy = null;
-    if (target_standard === 'coord' || target_standard === 'white') {
-        var x = parseFloat(document.getElementById('coord-x').value);
-        var y = parseFloat(document.getElementById('coord-y').value);
-        if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
-        target_standard = 'BT2020';
-    } else {
-        var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
-        target_standard = nameMap[target_standard] || 'sRGB';
-    }
+    var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
+    target_standard = nameMap[target_standard] || 'sRGB';
     var payload = {
         target_standard: target_standard,
-        target_xy: target_xy,
         source_ids: source_ids,
         thicknesses: [thickness_r, thickness_g, thickness_b],
         cf_library: { R: cf_r_ids, G: cf_g_ids, B: cf_b_ids }
@@ -1661,19 +1621,10 @@ function startEmissionOptimization() {
     ];
     var targetSelect = document.getElementById('targetSelect');
     var target_standard = targetSelect.value;
-    var target_xy = null;
-    if (target_standard === 'coord' || target_standard === 'white') {
-        var x = parseFloat(document.getElementById('coord-x').value);
-        var y = parseFloat(document.getElementById('coord-y').value);
-        if (!isNaN(x) && !isNaN(y)) target_xy = [x, y];
-        target_standard = 'BT2020';
-    } else {
-        var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
-        target_standard = nameMap[target_standard] || 'sRGB';
-    }
+    var nameMap = { 'srgb': 'sRGB', 'dci-p3': 'DCI-P3', 'bt2020': 'BT2020', 'ntsc': 'NTSC', 'adobe-rgb': 'Adobe RGB' };
+    target_standard = nameMap[target_standard] || 'sRGB';
     var payload = {
         target_standard: target_standard,
-        target_xy: target_xy,
         source_ids: source_ids,
         cf_ids: cf_ids,
         thicknesses: thicknesses,
@@ -1885,7 +1836,6 @@ function stopOptPolling() {
 <script>
 // Initial data load
 setLoading(true);
-toggleCoord();  /* Set initial visibility of metric section */
 waitForApi(function() {
     refreshData();
     /* Resume polling if an optimization task is still running in the backend

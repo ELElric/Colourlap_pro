@@ -156,21 +156,11 @@ def _validate_optimizer_payload(payload: dict, *, require_cf: bool = True) -> di
         validated_bounds.append((lo, hi))
 
     target_standard = payload.get("target_standard", "BT2020")
-    target_xy = payload.get("target_xy")
-    if target_xy is not None:
-        tx, ty = float(target_xy[0]), float(target_xy[1])
-        if not (0.0 <= tx <= 1.0 and 0.0 <= ty <= 1.0 and tx + ty <= 1.0):
-            raise ValueError(f"target_xy ({tx}, {ty}) is outside valid CIE triangle")
-        target = (tx, ty)
-    else:
-        target = None
 
-    # sort_by — optional optimization ranking strategy.
-    # Default is "match" (actual overlap with target gamut) when a gamut
-    # standard is targeted; "delta_xy" when a white point / coordinate
-    # is targeted.  The frontend derives this from the target selection.
+    # sort_by — optimization ranking strategy.
+    # Default is "match" (actual overlap with target gamut).
     sort_by = payload.get("sort_by", "match")
-    valid_sort = {"balanced", "coverage", "match", "delta_xy"}
+    valid_sort = {"coverage", "match"}
     if sort_by not in valid_sort:
         raise ValueError(f"sort_by must be one of {valid_sort}, got {sort_by!r}")
 
@@ -179,7 +169,6 @@ def _validate_optimizer_payload(payload: dict, *, require_cf: bool = True) -> di
         "cf_ids": cf_ids,
         "bounds": validated_bounds,
         "target_standard": target_standard,
-        "target_xy": target,
         "sort_by": sort_by,
     }
 
@@ -1233,15 +1222,7 @@ class ColorLabApi:
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
-            from colorlab_pro.dto.color import XY
-            from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import grid_search_optimize
-
-            if v["target_xy"] is not None:
-                target = XY(v["target_xy"][0], v["target_xy"][1])
-            else:
-                wp = standard_gamuts(target_standard).white
-                target = XY(wp[0], wp[1])
 
             def _progress_cb(pct):
                 with self._opt_lock:
@@ -1251,7 +1232,7 @@ class ColorLabApi:
                 )
 
             top = grid_search_optimize(
-                sources, cfs, bounds, target,
+                sources, cfs, bounds,
                 target_standard=target_standard,
                 steps=10,
                 sort_by=v["sort_by"],
@@ -1340,15 +1321,7 @@ class ColorLabApi:
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
-            from colorlab_pro.dto.color import XY
-            from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import sensitivity_analysis
-
-            if v["target_xy"] is not None:
-                target = XY(v["target_xy"][0], v["target_xy"][1])
-            else:
-                wp = standard_gamuts(target_standard).white
-                target = XY(wp[0], wp[1])
 
             channel_idx = {"R": 0, "G": 1, "B": 2}[vary_channel]
 
@@ -1360,7 +1333,7 @@ class ColorLabApi:
                 )
 
             points = sensitivity_analysis(
-                sources, cfs, bounds, base, channel_idx, target,
+                sources, cfs, bounds, base, channel_idx,
                 target_standard=target_standard, steps=21,
                 progress_callback=_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
@@ -1423,15 +1396,7 @@ class ColorLabApi:
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
-            from colorlab_pro.dto.color import XY
-            from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import sensitivity_all_channels
-
-            if v["target_xy"] is not None:
-                target = XY(v["target_xy"][0], v["target_xy"][1])
-            else:
-                wp = standard_gamuts(target_standard).white
-                target = XY(wp[0], wp[1])
 
             def _progress_cb(pct):
                 with self._opt_lock:
@@ -1441,7 +1406,7 @@ class ColorLabApi:
                 )
 
             results = sensitivity_all_channels(
-                sources, cfs, bounds, base, target,
+                sources, cfs, bounds, base,
                 target_standard=target_standard, steps=21,
                 progress_callback=_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
@@ -1498,7 +1463,6 @@ class ColorLabApi:
             cf_library: {"R": [id, ...], "G": [id, ...], "B": [id, ...]}
             thicknesses: [R, G, B] fixed thicknesses in μm.
             target_standard: e.g. "BT2020".
-            target_xy: optional [x, y].
 
         Returns {started: True} immediately; progress and results are
         pushed via window.updateCFMaterialsProgress / .updateCFMaterialsResult.
@@ -1542,7 +1506,6 @@ class ColorLabApi:
                 raise ValueError("thicknesses must be non-negative")
 
             target_standard = payload.get("target_standard", "BT2020")
-            target_xy = payload.get("target_xy")
 
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
 
@@ -1553,18 +1516,7 @@ class ColorLabApi:
                     self._spectrum_ctrl.get_spectrum(int(i)) for i in ids
                 ]
 
-            from colorlab_pro.dto.color import XY
-            from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import select_cf_materials
-
-            if target_xy is not None:
-                tx, ty = float(target_xy[0]), float(target_xy[1])
-                if not (0.0 <= tx <= 1.0 and 0.0 <= ty <= 1.0 and tx + ty <= 1.0):
-                    raise ValueError(f"target_xy ({tx}, {ty}) is outside valid CIE triangle")
-                target = XY(tx, ty)
-            else:
-                wp = standard_gamuts(target_standard).white
-                target = XY(wp[0], wp[1])
 
             def _cf_progress_cb(pct):
                 with self._opt_lock:
@@ -1574,7 +1526,7 @@ class ColorLabApi:
                 )
 
             results = select_cf_materials(
-                sources, cf_library, thicknesses, target,
+                sources, cf_library, thicknesses,
                 target_standard=target_standard,
                 progress_callback=_cf_progress_cb,
                 cancel_check=lambda: stop_event.is_set(),
@@ -1611,7 +1563,6 @@ class ColorLabApi:
             cf_ids: [RCF, GCF, BCF] spectrum IDs.
             thicknesses: [R, G, B] fixed thicknesses in μm.
             target_standard: e.g. "BT2020".
-            target_xy: optional [x, y].
             peak_ranges: optional [[min, max] × 3] peak shift ranges in nm.
             fwhm_ranges: optional [[min, max] × 3] FWHM factor ranges.
             is_qd: optional [bool × 3] QD flags.
@@ -1663,15 +1614,7 @@ class ColorLabApi:
             sources = [self._spectrum_ctrl.get_spectrum(sid) for sid in source_ids]
             cfs = [self._spectrum_ctrl.get_spectrum(sid) for sid in cf_ids]
 
-            from colorlab_pro.dto.color import XY
-            from colorlab_pro.engines.gamut_calculator import standard_gamuts
             from colorlab_pro.engines.thickness_optimizer import optimize_emission_spectra
-
-            if v["target_xy"] is not None:
-                target = XY(v["target_xy"][0], v["target_xy"][1])
-            else:
-                wp = standard_gamuts(target_standard).white
-                target = XY(wp[0], wp[1])
 
             # Convert lists to tuples for engine.
             if peak_ranges:
@@ -1687,7 +1630,7 @@ class ColorLabApi:
                 )
 
             results = optimize_emission_spectra(
-                sources, cfs, thicknesses, target,
+                sources, cfs, thicknesses,
                 target_standard=target_standard,
                 peak_ranges=peak_ranges,
                 fwhm_ranges=fwhm_ranges,
