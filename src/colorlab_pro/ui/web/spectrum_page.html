@@ -93,6 +93,36 @@ function waitForApi(callback, maxWait) {
     }
     check();
 }
+
+function saveChartImage(chartDomId, suggestedName) {
+    var chart = echarts.getInstanceByDom(document.getElementById(chartDomId));
+    if (!chart) return;
+    var dataUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#1c1c1e' });
+    callApi('chart_save_image', { data: dataUrl, filename: suggestedName }).then(function(res) {
+        if (!res || res.error || !res.ok) {
+            logStatus('Save failed: ' + (res && res.error ? res.error : 'unknown'));
+        } else {
+            logStatus('Saved: ' + suggestedName);
+        }
+    }).catch(function(err) {
+        logStatus('Save failed: ' + (err.message || err));
+    });
+}
+
+function attachChartSaveButton(chartDomId, suggestedName) {
+    var dom = document.getElementById(chartDomId);
+    if (!dom) return;
+    var wrapper = dom.parentNode;
+    if (!wrapper) return;
+    wrapper.classList.add('chart-wrapper');
+    if (wrapper.querySelector('.chart-save-btn')) return;
+    var btn = document.createElement('button');
+    btn.className = 'chart-save-btn';
+    btn.title = 'Save as PNG';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z"/></svg>';
+    btn.onclick = function() { saveChartImage(chartDomId, suggestedName); };
+    wrapper.appendChild(btn);
+}
 </script>
 </head>
 <body>
@@ -563,6 +593,7 @@ function renderSpectrumChart(spectra, selectedIds) {
     var dom = document.getElementById('spectrum-chart');
     if (!dom) return;
     if (!spectrumChart) spectrumChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('spectrum-chart', 'spectrum_chart.png');
     var selected = (spectra || []).filter(function(s) { return selectedIds.has(s.id); });
     var toPlot = selected.length > 0 ? selected : [];
     if (toPlot.length === 0) {

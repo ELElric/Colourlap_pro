@@ -61,6 +61,44 @@ function callApi(method) {
     return Promise.resolve(api[method].apply(api, args));
 }
 
+// --- Chart image export helpers (shared, identical across pages) --- //
+
+function saveChartImage(chartDomId, suggestedName) {
+    var chart = echarts.getInstanceByDom(document.getElementById(chartDomId));
+    if (!chart) {
+        console.log('Chart instance not found for: ' + chartDomId);
+        return;
+    }
+    var dataUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#1c1c1e' });
+    var log = (typeof logStatus === 'function') ? logStatus : function(m) { console.log(m); };
+    callApi('chart_save_image', { data: dataUrl, filename: suggestedName }).then(function(result) {
+        if (result && result.error) {
+            log('Save failed: ' + result.error);
+        } else if (result && result.cancelled) {
+            log('Save cancelled');
+        } else {
+            log('Chart saved: ' + suggestedName);
+        }
+    }).catch(function(err) {
+        log('Save failed: ' + (err.message || err));
+    });
+}
+
+function attachChartSaveButton(chartDomId, suggestedName) {
+    var chartDom = document.getElementById(chartDomId);
+    if (!chartDom) return;
+    var wrapper = chartDom.parentElement;
+    if (!wrapper) return;
+    if (wrapper.querySelector('.chart-save-btn')) return;  // avoid duplicate buttons
+    wrapper.classList.add('chart-wrapper');
+    var btn = document.createElement('button');
+    btn.className = 'chart-save-btn';
+    btn.title = 'Save as PNG';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z"/></svg>';
+    btn.onclick = function() { saveChartImage(chartDomId, suggestedName); };
+    wrapper.appendChild(btn);
+}
+
 function waitForApi(callback, maxWait) {
     maxWait = maxWait || 30000;
     var start = Date.now();
@@ -241,6 +279,7 @@ function getCssVar(name) {
 function renderCMFChart(cmf) {
     var dom = document.getElementById('cmf-chart');
     if (!_cmfChart || _cmfChart.isDisposed()) { _cmfChart = echarts.init(dom); }
+    attachChartSaveButton('cmf-chart', 'reference_cmf.png');
     var chart = _cmfChart;
     var wl = cmf.map(function(r) { return r[0]; });
     var xBar = cmf.map(function(r) { return r[1]; });
@@ -270,6 +309,7 @@ function renderCMFChart(cmf) {
 function renderCIEDiagram(gamuts, illuminants) {
     var dom = document.getElementById('cie-diagram');
     if (!_cieChart || _cieChart.isDisposed()) { _cieChart = echarts.init(dom); }
+    attachChartSaveButton('cie-diagram', 'reference_cie_diagram.png');
     var chart = _cieChart;
     var textColor = getCssVar('--text-muted');
     var axisColor = getCssVar('--echarts-axis');

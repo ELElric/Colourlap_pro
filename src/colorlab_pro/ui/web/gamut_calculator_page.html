@@ -64,6 +64,36 @@ function waitForApi(callback, maxWait) {
     }
     check();
 }
+
+function saveChartImage(chartDomId, suggestedName) {
+    var chart = echarts.getInstanceByDom(document.getElementById(chartDomId));
+    if (!chart) return;
+    var dataUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#1c1c1e' });
+    callApi('chart_save_image', { data: dataUrl, filename: suggestedName }).then(function(res) {
+        if (!res || res.error || !res.ok) {
+            logStatus('Save failed: ' + (res && res.error ? res.error : 'unknown'));
+        } else {
+            logStatus('Saved: ' + suggestedName);
+        }
+    }).catch(function(err) {
+        logStatus('Save failed: ' + (err.message || err));
+    });
+}
+
+function attachChartSaveButton(chartDomId, suggestedName) {
+    var dom = document.getElementById(chartDomId);
+    if (!dom) return;
+    var wrapper = dom.parentNode;
+    if (!wrapper) return;
+    wrapper.classList.add('chart-wrapper');
+    if (wrapper.querySelector('.chart-save-btn')) return;
+    var btn = document.createElement('button');
+    btn.className = 'chart-save-btn';
+    btn.title = 'Save as PNG';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z"/></svg>';
+    btn.onclick = function() { saveChartImage(chartDomId, suggestedName); };
+    wrapper.appendChild(btn);
+}
 </script>
 </head>
 <body>
@@ -685,6 +715,7 @@ function renderSpectrumPreview() {
     }
     if (empty) empty.style.display = 'none';
     if (!previewChart && dom) previewChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('spectrum-preview-chart', 'gamut_spectrum_preview.png');
 
     var series = [];
     var cfColors = { 'R': '#ff9999', 'G': '#99ff99', 'B': '#9999ff', 'W': '#cccccc' };
@@ -1074,10 +1105,12 @@ function renderCIEBackground() {
     if (!cieXYChart) {
         cieXYChart = echarts.init(xyDom, 'dark');
         bindCoordTooltip(cieXYChart, xyDom, 'x', 'y');
+        attachChartSaveButton('cie-xy-chart', 'gamut_cie_xy.png');
     }
     if (!cieUVChart) {
         cieUVChart = echarts.init(uvDom, 'dark');
         bindCoordTooltip(cieUVChart, uvDom, "u'", "v'");
+        attachChartSaveButton('cie-uv-chart', 'gamut_cie_uv.png');
     }
 
     adjustChartHeights();

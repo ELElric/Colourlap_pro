@@ -58,6 +58,33 @@
   #sensitivity-chart { display: none; }
   .chart-placeholder { color: var(--text-faint); font-size: var(--font-md); text-align: center; padding: 40px; }
 
+  /* Chart Save Button — overlay PNG export control added by attachChartSaveButton() */
+  .chart-wrapper { position: relative; }
+  /* scan-chart / sensitivity-chart are toggled via display; clipping the wrapper
+     keeps its save button hidden while the chart inside is collapsed. */
+  .chart-toggle-wrapper { overflow: hidden; }
+  .chart-save-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(40, 40, 45, 0.8);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    z-index: 20;
+    opacity: 0.65;
+    transition: opacity 0.2s ease, background 0.2s ease;
+  }
+  .chart-save-btn:hover { opacity: 1; background: rgba(60, 60, 70, 0.95); }
+  .chart-save-btn svg { width: 16px; height: 16px; fill: var(--text-secondary); display: block; }
+  .chart-save-btn:hover svg { fill: var(--accent); }
+
   /* Filter Tab Navigation */
   .filter-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: var(--gap-md); background: var(--bg-panel); border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 0 8px; }
   .filter-tab { padding: 10px 24px; cursor: pointer; font-size: var(--font-md); color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; }
@@ -125,6 +152,54 @@ function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function(m) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
     });
+}
+
+/* ===== Chart Save functionality ===== */
+function saveChartImage(chartDomId, suggestedName) {
+    var dom = document.getElementById(chartDomId);
+    if (!dom) return;
+    var chart = echarts.getInstanceByDom(dom);
+    if (!chart || chart.isDisposed && chart.isDisposed()) {
+        logStatus('Chart not available for saving');
+        return;
+    }
+    var dataUrl = chart.getDataURL({
+        type: 'png',
+        pixelRatio: 2,
+        backgroundColor: '#1c1c1e'
+    });
+    callApi('chart_save_image', { data: dataUrl, filename: suggestedName }).then(function(result) {
+        if (result.cancelled) return;
+        if (result.error) {
+            logStatus('Save failed: ' + result.error);
+        } else if (result.path) {
+            logStatus('Chart saved to: ' + result.path);
+        }
+    }).catch(function(err) {
+        logStatus('Save error: ' + (err.message || err));
+    });
+}
+
+function attachChartSaveButton(chartDomId, suggestedName) {
+    var dom = document.getElementById(chartDomId);
+    if (!dom) return;
+    var wrapper = dom.parentNode;
+    if (!wrapper) return;
+    /* Add chart-wrapper class for positioning context. */
+    if (wrapper.className.indexOf('chart-wrapper') === -1) {
+        wrapper.className += ' chart-wrapper';
+    }
+    /* Don't add duplicate buttons. */
+    if (wrapper.querySelector('.chart-save-btn')) return;
+    var btn = document.createElement('button');
+    btn.className = 'chart-save-btn';
+    btn.title = 'Save as PNG';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z"/></svg>';
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        saveChartImage(chartDomId, suggestedName);
+    });
+    wrapper.appendChild(btn);
 }
 
 function waitForApi(callback, maxWait) {
@@ -320,8 +395,8 @@ function waitForApi(callback, maxWait) {
       <div class="chart-tab" onclick="switchScanTab('whitex', this)">White x vs Thickness</div>
       <div class="chart-tab" onclick="switchScanTab('whitey', this)">White y vs Thickness</div>
     </div>
-    <div id="scan-chart" style="width:100%;height:340px;"></div>
-    <div id="sensitivity-chart" style="width:100%;height:340px;"></div>
+    <div class="chart-wrapper chart-toggle-wrapper"><div id="scan-chart" style="width:100%;height:340px;"></div></div>
+    <div class="chart-wrapper chart-toggle-wrapper"><div id="sensitivity-chart" style="width:100%;height:340px;"></div></div>
     <div id="sensitivity-placeholder" class="chart-placeholder" style="display:none;">Run optimization to generate scan curves</div>
   </div>
 </div>
@@ -860,6 +935,7 @@ function renderScanCharts(results, best) {
     var dom = document.getElementById('scan-chart');
     if (!dom) return;
     if (!scanChart) scanChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('scan-chart', 'optimizer_scan_chart.png');
     var rData = [], gData = [], bData = [];
     results.forEach(function(r) {
         rData.push([r.thickness_r, r.coverage]);
@@ -991,6 +1067,7 @@ function renderSensitivityChart(points, metric) {
     var dom = document.getElementById('sensitivity-chart');
     if (!dom) return;
     if (!sensitivityChart) sensitivityChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('sensitivity-chart', 'optimizer_sensitivity_chart.png');
     var data = [];
     points.forEach(function(p) {
         data.push([p.thickness, metric === 'whitex' ? p.white_x : p.white_y]);
@@ -1014,6 +1091,7 @@ function renderAllChannelChart(data) {
     var dom = document.getElementById('sensitivity-chart');
     if (!dom) return;
     if (!sensitivityChart) sensitivityChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('sensitivity-chart', 'optimizer_sensitivity_chart.png');
     var chColors = { 'R': '#ff6666', 'G': '#66ff66', 'B': '#6666ff' };
     var chLabels = { 'R': 'RCF', 'G': 'GCF', 'B': 'BCF' };
     var base = data.base || [0, 0, 0];
@@ -1405,6 +1483,7 @@ function renderMaterialChart(results) {
     var dom = document.getElementById('mat-chart');
     if (!dom) return;
     if (!matChart) matChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('mat-chart', 'optimizer_material_chart.png');
     var coverageData = [];
     var names = [];
     results.forEach(function(r) {
@@ -1483,6 +1562,7 @@ function renderMiniChart(channel, data) {
     var dom = document.getElementById('em-chart-' + channel);
     if (!dom) return;
     if (!miniCharts[dom.id]) miniCharts[dom.id] = echarts.init(dom, 'dark');
+    attachChartSaveButton(dom.id, 'optimizer_emission_' + channel.toUpperCase() + '.png');
     var chart = miniCharts[dom.id];
     var chColors = { r: '#ff6666', g: '#66ff66', b: '#6666ff' };
     var series = [];
@@ -1645,6 +1725,7 @@ function renderEmissionChart(results) {
     var dom = document.getElementById('em-chart');
     if (!dom) return;
     if (!emChart) emChart = echarts.init(dom, 'dark');
+    attachChartSaveButton('em-chart', 'optimizer_emission_chart.png');
     var coverageData = [];
     var labels = [];
     results.forEach(function(r, idx) {

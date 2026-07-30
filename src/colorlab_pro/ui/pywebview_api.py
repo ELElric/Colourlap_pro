@@ -344,6 +344,44 @@ class ColorLabApi:
         self._push_js(f"window.applyTheme && window.applyTheme({safe_theme})")
         return {"theme": theme}
 
+    # --- Chart image export --- #
+
+    def chart_save_image(self, payload: dict) -> dict:
+        """Save a chart image (base64 PNG data URL) to a user-chosen file.
+
+        Expects ``payload`` with:
+            - ``data``: base64 data URL from ``chart.getDataURL()``
+            - ``filename``: suggested filename (default ``"chart.png"``)
+
+        Opens a native save dialog; returns ``{"path": ...}`` on success,
+        ``{"cancelled": true}`` if the user cancels.
+        """
+        try:
+            import base64
+
+            data_url = payload.get("data", "")
+            suggested_name = payload.get("filename", "chart.png")
+
+            # Strip the "data:image/png;base64," prefix if present.
+            if "," in data_url:
+                data_url = data_url.split(",", 1)[1]
+
+            path_str = _tk_file_dialog_save(
+                title="Save Chart Image",
+                default_name=suggested_name,
+                filetypes=[("PNG Image", "*.png"), ("All Files", "*")],
+            )
+            if not path_str:
+                return {"cancelled": True}
+
+            img_data = base64.b64decode(data_url)
+            with open(path_str, "wb") as f:
+                f.write(img_data)
+
+            return {"path": str(Path(path_str).resolve())}
+        except Exception as exc:  # noqa: BLE001
+            return _safe_error(exc)
+
     # --- Window state --- #
 
     def get_window_state(self) -> dict:

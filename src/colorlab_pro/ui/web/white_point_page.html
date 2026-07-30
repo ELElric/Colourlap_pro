@@ -68,6 +68,44 @@ function callApi(method) {
     return Promise.resolve(fn.apply(api, args));
 }
 
+// --- Chart image export helpers (shared, identical across pages) --- //
+
+function saveChartImage(chartDomId, suggestedName) {
+    var chart = echarts.getInstanceByDom(document.getElementById(chartDomId));
+    if (!chart) {
+        console.log('Chart instance not found for: ' + chartDomId);
+        return;
+    }
+    var dataUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#1c1c1e' });
+    var log = (typeof logStatus === 'function') ? logStatus : function(m) { console.log(m); };
+    callApi('chart_save_image', { data: dataUrl, filename: suggestedName }).then(function(result) {
+        if (result && result.error) {
+            log('Save failed: ' + result.error);
+        } else if (result && result.cancelled) {
+            log('Save cancelled');
+        } else {
+            log('Chart saved: ' + suggestedName);
+        }
+    }).catch(function(err) {
+        log('Save failed: ' + (err.message || err));
+    });
+}
+
+function attachChartSaveButton(chartDomId, suggestedName) {
+    var chartDom = document.getElementById(chartDomId);
+    if (!chartDom) return;
+    var wrapper = chartDom.parentElement;
+    if (!wrapper) return;
+    if (wrapper.querySelector('.chart-save-btn')) return;  // avoid duplicate buttons
+    wrapper.classList.add('chart-wrapper');
+    var btn = document.createElement('button');
+    btn.className = 'chart-save-btn';
+    btn.title = 'Save as PNG';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 4v-2h14v2H5z"/></svg>';
+    btn.onclick = function() { saveChartImage(chartDomId, suggestedName); };
+    wrapper.appendChild(btn);
+}
+
 function waitForApi(callback, maxWait) {
     maxWait = maxWait || 30000;
     var start = Date.now();
@@ -724,10 +762,12 @@ function renderCIEBackground() {
     if (!chart1931) {
         chart1931 = echarts.init(c1931, 'dark');
         bindCoordTooltip(chart1931, c1931, 'x', 'y');
+        attachChartSaveButton('cie-1931-chart', 'whitepoint_cie_1931.png');
     }
     if (!chart1976) {
         chart1976 = echarts.init(c1976, 'dark');
         bindCoordTooltip(chart1976, c1976, "u'", "v'");
+        attachChartSaveButton('cie-1976-chart', 'whitepoint_cie_1976.png');
     }
 
     if (!_wpBgRendered.xy) {

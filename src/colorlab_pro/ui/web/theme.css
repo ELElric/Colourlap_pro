@@ -219,6 +219,53 @@ body {
   outline-offset: 1px;
 }
 
+/* ===== Chart Save Button ===== */
+/* A floating save icon positioned at the top-right corner of each chart
+   container.  It is invisible by default and fades in on hover, so it
+   doesn't clutter the chart when not needed. */
+.chart-save-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(60, 60, 62, 0.8);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.chart-save-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.chart-save-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+/* Show the save button when hovering the chart wrapper. */
+.chart-wrapper:hover .chart-save-btn,
+.chart-save-btn:focus-visible {
+  opacity: 1;
+}
+.chart-save-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Make any div that wraps a chart a positioning context. */
+.chart-wrapper {
+  position: relative;
+}
+
 /* ===== Checkbox / Radio ===== */
 input[type="checkbox"] { accent-color: var(--accent); }
 input[type="radio"] { accent-color: var(--accent); }
