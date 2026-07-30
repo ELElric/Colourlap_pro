@@ -37,7 +37,7 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 APP_NAME = "ColorLab Pro"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # GitHub Release 下载地址（用于下载离线 runtime.7z）
 GITHUB_REPO = "ELElric/Colourlap_pro"

@@ -16,7 +16,7 @@ class AppConfig:
     """Immutable application configuration."""
 
     app_name: str = "ColorLab Pro"
-    app_version: str = "1.1.0"
+    app_version: str = "1.2.0"
     org_name: str = "ColorLab"
 
     # Database

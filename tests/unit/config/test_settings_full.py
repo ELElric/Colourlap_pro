@@ -24,7 +24,7 @@ def isolated_config(tmp_path, monkeypatch):
 def test_app_config_defaults():
     config = AppConfig()
     assert config.app_name == "ColorLab Pro"
-    assert config.app_version == "1.1.0"
+    assert config.app_version == "1.2.0"
     assert config.org_name == "ColorLab"
     assert config.db_filename == "colorlab.db"
     assert config.default_window_width == 1440
