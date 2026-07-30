@@ -705,10 +705,11 @@ function getInputs() {
     }
     var source_ids = ['source-r', 'source-g', 'source-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
     var cf_ids = ['cf-r', 'cf-g', 'cf-b'].map(function(id) { return document.getElementById(id).value; }).filter(Boolean);
+    var rangeFields = document.querySelectorAll('#filter1-content .input-table tbody tr .range-field');
     var bounds = [
-        [parseFloat(document.querySelectorAll('tr:nth-child(1) .range-field')[0].value), parseFloat(document.querySelectorAll('tr:nth-child(1) .range-field')[1].value)],
-        [parseFloat(document.querySelectorAll('tr:nth-child(2) .range-field')[0].value), parseFloat(document.querySelectorAll('tr:nth-child(2) .range-field')[1].value)],
-        [parseFloat(document.querySelectorAll('tr:nth-child(3) .range-field')[0].value), parseFloat(document.querySelectorAll('tr:nth-child(3) .range-field')[1].value)],
+        [parseFloat(rangeFields[0].value), parseFloat(rangeFields[1].value)],
+        [parseFloat(rangeFields[2].value), parseFloat(rangeFields[3].value)],
+        [parseFloat(rangeFields[4].value), parseFloat(rangeFields[5].value)],
     ];
     return { target_standard: target_standard, target_xy: target_xy, source_ids: source_ids, cf_ids: cf_ids, bounds: bounds };
 }
@@ -926,7 +927,8 @@ var _pendingSensChannel = null;
 function runSensitivity(metric) {
     if (!lastBest) { logStatus('Run optimization first'); return; }
     var data = getInputs();
-    data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
+    /* Scan curves: vary one channel, others fixed at 0um */
+    data.base = [0, 0, 0];
     data.vary_channel = document.getElementById('sens-channel').value || 'R';
     data.metric = metric;
     _pendingSensMetric = metric;
@@ -1078,6 +1080,7 @@ function autoRunSensitivity() {
     allChannelData = null;
     sensitivityData = {};
     _activeFilter = 'sensitivity';
+    setLoading(true);
     updateProgress(0, 'Generating scan curves...');
     // Switch to coverage tab to show curves
     document.querySelectorAll('.chart-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -1104,7 +1107,8 @@ function autoRunSensitivity() {
 function runSensitivityPanel() {
     if (!lastBest) { logStatus('Run optimization first'); return; }
     var data = getInputs();
-    data.base = [lastBest.thickness_r, lastBest.thickness_g, lastBest.thickness_b];
+    /* Scan curves: vary one channel, others fixed at 0um */
+    data.base = [0, 0, 0];
     // Clear all cached data
     allChannelData = null;
     sensitivityData = {};
@@ -1187,8 +1191,11 @@ function refreshData() {
 
 function logStatus(msg) {
     console.log('[Optimizer] ' + msg);
-    var els = document.querySelectorAll('.progress-text');
-    els.forEach(function(el) { el.textContent = msg; });
+    var id = 'progress-text';
+    if (_activeFilter === 'filter2') id = 'mat-progress-text';
+    else if (_activeFilter === 'filter3') id = 'em-progress-text';
+    var el = document.getElementById(id);
+    if (el) el.textContent = msg;
 }
 
 function formatError(res, defaultMsg) {
@@ -1292,6 +1299,7 @@ function startMaterialSelection() {
     var thickness_g = parseFloat(document.getElementById('mat-thickness-g').value);
     var thickness_b = parseFloat(document.getElementById('mat-thickness-b').value);
     if (isNaN(thickness_r) || isNaN(thickness_g) || isNaN(thickness_b)) { logStatus('Invalid thickness values'); return; }
+    if (thickness_r < 0 || thickness_g < 0 || thickness_b < 0) { logStatus('Thickness cannot be negative'); return; }
     var targetSelect = document.getElementById('targetSelect');
     var target_standard = targetSelect.value;
     var target_xy = null;
@@ -1510,6 +1518,7 @@ function startEmissionOptimization() {
         parseFloat(document.getElementById('em-thickness-b').value)
     ];
     if (thicknesses.some(isNaN)) { logStatus('Please enter valid thickness values'); return; }
+    if (thicknesses.some(function(t) { return t < 0; })) { logStatus('Thickness cannot be negative'); return; }
     var peak_ranges = [
         [parseFloat(document.getElementById('em-peak-min-r').value), parseFloat(document.getElementById('em-peak-max-r').value)],
         [parseFloat(document.getElementById('em-peak-min-g').value), parseFloat(document.getElementById('em-peak-max-g').value)],
@@ -1640,7 +1649,6 @@ function renderEmissionChart(results) {
 }
 
 /* Patch refreshData to also populate material candidates */
-var _origRefreshData = refreshData;
 refreshData = function() {
     callApi('optimizer_get_initial_data').then(function(data) {
         setLoading(false);
@@ -1699,6 +1707,16 @@ function startOptPolling() {
                         var emBest = (result.results || [])[0];
                         updateEmProgress(100, 'Best coverage: ' + (emBest ? Number(emBest.coverage).toFixed(2) : '-') + '%');
                         logStatus('Emission optimization complete');
+                    } else if (_activeFilter === 'sensitivity' && result.results) {
+                        /* Sensitivity all-channels result (results is a dict, not a list) */
+                        allChannelData = result;
+                        renderAllChannelChart(result);
+                        var scanDom = document.getElementById('scan-chart');
+                        var sensDom = document.getElementById('sensitivity-chart');
+                        if (scanDom) scanDom.style.display = 'none';
+                        if (sensDom) sensDom.style.display = 'block';
+                        updateProgress(100, 'Scan curves generated');
+                        logStatus('Scan curves ready');
                     } else if (result.points) {
                         /* Sensitivity single-channel result */
                         var ch = _pendingSensChannel || 'R';
@@ -1710,7 +1728,7 @@ function startOptPolling() {
                         renderSensitivityChart(result.points || [], _pendingSensMetric || getCurrentSensTab());
                         updateProgress(100, 'Sensitivity complete');
                         logStatus('Sensitivity complete');
-                    } else if (result.results) {
+                    } else if (result.results && Array.isArray(result.results)) {
                         /* Default: Filter 1 */
                         renderResults(result.results || [], result.best);
                         updateProgress(100, 'Best coverage: ' + (result.best ? Number(result.best.coverage).toFixed(2) : '-') + '%');

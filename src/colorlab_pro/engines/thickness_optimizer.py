@@ -670,10 +670,15 @@ def sensitivity_all_channels(
     results: dict[str, list[dict]] = {}
     for ch_idx in range(3):
         ch_name = ["R", "G", "B"][ch_idx]
+
+        def _cumulative_cb(pct: int, _ch_idx: int = ch_idx) -> None:
+            if progress_callback:
+                progress_callback(int((_ch_idx * 100 + pct) / 3))
+
         points = sensitivity_analysis(
             sources, cfs, bounds, base_thicknesses, ch_idx, target_xy,
             target_standard=target_standard, steps=steps,
-            progress_callback=progress_callback,
+            progress_callback=_cumulative_cb,
             cancel_check=cancel_check,
         )
         results[ch_name] = points
